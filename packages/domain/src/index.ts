@@ -173,3 +173,9 @@ export {
   type NotificationRepository,
   type NotificationType
 } from "./notification.js";
+
+export {
+  calculateDemoContentHealth,
+  type ContentHealthScore,
+  type ContentHealthStatus
+} from "./content-health.js";
