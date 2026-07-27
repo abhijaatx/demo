@@ -179,3 +179,20 @@ export {
   type ContentHealthScore,
   type ContentHealthStatus
 } from "./content-health.js";
+
+export {
+  AssetNotFoundError,
+  AssetStoreError,
+  AssetValidationError,
+  assetStatuses,
+  assetTypes,
+  inferAssetType,
+  parseCreateAssetInput,
+  type Asset,
+  type AssetRepository,
+  type AssetStatus,
+  type AssetType,
+  type CreateAssetInput,
+  type ObjectStorageAdapter,
+  type PresignedUploadResult
+} from "./asset.js";

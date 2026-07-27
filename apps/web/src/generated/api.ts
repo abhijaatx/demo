@@ -3578,6 +3578,143 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/workspaces/{workspaceId}/assets/presign-upload": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Create presigned upload URL for asset */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          workspaceId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateAssetInput"];
+        };
+      };
+      responses: {
+        /** @description Presigned upload details */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              asset: components["schemas"]["Asset"];
+              /** Format: uri */
+              uploadUrl: string;
+              expiresInSeconds: number;
+              headers: {
+                [key: string]: string;
+              };
+            };
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/workspaces/{workspaceId}/assets/{assetId}/complete": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Complete asset upload */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          workspaceId: string;
+          assetId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": {
+            checksumSha256?: string;
+          };
+        };
+      };
+      responses: {
+        /** @description Asset marked as ready */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Asset"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/workspaces/{workspaceId}/assets/{assetId}/presign-download": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get presigned download URL for asset */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          workspaceId: string;
+          assetId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Presigned download URL */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              /** Format: uri */
+              downloadUrl: string;
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/openapi.json": {
     parameters: {
       query?: never;
@@ -3907,6 +4044,39 @@ export interface components {
       readAt: string | null;
       /** Format: date-time */
       createdAt: string;
+    };
+    Asset: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      workspaceId: string;
+      /** Format: uuid */
+      uploaderUserId: string;
+      /** @enum {string} */
+      type: "image" | "video" | "audio" | "document" | "screenshot";
+      /** @enum {string} */
+      status: "upload_pending" | "ready" | "failed" | "deleted";
+      fileName: string;
+      mimeType: string;
+      sizeInBytes: number;
+      storagePath: string;
+      checksumSha256: string;
+      width: number | null;
+      height: number | null;
+      durationSeconds: number | null;
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: date-time */
+      updatedAt: string;
+    };
+    CreateAssetInput: {
+      fileName: string;
+      mimeType: string;
+      sizeInBytes: number;
+      checksumSha256: string;
+      width?: number;
+      height?: number;
+      durationSeconds?: number;
     };
     HealthResponse: {
       /** @enum {string} */

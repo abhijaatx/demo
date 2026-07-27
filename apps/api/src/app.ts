@@ -62,10 +62,14 @@ import {
   NotificationNotFoundError,
   NotificationValidationError,
   parseMarkNotificationReadInput,
+  AssetNotFoundError,
+  AssetValidationError,
+  parseCreateAssetInput,
   UserProfileStoreError,
   UserProfileValidationError,
   type CommentRepository,
   type NotificationRepository,
+  type AssetRepository,
   type UserProfileRepository,
   type WorkspaceRepository,
   type InvitationDelivery,
@@ -116,6 +120,7 @@ export interface ApiServerOptions {
   readonly tagRepository?: TagRepository;
   readonly commentRepository?: CommentRepository;
   readonly notificationRepository?: NotificationRepository;
+  readonly assetRepository?: AssetRepository;
   readonly invitationDelivery?: InvitationDelivery;
   readonly logger?: Logger;
   readonly metrics?: Metrics;
@@ -379,6 +384,12 @@ async function handleRequest(
       context.requestId,
       url.searchParams
     );
+    return;
+  }
+
+  const assetRoute = resolveAssetRoute(path);
+  if (assetRoute) {
+    await handleAssetRequest(request, response, options, method, assetRoute, context.requestId);
     return;
   }
 
@@ -2047,6 +2058,185 @@ async function handleNotificationRequest(
       503,
       "notification_unavailable",
       "Notifications are temporarily unavailable. Try again later.",
+      requestId
+    );
+  }
+}
+
+type AssetRoute =
+  | { readonly kind: "presignUpload"; readonly workspaceId: string }
+  | { readonly kind: "complete"; readonly workspaceId: string; readonly assetId: string }
+  | { readonly kind: "presignDownload"; readonly workspaceId: string; readonly assetId: string }
+  | { readonly kind: "asset"; readonly workspaceId: string; readonly assetId: string };
+
+function resolveAssetRoute(path: string): AssetRoute | undefined {
+  const presignUpload = new RegExp(
+    `^${API_V1_PREFIX}/workspaces/([^/]+)/assets/presign-upload$`,
+    "u"
+  ).exec(path);
+  if (presignUpload) return { kind: "presignUpload", workspaceId: presignUpload[1]! };
+
+  const complete = new RegExp(
+    `^${API_V1_PREFIX}/workspaces/([^/]+)/assets/([^/]+)/complete$`,
+    "u"
+  ).exec(path);
+  if (complete) return { kind: "complete", workspaceId: complete[1]!, assetId: complete[2]! };
+
+  const presignDownload = new RegExp(
+    `^${API_V1_PREFIX}/workspaces/([^/]+)/assets/([^/]+)/presign-download$`,
+    "u"
+  ).exec(path);
+  if (presignDownload)
+    return {
+      kind: "presignDownload",
+      workspaceId: presignDownload[1]!,
+      assetId: presignDownload[2]!
+    };
+
+  const asset = new RegExp(`^${API_V1_PREFIX}/workspaces/([^/]+)/assets/([^/]+)$`, "u").exec(path);
+  if (asset) return { kind: "asset", workspaceId: asset[1]!, assetId: asset[2]! };
+
+  return undefined;
+}
+
+async function handleAssetRequest(
+  request: IncomingMessage,
+  response: ServerResponse,
+  options: ApiServerOptions,
+  method: string,
+  route: AssetRoute,
+  requestId: string
+): Promise<void> {
+  if (!options.assetRepository) {
+    sendError(
+      response,
+      503,
+      "assets_unavailable",
+      "Asset storage service is not configured.",
+      requestId
+    );
+    return;
+  }
+  try {
+    let identity;
+    try {
+      identity = await authenticateProtectedRequest(request, options);
+    } catch (error) {
+      request.resume();
+      if (error instanceof AuthenticationError) {
+        sendError(response, 401, error.code, error.message, requestId);
+        return;
+      }
+      sendError(response, 401, "invalid_token", "Authentication is required.", requestId);
+      return;
+    }
+    if (!identity.identity.email) {
+      request.resume();
+      sendError(
+        response,
+        503,
+        "asset_unavailable",
+        "Asset storage is temporarily unavailable. Try again later.",
+        requestId
+      );
+      return;
+    }
+    if (!options.userProfileRepository) {
+      sendError(
+        response,
+        503,
+        "profile_unavailable",
+        "User profiles service is not configured.",
+        requestId
+      );
+      return;
+    }
+    const profile = await options.userProfileRepository.syncIdentity({
+      subject: identity.identity.subject,
+      email: identity.identity.email
+    });
+
+    if (route.kind === "presignUpload" && method === "POST") {
+      const body = await readJsonObjectBody(request);
+      const input = parseCreateAssetInput(body);
+      const presigned = await options.assetRepository.createPresignedUpload(
+        profile.userId,
+        route.workspaceId,
+        input
+      );
+      sendJson(response, 201, presigned);
+      return;
+    }
+
+    if (route.kind === "complete" && method === "POST") {
+      const body = await readJsonObjectBody(request);
+      const checksumSha256 =
+        typeof body["checksumSha256"] === "string" ? body["checksumSha256"] : undefined;
+      const asset = await options.assetRepository.completeUpload(
+        profile.userId,
+        route.workspaceId,
+        route.assetId,
+        checksumSha256
+      );
+      sendJson(response, 200, asset);
+      return;
+    }
+
+    if (route.kind === "presignDownload" && method === "GET") {
+      const downloadUrl = await options.assetRepository.getPresignedDownloadUrl(
+        profile.userId,
+        route.workspaceId,
+        route.assetId
+      );
+      sendJson(response, 200, { downloadUrl });
+      return;
+    }
+
+    if (route.kind === "asset" && method === "GET") {
+      const asset = await options.assetRepository.getById(
+        profile.userId,
+        route.workspaceId,
+        route.assetId
+      );
+      sendJson(response, 200, asset);
+      return;
+    }
+
+    if (route.kind === "asset" && method === "DELETE") {
+      const success = await options.assetRepository.deleteAsset(
+        profile.userId,
+        route.workspaceId,
+        route.assetId
+      );
+      if (!success) throw new AssetNotFoundError();
+      sendJson(response, 200, { success: true });
+      return;
+    }
+
+    sendError(response, 405, "method_not_allowed", "Method not allowed.", requestId);
+  } catch (error) {
+    if (error instanceof AuthenticationError) {
+      request.resume();
+      sendError(response, 401, error.code, error.message, requestId);
+      return;
+    }
+    if (error instanceof AuthorizationDeniedError) {
+      sendError(response, 403, "forbidden", error.message, requestId);
+      return;
+    }
+    if (error instanceof AssetNotFoundError) {
+      sendError(response, 404, "not_found", (error as Error).message, requestId);
+      return;
+    }
+    if (error instanceof AssetValidationError) {
+      sendError(response, 400, "invalid_asset_request", (error as Error).message, requestId);
+      return;
+    }
+    sendError(
+      response,
+      503,
+      "asset_unavailable",
+      "Asset storage is temporarily unavailable. Try again later.",
       requestId
     );
   }

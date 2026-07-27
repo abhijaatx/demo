@@ -1363,6 +1363,105 @@ registry.registerPath({
   }
 });
 
+const AssetSchema = z
+  .object({
+    id: z.string().uuid(),
+    workspaceId: z.string().uuid(),
+    uploaderUserId: z.string().uuid(),
+    type: z.enum(["image", "video", "audio", "document", "screenshot"]),
+    status: z.enum(["upload_pending", "ready", "failed", "deleted"]),
+    fileName: z.string().min(1).max(255),
+    mimeType: z.string().min(1),
+    sizeInBytes: z.number().int().positive(),
+    storagePath: z.string().min(1),
+    checksumSha256: z.string().length(64),
+    width: z.number().int().positive().nullable(),
+    height: z.number().int().positive().nullable(),
+    durationSeconds: z.number().positive().nullable(),
+    createdAt: z.string().datetime(),
+    updatedAt: z.string().datetime()
+  })
+  .strict()
+  .openapi("Asset");
+
+const CreateAssetSchema = z
+  .object({
+    fileName: z.string().min(1).max(255),
+    mimeType: z.string().min(1),
+    sizeInBytes: z.number().int().positive(),
+    checksumSha256: z.string().length(64),
+    width: z.number().int().positive().optional(),
+    height: z.number().int().positive().optional(),
+    durationSeconds: z.number().positive().optional()
+  })
+  .strict()
+  .openapi("CreateAssetInput");
+
+registry.register("Asset", AssetSchema);
+registry.register("CreateAssetInput", CreateAssetSchema);
+
+registry.registerPath({
+  method: "post",
+  path: "/api/v1/workspaces/{workspaceId}/assets/presign-upload",
+  summary: "Create presigned upload URL for asset",
+  request: {
+    params: z.object({ workspaceId: z.string().uuid() }),
+    body: { content: { "application/json": { schema: CreateAssetSchema } } }
+  },
+  responses: {
+    201: {
+      description: "Presigned upload details",
+      content: {
+        "application/json": {
+          schema: z.object({
+            asset: AssetSchema,
+            uploadUrl: z.string().url(),
+            expiresInSeconds: z.number().int(),
+            headers: z.record(z.string(), z.string())
+          })
+        }
+      }
+    }
+  }
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/v1/workspaces/{workspaceId}/assets/{assetId}/complete",
+  summary: "Complete asset upload",
+  request: {
+    params: z.object({ workspaceId: z.string().uuid(), assetId: z.string().uuid() }),
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({ checksumSha256: z.string().length(64).optional() })
+        }
+      }
+    }
+  },
+  responses: {
+    200: {
+      description: "Asset marked as ready",
+      content: { "application/json": { schema: AssetSchema } }
+    }
+  }
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/v1/workspaces/{workspaceId}/assets/{assetId}/presign-download",
+  summary: "Get presigned download URL for asset",
+  request: {
+    params: z.object({ workspaceId: z.string().uuid(), assetId: z.string().uuid() })
+  },
+  responses: {
+    200: {
+      description: "Presigned download URL",
+      content: { "application/json": { schema: z.object({ downloadUrl: z.string().url() }) } }
+    }
+  }
+});
+
 registry.registerPath({
   method: "get",
   path: "/api/v1/openapi.json",
