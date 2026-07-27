@@ -53,8 +53,15 @@ import {
   WorkspaceConflictError,
   WorkspaceStoreError,
   WorkspaceValidationError,
+  CommentNotFoundError,
+  CommentValidationError,
+  parseCreateCommentInput,
+  parseToggleCommentReactionInput,
+  parseToggleResolveCommentInput,
+  parseUpdateCommentInput,
   UserProfileStoreError,
   UserProfileValidationError,
+  type CommentRepository,
   type UserProfileRepository,
   type WorkspaceRepository,
   type InvitationDelivery,
@@ -103,6 +110,7 @@ export interface ApiServerOptions {
   readonly demoRepository?: DemoRepository;
   readonly folderRepository?: FolderRepository;
   readonly tagRepository?: TagRepository;
+  readonly commentRepository?: CommentRepository;
   readonly invitationDelivery?: InvitationDelivery;
   readonly logger?: Logger;
   readonly metrics?: Metrics;
@@ -338,6 +346,20 @@ async function handleRequest(
   }
   if (resolveTagRoute(path)) {
     await handleTagRequest(request, response, options, path, context.requestId);
+    return;
+  }
+
+  const commentRoute = resolveCommentRoute(path);
+  if (commentRoute) {
+    await handleCommentRequest(
+      request,
+      response,
+      options,
+      method,
+      commentRoute,
+      context.requestId,
+      url.searchParams
+    );
     return;
   }
 
@@ -1658,6 +1680,214 @@ async function handleTagRequest(
       503,
       "tag_unavailable",
       "Tags are temporarily unavailable. Try again later.",
+      requestId
+    );
+  }
+}
+
+type CommentRoute =
+  | { readonly kind: "collection"; readonly workspaceId: string }
+  | { readonly kind: "comment"; readonly workspaceId: string; readonly commentId: string }
+  | { readonly kind: "resolve"; readonly workspaceId: string; readonly commentId: string }
+  | { readonly kind: "reactions"; readonly workspaceId: string; readonly commentId: string };
+
+function resolveCommentRoute(path: string): CommentRoute | undefined {
+  const collection = new RegExp(`^${API_V1_PREFIX}/workspaces/([^/]+)/comments$`, "u").exec(path);
+  if (collection) return { kind: "collection", workspaceId: collection[1]! };
+  const resolve = new RegExp(
+    `^${API_V1_PREFIX}/workspaces/([^/]+)/comments/([^/]+)/resolve$`,
+    "u"
+  ).exec(path);
+  if (resolve) return { kind: "resolve", workspaceId: resolve[1]!, commentId: resolve[2]! };
+  const reactions = new RegExp(
+    `^${API_V1_PREFIX}/workspaces/([^/]+)/comments/([^/]+)/reactions$`,
+    "u"
+  ).exec(path);
+  if (reactions) return { kind: "reactions", workspaceId: reactions[1]!, commentId: reactions[2]! };
+  const comment = new RegExp(`^${API_V1_PREFIX}/workspaces/([^/]+)/comments/([^/]+)$`, "u").exec(
+    path
+  );
+  if (comment) return { kind: "comment", workspaceId: comment[1]!, commentId: comment[2]! };
+  return undefined;
+}
+
+async function handleCommentRequest(
+  request: IncomingMessage,
+  response: ServerResponse,
+  options: ApiServerOptions,
+  method: string,
+  route: CommentRoute,
+  requestId: string,
+  searchParams: URLSearchParams
+): Promise<void> {
+  if (!options.commentRepository) {
+    sendError(
+      response,
+      503,
+      "comments_unavailable",
+      "Comments service is not configured.",
+      requestId
+    );
+    return;
+  }
+  try {
+    let identity;
+    try {
+      identity = await authenticateProtectedRequest(request, options);
+    } catch (error) {
+      request.resume();
+      if (error instanceof AuthenticationError) {
+        sendError(response, 401, error.code, error.message, requestId);
+        return;
+      }
+      sendError(response, 401, "invalid_token", "Authentication is required.", requestId);
+      return;
+    }
+    if (!identity.identity.email) {
+      request.resume();
+      sendError(
+        response,
+        503,
+        "comment_unavailable",
+        "Comments are temporarily unavailable. Try again later.",
+        requestId
+      );
+      return;
+    }
+    if (!options.userProfileRepository) {
+      sendError(
+        response,
+        503,
+        "profile_unavailable",
+        "User profiles service is not configured.",
+        requestId
+      );
+      return;
+    }
+    const profile = await options.userProfileRepository.syncIdentity({
+      subject: identity.identity.subject,
+      email: identity.identity.email
+    });
+    if (route.kind === "collection") {
+      if (method === "GET") {
+        const targetType = searchParams.get("targetType");
+        const targetId = searchParams.get("targetId");
+        if (targetType !== "demo" && targetType !== "step") {
+          sendError(
+            response,
+            400,
+            "invalid_comment_request",
+            "Valid targetType query parameter is required.",
+            requestId
+          );
+          return;
+        }
+        if (!targetId) {
+          sendError(
+            response,
+            400,
+            "invalid_comment_request",
+            "targetId query parameter is required.",
+            requestId
+          );
+          return;
+        }
+        const comments = await options.commentRepository.list(
+          profile.userId,
+          route.workspaceId,
+          targetType,
+          targetId
+        );
+        sendJson(response, 200, comments);
+        return;
+      }
+      if (method === "POST") {
+        const key = request.headers["idempotency-key"];
+        const comment = await options.commentRepository.create(
+          profile.userId,
+          route.workspaceId,
+          parseCreateCommentInput(await readJsonObjectBody(request)),
+          normalizeIdempotencyKey(key)
+        );
+        sendJson(response, 201, comment);
+        return;
+      }
+    }
+    if (route.kind === "comment") {
+      if (method === "PATCH") {
+        const updated = await options.commentRepository.update(
+          profile.userId,
+          route.workspaceId,
+          route.commentId,
+          parseUpdateCommentInput(await readJsonObjectBody(request))
+        );
+        if (!updated) {
+          sendError(response, 404, "not_found", "The comment was not found.", requestId);
+          return;
+        }
+        sendJson(response, 200, updated);
+        return;
+      }
+      if (method === "DELETE") {
+        await options.commentRepository.delete(profile.userId, route.workspaceId, route.commentId);
+        sendJson(response, 200, { success: true });
+        return;
+      }
+    }
+    if (route.kind === "resolve" && method === "POST") {
+      const input = parseToggleResolveCommentInput(await readJsonObjectBody(request));
+      const resolved = await options.commentRepository.toggleResolve(
+        profile.userId,
+        route.workspaceId,
+        route.commentId,
+        input.isResolved
+      );
+      if (!resolved) {
+        sendError(response, 404, "not_found", "The comment was not found.", requestId);
+        return;
+      }
+      sendJson(response, 200, resolved);
+      return;
+    }
+    if (route.kind === "reactions" && method === "POST") {
+      const input = parseToggleCommentReactionInput(await readJsonObjectBody(request));
+      const reacted = await options.commentRepository.toggleReaction(
+        profile.userId,
+        route.workspaceId,
+        route.commentId,
+        input.emoji
+      );
+      if (!reacted) {
+        sendError(response, 404, "not_found", "The comment was not found.", requestId);
+        return;
+      }
+      sendJson(response, 200, reacted);
+      return;
+    }
+    sendError(response, 405, "method_not_allowed", "Method not allowed.", requestId);
+  } catch (error) {
+    if (error instanceof AuthenticationError) {
+      request.resume();
+      sendError(response, 401, error.code, error.message, requestId);
+      return;
+    }
+    if (error instanceof AuthorizationDeniedError) {
+      sendError(response, 403, "forbidden", error.message, requestId);
+      return;
+    }
+    if (error instanceof CommentNotFoundError) {
+      sendError(response, 404, "not_found", (error as Error).message, requestId);
+      return;
+    }
+    if (error instanceof CommentValidationError) {
+      sendError(response, 400, "invalid_comment_request", (error as Error).message, requestId);
+      return;
+    }
+    sendError(
+      response,
+      503,
+      "comment_unavailable",
+      "Comments are temporarily unavailable. Try again later.",
       requestId
     );
   }

@@ -138,3 +138,23 @@ export {
   type TenantScope,
   type TenantScopedRepository
 } from "./tenant.js";
+
+export {
+  CommentNotFoundError,
+  CommentStoreError,
+  CommentValidationError,
+  commentTargetTypes,
+  normalizeCommentId,
+  parseCreateCommentInput,
+  parseToggleCommentReactionInput,
+  parseToggleResolveCommentInput,
+  parseUpdateCommentInput,
+  type Comment,
+  type CommentReaction,
+  type CommentRepository,
+  type CommentTargetType,
+  type CreateCommentInput,
+  type ToggleCommentReactionInput,
+  type ToggleResolveCommentInput,
+  type UpdateCommentInput
+} from "./comment.js";

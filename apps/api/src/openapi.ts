@@ -1115,6 +1115,170 @@ registry.registerPath({
   }
 });
 
+const CommentReactionSchema = z
+  .object({
+    emoji: z.string().min(1).max(16),
+    userIds: z.array(z.string().uuid())
+  })
+  .strict()
+  .openapi("CommentReaction");
+
+const CommentSchema = z
+  .object({
+    id: z.string().uuid(),
+    workspaceId: z.string().uuid(),
+    targetType: z.enum(["demo", "step"]),
+    targetId: z.string().uuid(),
+    threadId: z.string().uuid(),
+    parentId: z.string().uuid().nullable(),
+    authorUserId: z.string().uuid(),
+    content: z.string().min(1).max(2000),
+    mentions: z.array(z.string().uuid()),
+    reactions: z.array(CommentReactionSchema),
+    isResolved: z.boolean(),
+    resolvedByUserId: z.string().uuid().nullable(),
+    resolvedAt: z.string().datetime().nullable(),
+    createdAt: z.string().datetime(),
+    updatedAt: z.string().datetime(),
+    deletedAt: z.string().datetime().nullable()
+  })
+  .strict()
+  .openapi("Comment");
+
+const CreateCommentSchema = z
+  .object({
+    targetType: z.enum(["demo", "step"]),
+    targetId: z.string().uuid(),
+    content: z.string().min(1).max(2000),
+    parentId: z.string().uuid().nullable().optional(),
+    mentions: z.array(z.string().uuid()).max(10).optional()
+  })
+  .strict()
+  .openapi("CreateComment");
+
+const UpdateCommentSchema = z
+  .object({
+    content: z.string().min(1).max(2000)
+  })
+  .strict()
+  .openapi("UpdateComment");
+
+const ToggleResolveCommentSchema = z
+  .object({
+    isResolved: z.boolean()
+  })
+  .strict()
+  .openapi("ToggleResolveComment");
+
+const ToggleCommentReactionSchema = z
+  .object({
+    emoji: z.string().min(1).max(16)
+  })
+  .strict()
+  .openapi("ToggleCommentReaction");
+
+registry.register("CommentReaction", CommentReactionSchema);
+registry.register("Comment", CommentSchema);
+registry.register("CreateComment", CreateCommentSchema);
+registry.register("UpdateComment", UpdateCommentSchema);
+registry.register("ToggleResolveComment", ToggleResolveCommentSchema);
+registry.register("ToggleCommentReaction", ToggleCommentReactionSchema);
+
+registry.registerPath({
+  method: "get",
+  path: "/api/v1/workspaces/{workspaceId}/comments",
+  summary: "List target comments",
+  request: {
+    params: z.object({ workspaceId: z.string().uuid() }),
+    query: z.object({ targetType: z.enum(["demo", "step"]), targetId: z.string().uuid() })
+  },
+  responses: {
+    200: {
+      description: "List of comments",
+      content: { "application/json": { schema: z.array(CommentSchema) } }
+    }
+  }
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/v1/workspaces/{workspaceId}/comments",
+  summary: "Create comment",
+  request: {
+    params: z.object({ workspaceId: z.string().uuid() }),
+    body: { content: { "application/json": { schema: CreateCommentSchema } } }
+  },
+  responses: {
+    201: {
+      description: "Created comment",
+      content: { "application/json": { schema: CommentSchema } }
+    }
+  }
+});
+
+registry.registerPath({
+  method: "patch",
+  path: "/api/v1/workspaces/{workspaceId}/comments/{commentId}",
+  summary: "Update comment",
+  request: {
+    params: z.object({ workspaceId: z.string().uuid(), commentId: z.string().uuid() }),
+    body: { content: { "application/json": { schema: UpdateCommentSchema } } }
+  },
+  responses: {
+    200: {
+      description: "Updated comment",
+      content: { "application/json": { schema: CommentSchema } }
+    }
+  }
+});
+
+registry.registerPath({
+  method: "delete",
+  path: "/api/v1/workspaces/{workspaceId}/comments/{commentId}",
+  summary: "Delete comment",
+  request: {
+    params: z.object({ workspaceId: z.string().uuid(), commentId: z.string().uuid() })
+  },
+  responses: {
+    200: {
+      description: "Comment deleted",
+      content: { "application/json": { schema: z.object({ success: z.literal(true) }) } }
+    }
+  }
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/v1/workspaces/{workspaceId}/comments/{commentId}/resolve",
+  summary: "Toggle resolve state",
+  request: {
+    params: z.object({ workspaceId: z.string().uuid(), commentId: z.string().uuid() }),
+    body: { content: { "application/json": { schema: ToggleResolveCommentSchema } } }
+  },
+  responses: {
+    200: {
+      description: "Comment resolve toggled",
+      content: { "application/json": { schema: CommentSchema } }
+    }
+  }
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/v1/workspaces/{workspaceId}/comments/{commentId}/reactions",
+  summary: "Toggle reaction",
+  request: {
+    params: z.object({ workspaceId: z.string().uuid(), commentId: z.string().uuid() }),
+    body: { content: { "application/json": { schema: ToggleCommentReactionSchema } } }
+  },
+  responses: {
+    200: {
+      description: "Reaction toggled",
+      content: { "application/json": { schema: CommentSchema } }
+    }
+  }
+});
+
 registry.registerPath({
   method: "get",
   path: "/api/v1/openapi.json",

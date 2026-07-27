@@ -3229,6 +3229,228 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/workspaces/{workspaceId}/comments": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List target comments */
+    get: {
+      parameters: {
+        query: {
+          targetType: "demo" | "step";
+          targetId: string;
+        };
+        header?: never;
+        path: {
+          workspaceId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description List of comments */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Comment"][];
+          };
+        };
+      };
+    };
+    put?: never;
+    /** Create comment */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          workspaceId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateComment"];
+        };
+      };
+      responses: {
+        /** @description Created comment */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Comment"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/workspaces/{workspaceId}/comments/{commentId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Delete comment */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          workspaceId: string;
+          commentId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Comment deleted */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              /** @enum {boolean} */
+              success: true;
+            };
+          };
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    /** Update comment */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          workspaceId: string;
+          commentId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateComment"];
+        };
+      };
+      responses: {
+        /** @description Updated comment */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Comment"];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  "/api/v1/workspaces/{workspaceId}/comments/{commentId}/resolve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Toggle resolve state */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          workspaceId: string;
+          commentId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ToggleResolveComment"];
+        };
+      };
+      responses: {
+        /** @description Comment resolve toggled */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Comment"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/workspaces/{workspaceId}/comments/{commentId}/reactions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Toggle reaction */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          workspaceId: string;
+          commentId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ToggleCommentReaction"];
+        };
+      };
+      responses: {
+        /** @description Reaction toggled */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Comment"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/openapi.json": {
     parameters: {
       query?: never;
@@ -3476,6 +3698,59 @@ export interface components {
     };
     TagCreate: {
       name: string;
+    };
+    CommentReaction: {
+      emoji: string;
+      userIds: string[];
+    };
+    Comment: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      workspaceId: string;
+      /** @enum {string} */
+      targetType: "demo" | "step";
+      /** Format: uuid */
+      targetId: string;
+      /** Format: uuid */
+      threadId: string;
+      /** Format: uuid */
+      parentId: string | null;
+      /** Format: uuid */
+      authorUserId: string;
+      content: string;
+      mentions: string[];
+      reactions: components["schemas"]["CommentReaction"][];
+      isResolved: boolean;
+      /** Format: uuid */
+      resolvedByUserId: string | null;
+      /** Format: date-time */
+      resolvedAt: string | null;
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: date-time */
+      updatedAt: string;
+      /** Format: date-time */
+      deletedAt: string | null;
+    };
+    CreateComment: {
+      /** @enum {string} */
+      targetType: "demo" | "step";
+      /** Format: uuid */
+      targetId: string;
+      content: string;
+      /** Format: uuid */
+      parentId?: string | null;
+      mentions?: string[];
+    };
+    UpdateComment: {
+      content: string;
+    };
+    ToggleResolveComment: {
+      isResolved: boolean;
+    };
+    ToggleCommentReaction: {
+      emoji: string;
     };
     HealthResponse: {
       /** @enum {string} */
