@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "route": "/workbench",
+  "viewports": [
+    { "name": "creator-desktop", "width": 1280, "height": 720 },
+    { "name": "creator-mobile", "width": 390, "height": 844 }
+  ],
+  "themes": ["light", "dark"],
+  "states": ["simple", "advanced", "loading", "error", "empty", "disabled"],
+  "selectors": [
+    "[data-workbench-section=controls]",
+    "[data-workbench-section=feedback]",
+    "[data-workbench-section=data]",
+    "[data-workbench-section=media]",
+    "[data-workbench-section=disclosure]"
+  ],
+  "determinism": {
+    "network": "blocked",
+    "animations": "reduced",
+    "locale": "en-US",
+    "clock": "fixed",
+    "randomness": "seeded"
+  }
+}

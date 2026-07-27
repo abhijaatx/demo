@@ -1,0 +1,1369 @@
+"use client";
+
+import {
+  Badge,
+  Button,
+  EmptyState,
+  InlineAlert,
+  Modal,
+  Pagination,
+  Select,
+  Skeleton,
+  Textarea,
+  Input
+} from "@supademo/ui";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  createDemoClient,
+  type CreateDemoInput,
+  type Demo,
+  type DemoClient,
+  type DemoStatus,
+  type DemoType
+} from "../src/lib/demo-client";
+import { createFolderClient, type Folder, type FolderClient } from "../src/lib/folder-client";
+import { createTagClient, type Tag, type TagClient } from "../src/lib/tag-client";
+import {
+  createWorkspaceClient,
+  type WorkspaceClient,
+  type WorkspaceSummary
+} from "../src/lib/workspace-client";
+
+const pageSize = 20;
+const viewValues = ["grid", "list"] as const;
+const sortValues = ["updated", "title", "status"] as const;
+const demoTypeValues = ["guided_html", "screenshot", "video", "sandbox"] as const;
+const demoStatusValues = [
+  "draft",
+  "processing",
+  "published",
+  "failed",
+  "needs_update",
+  "archived"
+] as const;
+
+type DashboardStatus = "loading" | "ready" | "error" | "denied";
+type DashboardSort = (typeof sortValues)[number];
+
+export interface DemoDashboardScreenProps {
+  readonly demoClient?: DemoClient;
+  readonly workspaceClient?: WorkspaceClient;
+  readonly folderClient?: FolderClient;
+  readonly tagClient?: TagClient;
+}
+
+export function DemoDashboardScreen({
+  demoClient,
+  workspaceClient,
+  folderClient,
+  tagClient
+}: DemoDashboardScreenProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const demoRef = useRef<DemoClient>(demoClient ?? createDemoClient());
+  const workspaceRef = useRef<WorkspaceClient>(workspaceClient ?? createWorkspaceClient());
+  const folderRef = useRef<FolderClient>(folderClient ?? createFolderClient());
+  const tagRef = useRef<TagClient>(tagClient ?? createTagClient());
+  const requestSequence = useRef(0);
+  const [workspace, setWorkspace] = useState<WorkspaceSummary | null>(null);
+  const [demos, setDemos] = useState<readonly Demo[]>([]);
+  const [folders, setFolders] = useState<readonly Folder[]>([]);
+  const [tags, setTags] = useState<readonly Tag[]>([]);
+  const [status, setStatus] = useState<DashboardStatus>("loading");
+  const [error, setError] = useState<string | undefined>();
+  const [message, setMessage] = useState<string | undefined>();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [type, setType] = useState<DemoType>("guided_html");
+  const [folderOpen, setFolderOpen] = useState(false);
+  const [editFolderOpen, setEditFolderOpen] = useState(false);
+  const [deleteFolderOpen, setDeleteFolderOpen] = useState(false);
+  const [folderName, setFolderName] = useState("");
+  const [savingFolder, setSavingFolder] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [tagName, setTagName] = useState("");
+  const [savingTag, setSavingTag] = useState(false);
+  const [taggingDemo, setTaggingDemo] = useState<Demo | null>(null);
+  const [selectedTagId, setSelectedTagId] = useState("");
+  const [savingTagAssignment, setSavingTagAssignment] = useState(false);
+  const [dragged, setDragged] = useState<{
+    readonly kind: "demo" | "folder";
+    readonly id: string;
+  }>();
+
+  const view = parseValue(searchParams.get("view"), viewValues, "grid");
+  const sort = parseValue(searchParams.get("sort"), sortValues, "updated");
+  const currentPage = parsePage(searchParams.get("page"));
+  const query = (searchParams.get("q") ?? "").slice(0, 200);
+  const ownerUserId = searchParams.get("owner") ?? "";
+  const typeFilter = parseOptionalValue(searchParams.get("type"), demoTypeValues);
+  const statusFilter = parseOptionalValue(searchParams.get("status"), demoStatusValues);
+  const tagParam = searchParams.get("tag") ?? "";
+  const tagIds = useMemo(() => parseTagIds(tagParam), [tagParam]);
+  const updatedAfter = parseDate(searchParams.get("updatedAfter"));
+  const updatedBefore = parseDate(searchParams.get("updatedBefore"));
+  const selectedFolderParam = searchParams.get("folder");
+  const [searchDraft, setSearchDraft] = useState(query);
+
+  const serverFilters = useMemo(
+    () => ({
+      ...(query ? { query } : {}),
+      ...(ownerUserId ? { ownerUserId } : {}),
+      ...(typeFilter ? { type: typeFilter } : {}),
+      ...(statusFilter ? { status: statusFilter } : {}),
+      ...(tagIds.length ? { tagIds } : {}),
+      ...(updatedAfter ? { updatedAfter } : {}),
+      ...(updatedBefore ? { updatedBefore } : {})
+    }),
+    [ownerUserId, query, statusFilter, tagIds, typeFilter, updatedAfter, updatedBefore]
+  );
+  const filterKey = JSON.stringify(serverFilters);
+
+  const setUrlState = useCallback(
+    (changes: Readonly<Record<string, string | undefined>>) => {
+      const next = new URLSearchParams(searchParams.toString());
+      for (const [key, value] of Object.entries(changes)) {
+        if (value === undefined) next.delete(key);
+        else next.set(key, value);
+      }
+      const query = next.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
+
+  const load = useCallback(async () => {
+    const sequence = ++requestSequence.current;
+    setStatus("loading");
+    setError(undefined);
+    setMessage(undefined);
+    setDemos([]);
+    setTags([]);
+    try {
+      const current = await workspaceRef.current.getCurrent();
+      const [loaded, loadedFolders, loadedTags] = await Promise.all([
+        demoRef.current.list(current.workspaceId, serverFilters),
+        folderRef.current.list(current.workspaceId),
+        tagRef.current.list(current.workspaceId)
+      ]);
+      if (sequence !== requestSequence.current) return;
+      setWorkspace(current);
+      setDemos(loaded);
+      setFolders(loadedFolders);
+      setTags(loadedTags);
+      setStatus("ready");
+    } catch (caught) {
+      if (sequence !== requestSequence.current) return;
+      const clientError = caught instanceof Error && "status" in caught ? caught : undefined;
+      setWorkspace(null);
+      setStatus(clientError?.status === 401 || clientError?.status === 403 ? "denied" : "error");
+      setError(
+        clientError?.status === 401
+          ? "Sign in to view your demos."
+          : clientError?.status === 403
+            ? "You don’t have permission to view demos in this workspace."
+            : "Demos could not be loaded. Your existing work was not changed. Try again."
+      );
+    }
+  }, [filterKey, serverFilters]);
+
+  useEffect(() => {
+    void load();
+    const onWorkspaceChanged = () => void load();
+    window.addEventListener("supademo:workspace-changed", onWorkspaceChanged);
+    return () => window.removeEventListener("supademo:workspace-changed", onWorkspaceChanged);
+  }, [load]);
+
+  useEffect(() => {
+    if (searchParams.get("new") === "1") setCreateOpen(true);
+  }, [searchParams]);
+
+  useEffect(() => {
+    setSearchDraft(query);
+  }, [query]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      if (searchDraft !== query) {
+        setUrlState({ q: searchDraft.trim() || undefined, page: undefined });
+      }
+    }, 250);
+    return () => window.clearTimeout(timeout);
+  }, [query, searchDraft, setUrlState]);
+
+  const selectedFolderId = folders.some((folder) => folder.id === selectedFolderParam)
+    ? selectedFolderParam
+    : null;
+  const selectedFolder = folders.find((folder) => folder.id === selectedFolderId);
+  const scopedDemos = useMemo(
+    () => demos.filter((demo) => demo.folderId === selectedFolderId),
+    [demos, selectedFolderId]
+  );
+  const sortedDemos = useMemo(() => sortDemos(scopedDemos, sort), [scopedDemos, sort]);
+  const totalPages = Math.max(1, Math.ceil(sortedDemos.length / pageSize));
+  const page = Math.min(currentPage, totalPages);
+  const pageDemos = sortedDemos.slice((page - 1) * pageSize, page * pageSize);
+  const canCreate = workspace?.capabilities.includes("demo:create") ?? false;
+  const canManageFolders = workspace?.capabilities.includes("demo:update") ?? false;
+  const activeFilterCount = [
+    ownerUserId,
+    typeFilter,
+    statusFilter,
+    ...tagIds,
+    updatedAfter,
+    updatedBefore
+  ].filter(Boolean).length;
+  const hasSearchOrFilters = Boolean(query) || activeFilterCount > 0;
+
+  const closeCreate = (): void => {
+    setCreateOpen(false);
+    setTitle("");
+    setDescription("");
+    setType("guided_html");
+    if (searchParams.get("new") === "1") setUrlState({ new: undefined });
+  };
+
+  const createDemo = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
+    if (!workspace || !canCreate) return;
+    const input: CreateDemoInput = {
+      title: title.trim(),
+      description: description.trim() || null,
+      type
+    };
+    if (!input.title) {
+      setError("Enter a title before creating the demo.");
+      return;
+    }
+    setCreating(true);
+    setError(undefined);
+    setMessage(undefined);
+    try {
+      const created = await demoRef.current.create(workspace.workspaceId, input);
+      setDemos((current) => [created, ...current.filter((item) => item.id !== created.id)]);
+      setMessage(`“${created.title}” is ready to edit.`);
+      closeCreate();
+      setUrlState({ page: undefined });
+    } catch (caught) {
+      const clientError = caught instanceof Error && "status" in caught ? caught : undefined;
+      setError(
+        clientError?.status === 403
+          ? "You don’t have permission to create demos in this workspace."
+          : "The demo could not be created. Check the details and try again."
+      );
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const closeFolder = (): void => {
+    setFolderOpen(false);
+    setFolderName("");
+  };
+
+  const createFolder = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
+    if (!workspace || !canManageFolders || !folderName.trim()) return;
+    setSavingFolder(true);
+    setError(undefined);
+    try {
+      const folder = await folderRef.current.create(workspace.workspaceId, {
+        name: folderName.trim(),
+        parentId: selectedFolderId
+      });
+      setFolders((current) => [...current, folder]);
+      setMessage(`“${folder.name}” was created.`);
+      closeFolder();
+    } catch (caught) {
+      setError(
+        caught instanceof Error && "status" in caught && caught.status === 409
+          ? "That folder changed elsewhere. Refresh and try again."
+          : "The folder could not be created. Check the details and try again."
+      );
+    } finally {
+      setSavingFolder(false);
+    }
+  };
+
+  const createTag = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
+    if (!workspace || !canManageFolders || !tagName.trim()) return;
+    setSavingTag(true);
+    setError(undefined);
+    try {
+      const tag = await tagRef.current.create(workspace.workspaceId, tagName.trim());
+      setTags((current) =>
+        [...current, tag].sort((left, right) => left.name.localeCompare(right.name))
+      );
+      setTagName("");
+      setMessage(`“${tag.name}” is ready to use as a filter.`);
+    } catch (caught) {
+      setError(
+        caught instanceof Error && "status" in caught && caught.status === 409
+          ? "A tag with that name already exists."
+          : "The tag could not be created. Check the name and try again."
+      );
+    } finally {
+      setSavingTag(false);
+    }
+  };
+
+  const assignTag = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
+    if (!workspace || !taggingDemo || !selectedTagId || !canManageFolders) return;
+    setSavingTagAssignment(true);
+    setError(undefined);
+    try {
+      await tagRef.current.assignToDemo(workspace.workspaceId, selectedTagId, taggingDemo.id);
+      setMessage(`A tag was added to “${taggingDemo.title}”.`);
+      setTaggingDemo(null);
+      setSelectedTagId("");
+    } catch {
+      setError("The tag could not be added. Your demo was not changed.");
+    } finally {
+      setSavingTagAssignment(false);
+    }
+  };
+
+  const openFolderEditor = (): void => {
+    if (!selectedFolder) return;
+    setFolderName(selectedFolder.name);
+    setEditFolderOpen(true);
+  };
+
+  const updateFolder = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
+    if (!workspace || !selectedFolder || !canManageFolders || !folderName.trim()) return;
+    setSavingFolder(true);
+    setError(undefined);
+    try {
+      const updated = await folderRef.current.update(
+        workspace.workspaceId,
+        selectedFolder.id,
+        folderName.trim(),
+        selectedFolder.version
+      );
+      setFolders((current) =>
+        current.map((folder) => (folder.id === updated.id ? updated : folder))
+      );
+      setMessage("The folder was renamed.");
+      setEditFolderOpen(false);
+      setFolderName("");
+    } catch (caught) {
+      setError(
+        caught instanceof Error && "status" in caught && caught.status === 409
+          ? "This folder changed elsewhere. Refresh and try again."
+          : "The folder could not be renamed. Your existing organization was not changed."
+      );
+    } finally {
+      setSavingFolder(false);
+    }
+  };
+
+  const deleteFolder = async (): Promise<void> => {
+    if (!workspace || !selectedFolder || !canManageFolders) return;
+    setSavingFolder(true);
+    setError(undefined);
+    try {
+      await folderRef.current.delete(
+        workspace.workspaceId,
+        selectedFolder.id,
+        selectedFolder.version
+      );
+      setFolders((current) =>
+        current
+          .filter((folder) => folder.id !== selectedFolder.id)
+          .map((folder) =>
+            folder.parentId === selectedFolder.id
+              ? { ...folder, parentId: selectedFolder.parentId, version: folder.version + 1 }
+              : folder
+          )
+      );
+      setDemos((current) =>
+        current.map((demo) =>
+          demo.folderId === selectedFolder.id
+            ? { ...demo, folderId: selectedFolder.parentId }
+            : demo
+        )
+      );
+      setUrlState({ folder: selectedFolder.parentId ?? undefined, page: undefined });
+      setMessage("The folder was deleted. Its contents were preserved.");
+      setDeleteFolderOpen(false);
+    } catch (caught) {
+      setError(
+        caught instanceof Error && "status" in caught && caught.status === 409
+          ? "This folder changed elsewhere. Refresh and try again."
+          : "The folder could not be deleted. Your existing organization was not changed."
+      );
+    } finally {
+      setSavingFolder(false);
+    }
+  };
+
+  const moveItem = async (targetFolderId: string | null): Promise<void> => {
+    if (!workspace || !dragged || !canManageFolders) return;
+    try {
+      if (dragged.kind === "demo") {
+        const demo = demos.find((item) => item.id === dragged.id);
+        if (!demo || demo.folderId === targetFolderId) return;
+        await folderRef.current.assignDemo(workspace.workspaceId, demo.id, targetFolderId);
+        setDemos((current) =>
+          current.map((item) =>
+            item.id === demo.id ? { ...item, folderId: targetFolderId } : item
+          )
+        );
+      } else {
+        const folder = folders.find((item) => item.id === dragged.id);
+        if (!folder || folder.parentId === targetFolderId) return;
+        const moved = await folderRef.current.move(
+          workspace.workspaceId,
+          folder.id,
+          targetFolderId,
+          folder.version
+        );
+        setFolders((current) => current.map((item) => (item.id === moved.id ? moved : item)));
+      }
+      setMessage("The item was moved.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error && "status" in caught && caught.status === 409
+          ? "This folder changed elsewhere. Refresh and try again."
+          : "The item could not be moved. Your existing organization was not changed."
+      );
+    } finally {
+      setDragged(undefined);
+    }
+  };
+
+  if (status === "loading") return <DashboardSkeleton />;
+
+  if (status === "denied") {
+    return (
+      <div className="content-wrap demo-dashboard" role="alert">
+        <InlineAlert title="Demos unavailable">{error}</InlineAlert>
+      </div>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <div className="content-wrap demo-dashboard" role="alert">
+        <InlineAlert title="Could not load demos">{error}</InlineAlert>
+        <div className="demo-dashboard-recovery">
+          <Button variant="secondary" onClick={() => void load()}>
+            Try again
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="content-wrap demo-dashboard">
+      <header className="demo-dashboard-heading">
+        <div>
+          <p className="eyebrow">Workspace demos</p>
+          <h1>Demos</h1>
+          <p>Pick up a draft or create a new walkthrough for {workspace?.workspaceName}.</p>
+        </div>
+        <div className="demo-dashboard-primary-action">
+          <Button onClick={() => setCreateOpen(true)} disabled={!canCreate}>
+            Create demo
+          </Button>
+          {!canCreate ? <span>You need create-demo permission.</span> : null}
+        </div>
+      </header>
+
+      {message ? (
+        <p className="demo-dashboard-message" role="status">
+          {message}
+        </p>
+      ) : null}
+      {error ? <InlineAlert title="Could not create demo">{error}</InlineAlert> : null}
+
+      <div className="demo-dashboard-layout">
+        <FolderSidebar
+          folders={folders}
+          selectedFolderId={selectedFolderId}
+          canManage={canManageFolders}
+          dragged={dragged}
+          onSelect={(folderId) => setUrlState({ folder: folderId ?? undefined, page: undefined })}
+          onCreate={() => setFolderOpen(true)}
+          onDragStart={setDragged}
+          onDragEnd={() => setDragged(undefined)}
+          onDrop={(folderId) => void moveItem(folderId)}
+        />
+        <div className="demo-dashboard-main">
+          <div className="demo-folder-context">
+            <p aria-label="Current folder">
+              {folderBreadcrumbs(folders, selectedFolderId).join(" / ")}
+            </p>
+            {selectedFolder ? (
+              <div className="demo-folder-actions">
+                <span>Drag demos or folders here to organize them.</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={openFolderEditor}
+                  disabled={!canManageFolders}
+                >
+                  Rename
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setDeleteFolderOpen(true)}
+                  disabled={!canManageFolders}
+                >
+                  Delete
+                </Button>
+              </div>
+            ) : (
+              <span>Unfiled demos</span>
+            )}
+          </div>
+          {demos.length === 0 ? (
+            <EmptyState
+              title="Create your first demo"
+              description="Start with a capture type, then add screens and guidance in the editor."
+              action={
+                <Button onClick={() => setCreateOpen(true)} disabled={!canCreate}>
+                  Create demo
+                </Button>
+              }
+            />
+          ) : scopedDemos.length === 0 ? (
+            <EmptyState
+              title={
+                query
+                  ? "No demos match that search"
+                  : hasSearchOrFilters
+                    ? "No demos match these filters"
+                    : "No demos in this folder"
+              }
+              description={
+                hasSearchOrFilters
+                  ? "Try another title, description, or filter combination."
+                  : "Drag a demo here, or create a new demo for this folder."
+              }
+              action={
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    setUrlState({
+                      q: undefined,
+                      owner: undefined,
+                      type: undefined,
+                      status: undefined,
+                      tag: undefined,
+                      updatedAfter: undefined,
+                      updatedBefore: undefined,
+                      page: undefined
+                    })
+                  }
+                >
+                  Clear filters
+                </Button>
+              }
+            />
+          ) : (
+            <>
+              <div className="demo-dashboard-toolbar" aria-label="Demo display controls">
+                <p>
+                  {scopedDemos.length} of {demos.length} demo{demos.length === 1 ? "" : "s"}
+                </p>
+                <div>
+                  <Input
+                    label="Search demos"
+                    hideLabel
+                    type="search"
+                    placeholder="Search demos"
+                    value={searchDraft}
+                    maxLength={200}
+                    onChange={(event) => setSearchDraft(event.currentTarget.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setFiltersOpen(true)}
+                  >
+                    Filters{activeFilterCount ? ` (${activeFilterCount})` : ""}
+                  </Button>
+                  <Select
+                    label="Sort demos"
+                    hideLabel
+                    value={sort}
+                    onChange={(event) =>
+                      setUrlState({ sort: event.currentTarget.value, page: undefined })
+                    }
+                  >
+                    <option value="updated">Last updated</option>
+                    <option value="title">Title</option>
+                    <option value="status">Status</option>
+                  </Select>
+                  <div className="demo-view-toggle" role="group" aria-label="Choose demo view">
+                    {viewValues.map((value) => (
+                      <Button
+                        key={value}
+                        variant={view === value ? "secondary" : "ghost"}
+                        size="sm"
+                        aria-pressed={view === value}
+                        onClick={() => setUrlState({ view: value, page: undefined })}
+                      >
+                        {value === "grid" ? "Grid" : "List"}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {view === "grid" ? (
+                <div className="demo-card-grid" aria-label="Demos" role="list">
+                  {pageDemos.map((demo) => (
+                    <DemoCard
+                      demo={demo}
+                      key={demo.id}
+                      draggable={canManageFolders}
+                      onDragStart={() => setDragged({ kind: "demo", id: demo.id })}
+                      onDragEnd={() => setDragged(undefined)}
+                      canManageTags={canManageFolders}
+                      onManageTags={() => setTaggingDemo(demo)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="demo-list-view" aria-label="Demos" role="list">
+                  {pageDemos.map((demo) => (
+                    <DemoListRow
+                      demo={demo}
+                      key={demo.id}
+                      draggable={canManageFolders}
+                      onDragStart={() => setDragged({ kind: "demo", id: demo.id })}
+                      onDragEnd={() => setDragged(undefined)}
+                      canManageTags={canManageFolders}
+                      onManageTags={() => setTaggingDemo(demo)}
+                    />
+                  ))}
+                </div>
+              )}
+
+              <Pagination
+                className="demo-dashboard-pagination"
+                currentPage={page}
+                totalPages={totalPages}
+                onPageChange={(nextPage) =>
+                  setUrlState({ page: nextPage === 1 ? undefined : String(nextPage) })
+                }
+                label="Demo pages"
+              />
+            </>
+          )}
+        </div>
+      </div>
+
+      <Modal
+        open={taggingDemo !== null}
+        onClose={() => {
+          setTaggingDemo(null);
+          setSelectedTagId("");
+        }}
+        title="Add a tag"
+        description={
+          taggingDemo
+            ? `Choose a workspace tag for “${taggingDemo.title}”. Adding an existing tag is harmless.`
+            : "Choose a workspace tag."
+        }
+      >
+        <form className="demo-create-form" onSubmit={(event) => void assignTag(event)} noValidate>
+          <Select
+            label="Tag"
+            value={selectedTagId}
+            onChange={(event) => setSelectedTagId(event.currentTarget.value)}
+          >
+            <option value="">Choose a tag</option>
+            {tags.map((tag) => (
+              <option key={tag.id} value={tag.id}>
+                {tag.name}
+              </option>
+            ))}
+          </Select>
+          {!tags.length ? (
+            <p className="demo-filter-help">Create a workspace tag from Filters first.</p>
+          ) : null}
+          <div className="demo-create-actions">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setTaggingDemo(null)}
+              disabled={savingTagAssignment}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              loading={savingTagAssignment}
+              loadingLabel="Adding tag"
+              disabled={!selectedTagId || !canManageFolders}
+            >
+              Add tag
+            </Button>
+          </div>
+        </form>
+      </Modal>
+      <Modal
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        title="Filter demos"
+        description="Filters are saved in this page’s link, so you can share the exact view."
+      >
+        <div className="demo-filter-form">
+          <Input
+            label="Owner ID"
+            description="Use a workspace member’s ID when you need to narrow by owner."
+            value={ownerUserId}
+            onChange={(event) =>
+              setUrlState({ owner: event.currentTarget.value.trim() || undefined, page: undefined })
+            }
+            maxLength={36}
+          />
+          <Select
+            label="Demo type"
+            value={typeFilter ?? ""}
+            onChange={(event) =>
+              setUrlState({ type: event.currentTarget.value || undefined, page: undefined })
+            }
+          >
+            <option value="">Any type</option>
+            <option value="guided_html">HTML capture</option>
+            <option value="screenshot">Screenshot</option>
+            <option value="video">Video</option>
+            <option value="sandbox">Sandbox</option>
+          </Select>
+          <Select
+            label="Status"
+            value={statusFilter ?? ""}
+            onChange={(event) =>
+              setUrlState({ status: event.currentTarget.value || undefined, page: undefined })
+            }
+          >
+            <option value="">Any status</option>
+            {demoStatusValues.map((statusValue) => (
+              <option key={statusValue} value={statusValue}>
+                {statusLabel(statusValue)}
+              </option>
+            ))}
+          </Select>
+          <fieldset className="demo-tag-filter">
+            <legend>Tags</legend>
+            {tags.length ? (
+              <div className="demo-tag-options">
+                {tags.map((tag) => (
+                  <label key={tag.id}>
+                    <input
+                      type="checkbox"
+                      checked={tagIds.includes(tag.id)}
+                      onChange={(event) => {
+                        const next = event.currentTarget.checked
+                          ? [...tagIds, tag.id]
+                          : tagIds.filter((id) => id !== tag.id);
+                        setUrlState({
+                          tag: next.length ? next.join(",") : undefined,
+                          page: undefined
+                        });
+                      }}
+                    />
+                    {tag.name}
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="demo-filter-help">Create a tag below to start grouping demos.</p>
+            )}
+          </fieldset>
+          <div className="demo-filter-dates">
+            <Input
+              label="Updated after"
+              type="date"
+              value={updatedAfter ?? ""}
+              onChange={(event) =>
+                setUrlState({
+                  updatedAfter: event.currentTarget.value || undefined,
+                  page: undefined
+                })
+              }
+            />
+            <Input
+              label="Updated before"
+              type="date"
+              value={updatedBefore ?? ""}
+              onChange={(event) =>
+                setUrlState({
+                  updatedBefore: event.currentTarget.value || undefined,
+                  page: undefined
+                })
+              }
+            />
+          </div>
+          <form className="demo-tag-create" onSubmit={(event) => void createTag(event)} noValidate>
+            <Input
+              label="New tag"
+              value={tagName}
+              onChange={(event) => setTagName(event.currentTarget.value)}
+              maxLength={80}
+              placeholder="e.g. Onboarding"
+            />
+            <Button
+              type="submit"
+              variant="secondary"
+              loading={savingTag}
+              loadingLabel="Creating tag"
+              disabled={!canManageFolders || !tagName.trim()}
+            >
+              Create tag
+            </Button>
+          </form>
+          <div className="demo-create-actions">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() =>
+                setUrlState({
+                  owner: undefined,
+                  type: undefined,
+                  status: undefined,
+                  tag: undefined,
+                  updatedAfter: undefined,
+                  updatedBefore: undefined,
+                  page: undefined
+                })
+              }
+            >
+              Clear filters
+            </Button>
+            <Button type="button" onClick={() => setFiltersOpen(false)}>
+              Done
+            </Button>
+          </div>
+        </div>
+      </Modal>
+      <Modal
+        open={createOpen}
+        onClose={closeCreate}
+        title="Create demo"
+        description="Choose the capture type now. You can add screens and guidance next."
+      >
+        <form className="demo-create-form" onSubmit={(event) => void createDemo(event)} noValidate>
+          <Input
+            label="Demo title"
+            value={title}
+            onChange={(event) => setTitle(event.currentTarget.value)}
+            maxLength={200}
+            autoFocus
+            required
+          />
+          <Textarea
+            label="Description"
+            description="Optional context for your team."
+            value={description}
+            onChange={(event) => setDescription(event.currentTarget.value)}
+            maxLength={4_000}
+            rows={3}
+          />
+          <Select
+            label="Capture type"
+            description="This stays explicit until you choose to change it."
+            value={type}
+            onChange={(event) => setType(event.currentTarget.value as DemoType)}
+          >
+            <option value="guided_html">HTML capture</option>
+            <option value="screenshot">Screenshot</option>
+            <option value="video">Video</option>
+            <option value="sandbox">Sandbox</option>
+          </Select>
+          <div className="demo-create-actions">
+            <Button type="button" variant="ghost" onClick={closeCreate} disabled={creating}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              loading={creating}
+              loadingLabel="Creating demo"
+              disabled={!canCreate}
+            >
+              Create demo
+            </Button>
+          </div>
+        </form>
+      </Modal>
+      <Modal
+        open={folderOpen}
+        onClose={closeFolder}
+        title="New folder"
+        description={
+          selectedFolderId
+            ? "Create a subfolder in the current folder."
+            : "Keep related demos together."
+        }
+      >
+        <form
+          className="demo-create-form"
+          onSubmit={(event) => void createFolder(event)}
+          noValidate
+        >
+          <Input
+            label="Folder name"
+            value={folderName}
+            onChange={(event) => setFolderName(event.currentTarget.value)}
+            maxLength={120}
+            autoFocus
+            required
+          />
+          <div className="demo-create-actions">
+            <Button type="button" variant="ghost" onClick={closeFolder} disabled={savingFolder}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              loading={savingFolder}
+              loadingLabel="Creating folder"
+              disabled={!canManageFolders || !folderName.trim()}
+            >
+              Create folder
+            </Button>
+          </div>
+        </form>
+      </Modal>
+      <Modal
+        open={editFolderOpen}
+        onClose={() => {
+          setEditFolderOpen(false);
+          setFolderName("");
+        }}
+        title="Rename folder"
+        description="This does not move the demos inside it."
+      >
+        <form
+          className="demo-create-form"
+          onSubmit={(event) => void updateFolder(event)}
+          noValidate
+        >
+          <Input
+            label="Folder name"
+            value={folderName}
+            onChange={(event) => setFolderName(event.currentTarget.value)}
+            maxLength={120}
+            autoFocus
+            required
+          />
+          <div className="demo-create-actions">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setEditFolderOpen(false)}
+              disabled={savingFolder}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              loading={savingFolder}
+              loadingLabel="Renaming folder"
+              disabled={!canManageFolders || !folderName.trim()}
+            >
+              Rename folder
+            </Button>
+          </div>
+        </form>
+      </Modal>
+      <Modal
+        open={deleteFolderOpen}
+        onClose={() => setDeleteFolderOpen(false)}
+        title="Delete folder?"
+        description="The folder itself will be removed. Its direct demos and nested folders will move to its parent, or to Unfiled when it has no parent."
+      >
+        <div className="demo-create-actions">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => setDeleteFolderOpen(false)}
+            disabled={savingFolder}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="danger"
+            onClick={() => void deleteFolder()}
+            loading={savingFolder}
+            loadingLabel="Deleting folder"
+            disabled={!canManageFolders}
+          >
+            Delete folder
+          </Button>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+export function DemoCard({
+  demo,
+  draggable = false,
+  onDragStart,
+  onDragEnd,
+  canManageTags = false,
+  onManageTags
+}: {
+  readonly demo: Demo;
+  readonly draggable?: boolean;
+  readonly onDragStart?: () => void;
+  readonly onDragEnd?: () => void;
+  readonly canManageTags?: boolean;
+  readonly onManageTags?: () => void;
+}) {
+  return (
+    <article
+      className="demo-card"
+      role="listitem"
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+    >
+      <DemoThumbnail type={demo.type} />
+      <div className="demo-card-content">
+        <div>
+          <Badge variant={statusVariant(demo.status)}>{statusLabel(demo.status)}</Badge>
+          <h2>{demo.title}</h2>
+          <p>{demo.description || "No description yet."}</p>
+        </div>
+        <footer>
+          <span>{typeLabel(demo.type)}</span>
+          {canManageTags ? (
+            <Button type="button" size="sm" variant="ghost" onClick={onManageTags}>
+              Tags
+            </Button>
+          ) : null}
+          <time dateTime={demo.updatedAt}>{relativeTime(demo.updatedAt)}</time>
+        </footer>
+      </div>
+    </article>
+  );
+}
+
+function DemoListRow({
+  demo,
+  draggable = false,
+  onDragStart,
+  onDragEnd,
+  canManageTags = false,
+  onManageTags
+}: {
+  readonly demo: Demo;
+  readonly draggable?: boolean;
+  readonly onDragStart?: () => void;
+  readonly onDragEnd?: () => void;
+  readonly canManageTags?: boolean;
+  readonly onManageTags?: () => void;
+}) {
+  return (
+    <article
+      className="demo-list-row"
+      role="listitem"
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+    >
+      <DemoThumbnail type={demo.type} compact />
+      <div>
+        <h2>{demo.title}</h2>
+        <p>{demo.description || "No description yet."}</p>
+      </div>
+      <span>{typeLabel(demo.type)}</span>
+      <Badge variant={statusVariant(demo.status)}>{statusLabel(demo.status)}</Badge>
+      {canManageTags ? (
+        <Button type="button" size="sm" variant="ghost" onClick={onManageTags}>
+          Tags
+        </Button>
+      ) : null}
+      <time dateTime={demo.updatedAt}>{relativeTime(demo.updatedAt)}</time>
+    </article>
+  );
+}
+
+function FolderSidebar({
+  folders,
+  selectedFolderId,
+  canManage,
+  dragged,
+  onSelect,
+  onCreate,
+  onDragStart,
+  onDragEnd,
+  onDrop
+}: {
+  readonly folders: readonly Folder[];
+  readonly selectedFolderId: string | null;
+  readonly canManage: boolean;
+  readonly dragged: { readonly kind: "demo" | "folder"; readonly id: string } | undefined;
+  readonly onSelect: (folderId: string | null) => void;
+  readonly onCreate: () => void;
+  readonly onDragStart: (value: { readonly kind: "folder"; readonly id: string }) => void;
+  readonly onDragEnd: () => void;
+  readonly onDrop: (folderId: string | null) => void;
+}) {
+  const children = folderTree(folders);
+  const canDrop = Boolean(dragged);
+  return (
+    <aside className="folder-sidebar" aria-label="Folders">
+      <div className="folder-sidebar-heading">
+        <span>Folders</span>
+        <Button size="sm" variant="ghost" onClick={onCreate} disabled={!canManage}>
+          New folder
+        </Button>
+      </div>
+      <div role="tree" className="folder-tree">
+        <button
+          type="button"
+          className={selectedFolderId === null ? "folder-tree-item is-active" : "folder-tree-item"}
+          role="treeitem"
+          aria-selected={selectedFolderId === null}
+          onClick={() => onSelect(null)}
+          onDragOver={(event) => {
+            if (canDrop) event.preventDefault();
+          }}
+          onDrop={() => onDrop(null)}
+        >
+          Unfiled
+        </button>
+        {children.map((folder) => (
+          <FolderTreeItem
+            folder={folder}
+            key={folder.id}
+            selectedFolderId={selectedFolderId}
+            canManage={canManage}
+            canDrop={canDrop}
+            onSelect={onSelect}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+            onDrop={onDrop}
+          />
+        ))}
+      </div>
+    </aside>
+  );
+}
+
+function FolderTreeItem({
+  folder,
+  selectedFolderId,
+  canManage,
+  canDrop,
+  onSelect,
+  onDragStart,
+  onDragEnd,
+  onDrop
+}: {
+  readonly folder: FolderTreeNode;
+  readonly selectedFolderId: string | null;
+  readonly canManage: boolean;
+  readonly canDrop: boolean;
+  readonly onSelect: (folderId: string) => void;
+  readonly onDragStart: (value: { readonly kind: "folder"; readonly id: string }) => void;
+  readonly onDragEnd: () => void;
+  readonly onDrop: (folderId: string) => void;
+}) {
+  return (
+    <div role="group">
+      <button
+        type="button"
+        className={
+          selectedFolderId === folder.id ? "folder-tree-item is-active" : "folder-tree-item"
+        }
+        role="treeitem"
+        aria-selected={selectedFolderId === folder.id}
+        draggable={canManage}
+        onClick={() => onSelect(folder.id)}
+        onDragStart={() => onDragStart({ kind: "folder", id: folder.id })}
+        onDragEnd={onDragEnd}
+        onDragOver={(event) => {
+          if (canDrop) event.preventDefault();
+        }}
+        onDrop={() => onDrop(folder.id)}
+      >
+        {folder.name}
+      </button>
+      {folder.children.length > 0 ? (
+        <div className="folder-tree-children">
+          {folder.children.map((child) => (
+            <FolderTreeItem
+              folder={child}
+              key={child.id}
+              selectedFolderId={selectedFolderId}
+              canManage={canManage}
+              canDrop={canDrop}
+              onSelect={onSelect}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+              onDrop={onDrop}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function DemoThumbnail({
+  type,
+  compact = false
+}: {
+  readonly type: DemoType;
+  readonly compact?: boolean;
+}) {
+  return (
+    <div
+      className={`demo-card-thumbnail ${compact ? "demo-card-thumbnail-compact" : ""}`}
+      aria-hidden="true"
+    >
+      <span className="demo-card-thumbnail-bar" />
+      <span className="demo-card-thumbnail-stage" />
+      <span className="demo-card-thumbnail-copy" />
+      <small>{typeLabel(type)}</small>
+    </div>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="content-wrap demo-dashboard" aria-busy="true" aria-label="Loading demos">
+      <Skeleton variant="text" lines={2} />
+      <div className="demo-card-grid">
+        {Array.from({ length: 6 }, (_, index) => (
+          <Skeleton variant="rect" key={index} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+type FolderTreeNode = Folder & { readonly children: readonly FolderTreeNode[] };
+
+function folderTree(folders: readonly Folder[]): readonly FolderTreeNode[] {
+  const nodes = new Map<string, FolderTreeNode>();
+  const roots: FolderTreeNode[] = [];
+  for (const folder of folders) nodes.set(folder.id, { ...folder, children: [] });
+  for (const folder of folders) {
+    const node = nodes.get(folder.id);
+    if (!node) continue;
+    const parent = folder.parentId ? nodes.get(folder.parentId) : undefined;
+    if (!parent) roots.push(node);
+    else (parent.children as FolderTreeNode[]).push(node);
+  }
+  const sort = (items: readonly FolderTreeNode[]): readonly FolderTreeNode[] =>
+    [...items]
+      .sort((left, right) =>
+        left.name.localeCompare(right.name, undefined, { sensitivity: "base" })
+      )
+      .map((item) => ({ ...item, children: sort(item.children) }));
+  return sort(roots);
+}
+
+function folderBreadcrumbs(folders: readonly Folder[], folderId: string | null): readonly string[] {
+  if (!folderId) return ["Demos", "Unfiled"];
+  const byId = new Map(folders.map((folder) => [folder.id, folder]));
+  const names: string[] = [];
+  let current = byId.get(folderId);
+  let steps = 0;
+  while (current && steps < 10) {
+    names.unshift(current.name);
+    current = current.parentId ? byId.get(current.parentId) : undefined;
+    steps += 1;
+  }
+  return ["Demos", ...names];
+}
+
+function parseValue<const Values extends readonly string[]>(
+  value: string | null,
+  values: Values,
+  fallback: Values[number]
+): Values[number] {
+  return value && values.includes(value) ? (value as Values[number]) : fallback;
+}
+
+function parseOptionalValue<const Values extends readonly string[]>(
+  value: string | null,
+  values: Values
+): Values[number] | undefined {
+  return value && values.includes(value) ? (value as Values[number]) : undefined;
+}
+
+function parseTagIds(value: string): readonly string[] {
+  const ids = value.split(",").filter((id) => /^[0-9a-f-]{36}$/iu.test(id));
+  return Array.from(new Set(ids)).slice(0, 10);
+}
+
+function parseDate(value: string | null): string | undefined {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/u.test(value)) return undefined;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
+    ? value
+    : undefined;
+}
+
+function parsePage(value: string | null): number {
+  return value && /^\d{1,5}$/u.test(value) ? Math.max(1, Number(value)) : 1;
+}
+
+function sortDemos(demos: readonly Demo[], sort: DashboardSort): readonly Demo[] {
+  return [...demos].sort((left, right) => {
+    if (sort === "title")
+      return left.title.localeCompare(right.title, undefined, { sensitivity: "base" });
+    if (sort === "status") return statusLabel(left.status).localeCompare(statusLabel(right.status));
+    return (
+      Date.parse(right.updatedAt) - Date.parse(left.updatedAt) || right.id.localeCompare(left.id)
+    );
+  });
+}
+
+function statusLabel(status: DemoStatus): string {
+  return {
+    draft: "Draft",
+    processing: "Processing",
+    published: "Published",
+    failed: "Failed",
+    needs_update: "Needs update",
+    archived: "Archived"
+  }[status];
+}
+
+function statusVariant(status: DemoStatus): "neutral" | "success" | "warning" | "danger" {
+  if (status === "published") return "success";
+  if (status === "failed") return "danger";
+  if (status === "processing" || status === "needs_update") return "warning";
+  return "neutral";
+}
+
+function typeLabel(type: DemoType): string {
+  return {
+    guided_html: "HTML capture",
+    screenshot: "Screenshot",
+    video: "Video",
+    sandbox: "Sandbox"
+  }[type];
+}
+
+function relativeTime(value: string): string {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return "Updated recently";
+  const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60_000));
+  if (minutes < 1) return "Updated just now";
+  if (minutes < 60) return `Updated ${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `Updated ${hours}h ago`;
+  return `Updated ${Math.floor(hours / 24)}d ago`;
+}

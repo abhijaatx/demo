@@ -1,0 +1,126 @@
+name: supademo-local
+
+services:
+  postgres:
+    image: postgres:16.8-alpine3.21
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-supademo_dev}
+      POSTGRES_USER: ${POSTGRES_USER:-supademo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-supademo_local_postgres_change_me}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  redis:
+    image: redis:7.4.2-alpine
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-supademo_local_redis_change_me}
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --save
+      - "60"
+      - "1"
+      - --requirepass
+      - ${REDIS_PASSWORD:-supademo_local_redis_change_me}
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$${REDIS_PASSWORD:-supademo_local_redis_change_me}\" ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-supademo}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-supademo_local_minio_change_me}
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/ready >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  minio-bootstrap:
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+    restart: "no"
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-supademo}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-supademo_local_minio_change_me}
+    entrypoint: ["/bin/sh", "/opt/bootstrap.sh"]
+    volumes:
+      - ./minio/bootstrap.sh:/opt/bootstrap.sh:ro
+
+  elasticmq:
+    image: softwaremill/elasticmq-native:1.7.1
+    restart: unless-stopped
+    volumes:
+      - ./elasticmq/elasticmq.conf:/opt/elasticmq.conf:ro
+      - elasticmq-data:/data
+    ports:
+      - "127.0.0.1:9324:9324"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -S -O /dev/null http://127.0.0.1:9324/ 2>&1 | grep -q 'HTTP/1.1 400'",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  mailpit:
+    image: axllent/mailpit:v1.24.2
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: 5000
+      MP_DATABASE: /data/mailpit.db
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+    volumes:
+      - mailpit-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8025/readyz >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+  elasticmq-data:
+  mailpit-data:
+
+networks:
+  default:
+    name: supademo-local

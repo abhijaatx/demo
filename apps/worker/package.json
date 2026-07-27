@@ -1,0 +1,19 @@
+{
+  "name": "@supademo/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "tsc --build --clean",
+    "start": "node --env-file-if-exists=../../.env dist/index.js"
+  },
+  "dependencies": {
+    "@supademo/config": "0.1.0",
+    "@supademo/database": "0.1.0",
+    "@supademo/observability": "0.1.0",
+    "@supademo/queue": "0.1.0"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "files": [],
+  "references": [
+    { "path": "apps/api" },
+    { "path": "apps/worker" },
+    { "path": "apps/media-worker" },
+    { "path": "apps/browser-extension" },
+    { "path": "packages/ai" },
+    { "path": "packages/auth" },
+    { "path": "packages/analytics" },
+    { "path": "packages/config" },
+    { "path": "packages/database" },
+    { "path": "packages/domain" },
+    { "path": "packages/integrations" },
+    { "path": "packages/player" },
+    { "path": "packages/queue" },
+    { "path": "packages/observability" },
+    { "path": "packages/storage" },
+    { "path": "packages/ui" }
+  ]
+}

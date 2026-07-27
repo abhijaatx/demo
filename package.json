@@ -1,0 +1,69 @@
+{
+  "name": "supademo-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A secure, modular interactive demo platform.",
+  "packageManager": "npm@10.8.2",
+  "engines": {
+    "node": ">=20.20.0 <21",
+    "npm": ">=10.8.0 <11"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "tsc --build && npm run api:contract && npm run api:types && npm run build --workspace=@supademo/web",
+    "clean": "tsc --build --clean",
+    "check:boundaries": "node scripts/check-boundaries.mjs",
+    "typecheck": "tsc --build --pretty false && npm run typecheck --workspace=@supademo/web",
+    "lint": "eslint .",
+    "format": "prettier --write \"apps/**/*.{ts,tsx,mjs,json}\" \"packages/**/*.{ts,tsx,mjs,json}\" \"scripts/**/*.{ts,mjs,json}\" \"tests/**/*.{ts,mjs,json}\" package.json \"tsconfig*.json\" eslint.config.mjs README.md CONTRIBUTING.md \"docker/**/*.md\" docs/*.md docs/reviews/*.md \".github/**/*.{yml,yaml,md}\"",
+    "format:check": "prettier --check \"apps/**/*.{ts,tsx,mjs,json}\" \"packages/**/*.{ts,tsx,mjs,json}\" \"scripts/**/*.{ts,mjs,json}\" \"tests/**/*.{ts,mjs,json}\" package.json \"tsconfig*.json\" eslint.config.mjs README.md CONTRIBUTING.md \"docker/**/*.md\" docs/*.md docs/reviews/*.md \".github/**/*.{yml,yaml,md}\"",
+    "check:commit": "node scripts/check-commit-message.mjs",
+    "stack:config": "docker compose -f docker/compose.yml config",
+    "stack:up": "docker compose -f docker/compose.yml up -d --wait",
+    "stack:down": "docker compose -f docker/compose.yml down",
+    "stack:reset": "docker compose -f docker/compose.yml down --volumes --remove-orphans",
+    "stack:status": "docker compose -f docker/compose.yml ps",
+    "stack:check": "node scripts/check-local-stack.mjs",
+    "stack:logs": "docker compose -f docker/compose.yml logs --tail=100 -f",
+    "db:migrate": "node-pg-migrate up --migrations-dir packages/database/migrations --database-url-var DATABASE_URL --envPath .env --check-order --single-transaction",
+    "db:rollback": "node-pg-migrate down --migrations-dir packages/database/migrations --database-url-var DATABASE_URL --envPath .env --check-order --single-transaction",
+    "db:dry-run": "node-pg-migrate up --migrations-dir packages/database/migrations --database-url-var DATABASE_URL --envPath .env --check-order --single-transaction --dry-run",
+    "db:health": "node --env-file-if-exists=.env scripts/check-database.mjs",
+    "test:integration": "npm run build && node --env-file-if-exists=.env --test tests/api.integration.test.mjs",
+    "test:coverage": "npm run build && node scripts/run-test-coverage.mjs",
+    "security:placeholders": "node scripts/check-deferred-security.mjs",
+    "api:contract": "node scripts/generate-api-contract.mjs",
+    "api:types": "openapi-typescript apps/api/openapi.json -o apps/web/src/generated/api.ts && prettier --write apps/web/src/generated/api.ts",
+    "queue:sample": "node --env-file-if-exists=.env scripts/enqueue-sample-job.mjs",
+    "verify": "npm run format:check && npm run lint && npm run check:boundaries && npm run typecheck",
+    "test": "npm run build && node --test tests",
+    "start": "npm run start:web",
+    "start:web": "npm run start --workspace=@supademo/web",
+    "start:api": "npm run start --workspace=@supademo/api",
+    "start:worker": "npm run start --workspace=@supademo/worker",
+    "dev:web": "npm run dev --workspace=@supademo/web",
+    "dev:api": "npm run build && npm run start:api",
+    "dev:worker": "npm run build && npm run start:worker"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.1.1",
+    "eslint": "10.7.0",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-import-x": "4.17.1",
+    "globals": "17.7.0",
+    "openapi-typescript": "7.13.0",
+    "postcss": "8.5.23",
+    "prettier": "3.9.5",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.63.0"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "8.5.23"
+    }
+  }
+}
