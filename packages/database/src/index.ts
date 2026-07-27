@@ -17,3 +17,4 @@ export { DatabaseDemoRepository } from "./demos.js";
 export { DatabaseFolderRepository } from "./folders.js";
 export { DatabaseTagRepository } from "./tags.js";
 export { DatabaseCommentRepository } from "./comments.js";
+export { DatabaseNotificationRepository } from "./notifications.js";

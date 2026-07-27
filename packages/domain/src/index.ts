@@ -158,3 +158,18 @@ export {
   type ToggleResolveCommentInput,
   type UpdateCommentInput
 } from "./comment.js";
+
+export {
+  NotificationNotFoundError,
+  NotificationStoreError,
+  NotificationValidationError,
+  notificationTypes,
+  normalizeNotificationId,
+  parseCreateNotificationInput,
+  parseMarkNotificationReadInput,
+  type CreateNotificationInput,
+  type MarkNotificationReadInput,
+  type Notification,
+  type NotificationRepository,
+  type NotificationType
+} from "./notification.js";

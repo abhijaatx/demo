@@ -59,9 +59,13 @@ import {
   parseToggleCommentReactionInput,
   parseToggleResolveCommentInput,
   parseUpdateCommentInput,
+  NotificationNotFoundError,
+  NotificationValidationError,
+  parseMarkNotificationReadInput,
   UserProfileStoreError,
   UserProfileValidationError,
   type CommentRepository,
+  type NotificationRepository,
   type UserProfileRepository,
   type WorkspaceRepository,
   type InvitationDelivery,
@@ -111,6 +115,7 @@ export interface ApiServerOptions {
   readonly folderRepository?: FolderRepository;
   readonly tagRepository?: TagRepository;
   readonly commentRepository?: CommentRepository;
+  readonly notificationRepository?: NotificationRepository;
   readonly invitationDelivery?: InvitationDelivery;
   readonly logger?: Logger;
   readonly metrics?: Metrics;
@@ -357,6 +362,20 @@ async function handleRequest(
       options,
       method,
       commentRoute,
+      context.requestId,
+      url.searchParams
+    );
+    return;
+  }
+
+  const notificationRoute = resolveNotificationRoute(path);
+  if (notificationRoute) {
+    await handleNotificationRequest(
+      request,
+      response,
+      options,
+      method,
+      notificationRoute,
       context.requestId,
       url.searchParams
     );
@@ -1888,6 +1907,146 @@ async function handleCommentRequest(
       503,
       "comment_unavailable",
       "Comments are temporarily unavailable. Try again later.",
+      requestId
+    );
+  }
+}
+
+type NotificationRoute =
+  | { readonly kind: "list"; readonly workspaceId: string }
+  | { readonly kind: "unreadCount"; readonly workspaceId: string }
+  | { readonly kind: "markRead"; readonly workspaceId: string };
+
+function resolveNotificationRoute(path: string): NotificationRoute | undefined {
+  const list = new RegExp(`^${API_V1_PREFIX}/workspaces/([^/]+)/notifications$`, "u").exec(path);
+  if (list) return { kind: "list", workspaceId: list[1]! };
+  const unreadCount = new RegExp(
+    `^${API_V1_PREFIX}/workspaces/([^/]+)/notifications/unread-count$`,
+    "u"
+  ).exec(path);
+  if (unreadCount) return { kind: "unreadCount", workspaceId: unreadCount[1]! };
+  const markRead = new RegExp(
+    `^${API_V1_PREFIX}/workspaces/([^/]+)/notifications/mark-read$`,
+    "u"
+  ).exec(path);
+  if (markRead) return { kind: "markRead", workspaceId: markRead[1]! };
+  return undefined;
+}
+
+async function handleNotificationRequest(
+  request: IncomingMessage,
+  response: ServerResponse,
+  options: ApiServerOptions,
+  method: string,
+  route: NotificationRoute,
+  requestId: string,
+  searchParams: URLSearchParams
+): Promise<void> {
+  if (!options.notificationRepository) {
+    sendError(
+      response,
+      503,
+      "notifications_unavailable",
+      "Notifications service is not configured.",
+      requestId
+    );
+    return;
+  }
+  try {
+    let identity;
+    try {
+      identity = await authenticateProtectedRequest(request, options);
+    } catch (error) {
+      request.resume();
+      if (error instanceof AuthenticationError) {
+        sendError(response, 401, error.code, error.message, requestId);
+        return;
+      }
+      sendError(response, 401, "invalid_token", "Authentication is required.", requestId);
+      return;
+    }
+    if (!identity.identity.email) {
+      request.resume();
+      sendError(
+        response,
+        503,
+        "notification_unavailable",
+        "Notifications are temporarily unavailable. Try again later.",
+        requestId
+      );
+      return;
+    }
+    if (!options.userProfileRepository) {
+      sendError(
+        response,
+        503,
+        "profile_unavailable",
+        "User profiles service is not configured.",
+        requestId
+      );
+      return;
+    }
+    const profile = await options.userProfileRepository.syncIdentity({
+      subject: identity.identity.subject,
+      email: identity.identity.email
+    });
+
+    if (route.kind === "list" && method === "GET") {
+      const unreadOnly = searchParams.get("unreadOnly") === "true";
+      const notifications = await options.notificationRepository.list(
+        profile.userId,
+        route.workspaceId,
+        unreadOnly
+      );
+      sendJson(response, 200, notifications);
+      return;
+    }
+
+    if (route.kind === "unreadCount" && method === "GET") {
+      const count = await options.notificationRepository.unreadCount(
+        profile.userId,
+        route.workspaceId
+      );
+      sendJson(response, 200, { unreadCount: count });
+      return;
+    }
+
+    if (route.kind === "markRead" && method === "POST") {
+      const body = await readJsonObjectBody(request);
+      const input = parseMarkNotificationReadInput(body);
+      const updatedCount = await options.notificationRepository.markRead(
+        profile.userId,
+        route.workspaceId,
+        input.notificationId
+      );
+      sendJson(response, 200, { updatedCount });
+      return;
+    }
+
+    sendError(response, 405, "method_not_allowed", "Method not allowed.", requestId);
+  } catch (error) {
+    if (error instanceof AuthenticationError) {
+      request.resume();
+      sendError(response, 401, error.code, error.message, requestId);
+      return;
+    }
+    if (error instanceof AuthorizationDeniedError) {
+      sendError(response, 403, "forbidden", error.message, requestId);
+      return;
+    }
+    if (error instanceof NotificationNotFoundError) {
+      sendError(response, 404, "not_found", (error as Error).message, requestId);
+      return;
+    }
+    if (error instanceof NotificationValidationError) {
+      sendError(response, 400, "invalid_notification_request", (error as Error).message, requestId);
+      return;
+    }
+    sendError(
+      response,
+      503,
+      "notification_unavailable",
+      "Notifications are temporarily unavailable. Try again later.",
       requestId
     );
   }

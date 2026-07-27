@@ -1279,6 +1279,90 @@ registry.registerPath({
   }
 });
 
+const NotificationSchema = z
+  .object({
+    id: z.string().uuid(),
+    workspaceId: z.string().uuid(),
+    recipientUserId: z.string().uuid(),
+    actorUserId: z.string().uuid(),
+    type: z.enum([
+      "comment_mention",
+      "comment_reply",
+      "workspace_invite",
+      "review_requested",
+      "review_approved",
+      "review_changes_requested"
+    ]),
+    title: z.string().min(1).max(200),
+    message: z.string().min(1).max(1000),
+    targetType: z.enum(["demo", "step", "workspace", "comment"]),
+    targetId: z.string().uuid(),
+    isRead: z.boolean(),
+    readAt: z.string().datetime().nullable(),
+    createdAt: z.string().datetime()
+  })
+  .strict()
+  .openapi("Notification");
+
+registry.register("Notification", NotificationSchema);
+
+registry.registerPath({
+  method: "get",
+  path: "/api/v1/workspaces/{workspaceId}/notifications",
+  summary: "List user notifications",
+  request: {
+    params: z.object({ workspaceId: z.string().uuid() }),
+    query: z.object({ unreadOnly: z.enum(["true", "false"]).optional() })
+  },
+  responses: {
+    200: {
+      description: "List of notifications",
+      content: { "application/json": { schema: z.array(NotificationSchema) } }
+    }
+  }
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/v1/workspaces/{workspaceId}/notifications/unread-count",
+  summary: "Get unread notifications count",
+  request: {
+    params: z.object({ workspaceId: z.string().uuid() })
+  },
+  responses: {
+    200: {
+      description: "Unread notifications count",
+      content: {
+        "application/json": { schema: z.object({ unreadCount: z.number().int().min(0) }) }
+      }
+    }
+  }
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/v1/workspaces/{workspaceId}/notifications/mark-read",
+  summary: "Mark notifications as read",
+  request: {
+    params: z.object({ workspaceId: z.string().uuid() }),
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({ notificationId: z.string().uuid().nullable().optional() })
+        }
+      }
+    }
+  },
+  responses: {
+    200: {
+      description: "Updated notification count",
+      content: {
+        "application/json": { schema: z.object({ updatedCount: z.number().int().min(0) }) }
+      }
+    }
+  }
+});
+
 registry.registerPath({
   method: "get",
   path: "/api/v1/openapi.json",
