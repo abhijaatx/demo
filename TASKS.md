@@ -272,25 +272,25 @@ Outcome: Teams can create, find, organize, collaborate on, and lifecycle-manage 
 - **Deliverables:** Implement transactional duplication, template designation, create-from-template flow, copied metadata rules, and background copying for large records.
 - **Quality bar:** Copies never share mutable child records; tenant ownership is reassigned correctly; retries cannot create uncontrolled duplicates.
 
-### [ ] TASK-037 — Add comments domain and APIs
+### [x] TASK-037 — Add comments domain and APIs
 
 - **Depends on:** TASK-028, TASK-031.
 - **Deliverables:** Create comments, threads, mentions, reactions, resolution state, and target references for demos/steps; implement permission-aware APIs.
 - **Quality bar:** User-generated content is sanitized; mention fan-out is bounded; deleted targets/users render safely; tenant-isolation tests cover all operations.
 
-### [ ] TASK-038 — Build collaborative comments UI
+### [x] TASK-038 — Build collaborative comments UI
 
 - **Depends on:** TASK-013, TASK-037.
 - **Deliverables:** Add comment panel, threads, replies, mentions, reactions, resolve/reopen actions, deep links, and optimistic updates.
 - **Quality bar:** Keyboard and screen-reader flows are complete; conflicting updates reconcile visibly; unsafe links or markup cannot execute.
 
-### [ ] TASK-039 — Add in-app notifications
+### [x] TASK-039 — Add in-app notifications
 
 - **Depends on:** TASK-008, TASK-037.
 - **Deliverables:** Add notification schema, unread count, notification center, email preference hooks, comment/invite notifications, review requests, approval/change-request states, required approvers, publish-gate hook, and mark-read actions.
 - **Quality bar:** Delivery is idempotent and tenant-safe; notification storms are coalesced; unread counts remain correct under concurrent tabs; approval history is immutable and cannot be bypassed by a UI-only publish action.
 
-### [ ] TASK-040 — Harden and benchmark dashboard workflows
+### [x] TASK-040 — Harden and benchmark dashboard workflows
 
 - **Depends on:** TASK-031 through TASK-039.
 - **Deliverables:** Add representative seed data, dashboard end-to-end suite, query plans/indexes, accessibility audit, responsive polish, user-facing recovery for failed mutations, and a content-health view for stale, broken, untranslated, unapproved, or failed demos.
@@ -300,7 +300,7 @@ Outcome: Teams can create, find, organize, collaborate on, and lifecycle-manage 
 
 Outcome: Creators can safely upload, inspect, process, reuse, and delete images, audio, and video using local S3-compatible storage and asynchronous workers.
 
-### [ ] TASK-041 — Define asset metadata and storage abstraction
+### [x] TASK-041 — Define asset metadata and storage abstraction
 
 - **Depends on:** TASK-005, TASK-028.
 - **Deliverables:** Add asset/upload schemas, lifecycle states, workspace ownership, checksum/size/type metadata, object-storage interface, MinIO adapter, and S3 adapter contract.
