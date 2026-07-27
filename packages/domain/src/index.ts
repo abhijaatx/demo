@@ -4,6 +4,7 @@ export {
   assertDemoStatusTransition,
   calculateTrashRetention,
   DemoConflictError,
+  DemoNotFoundError,
   DemoStoreError,
   DemoValidationError,
   demoFingerprint,
@@ -12,9 +13,13 @@ export {
   normalizeDemoId,
   normalizeDemoStatus,
   parseCreateDemoInput,
+  parseCreateFromTemplateInput,
   parseDemoPatch,
+  parseDuplicateDemoInput,
+  parseSetDemoTemplateInput,
   TRASH_RETENTION_DAYS,
   type CreateDemoInput,
+  type CreateFromTemplateInput,
   type Demo,
   type DemoAuditAction,
   type DemoAuditEvent,
@@ -22,6 +27,8 @@ export {
   type DemoRepository,
   type DemoStatus,
   type DemoType,
+  type DuplicateDemoInput,
+  type SetDemoTemplateInput,
   type TrashItem
 } from "./demo.js";
 

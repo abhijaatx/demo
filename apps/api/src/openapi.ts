@@ -145,6 +145,7 @@ const DemoSchema = z
     description: z.string().max(4000).nullable(),
     type: z.enum(["guided_html", "screenshot", "video", "sandbox"]),
     status: z.enum(["draft", "processing", "published", "failed", "needs_update", "archived"]),
+    isTemplate: z.boolean(),
     publishedAt: z.string().datetime().nullable(),
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),
@@ -182,12 +183,35 @@ const TrashItemSchema = z
   })
   .strict()
   .openapi("TrashItem");
+const DuplicateDemoSchema = z
+  .object({
+    title: z.string().min(1).max(200).optional(),
+    folderId: z.string().nullable().optional()
+  })
+  .strict()
+  .openapi("DuplicateDemo");
+const SetDemoTemplateSchema = z
+  .object({
+    isTemplate: z.boolean()
+  })
+  .strict()
+  .openapi("SetDemoTemplate");
+const CreateFromTemplateSchema = z
+  .object({
+    title: z.string().min(1).max(200).optional(),
+    folderId: z.string().nullable().optional()
+  })
+  .strict()
+  .openapi("CreateFromTemplate");
 registry.register("Demo", DemoSchema);
 registry.register("DemoCreate", DemoCreateSchema);
 registry.register("DemoPatch", DemoPatchSchema);
 registry.register("DemoStatusUpdate", DemoStatusSchema);
 registry.register("DemoMessage", DemoMessageSchema);
 registry.register("TrashItem", TrashItemSchema);
+registry.register("DuplicateDemo", DuplicateDemoSchema);
+registry.register("SetDemoTemplate", SetDemoTemplateSchema);
+registry.register("CreateFromTemplate", CreateFromTemplateSchema);
 
 const FolderSchema = z
   .object({
@@ -475,6 +499,27 @@ for (const [method, path, summary, body, success] of [
     "Permanently delete a trashed demo",
     undefined,
     DemoMessageSchema
+  ],
+  [
+    "post",
+    "/api/v1/workspaces/{workspaceId}/demos/{demoId}/duplicate",
+    "Duplicate a demo",
+    DuplicateDemoSchema,
+    DemoSchema
+  ],
+  [
+    "post",
+    "/api/v1/workspaces/{workspaceId}/demos/{demoId}/template",
+    "Designate or remove demo template state",
+    SetDemoTemplateSchema,
+    DemoSchema
+  ],
+  [
+    "post",
+    "/api/v1/workspaces/{workspaceId}/demos/{demoId}/instantiate",
+    "Create a new demo from a template",
+    CreateFromTemplateSchema,
+    DemoSchema
   ]
 ] as const) {
   registry.registerPath({

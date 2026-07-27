@@ -203,15 +203,23 @@ export function DemoDashboardScreen({
   }, [query, searchDraft, setUrlState]);
 
   const isTrashView = selectedFolderParam === "trash";
+  const isTemplatesView = selectedFolderParam === "templates";
   const selectedFolderId = isTrashView
     ? "trash"
-    : folders.some((folder) => folder.id === selectedFolderParam)
-      ? selectedFolderParam
-      : null;
+    : isTemplatesView
+      ? "templates"
+      : folders.some((folder) => folder.id === selectedFolderParam)
+        ? selectedFolderParam
+        : null;
   const selectedFolder = folders.find((folder) => folder.id === selectedFolderId);
   const scopedDemos = useMemo(
-    () => demos.filter((demo) => demo.folderId === (isTrashView ? null : selectedFolderId)),
-    [demos, isTrashView, selectedFolderId]
+    () =>
+      demos.filter((demo) => {
+        if (isTrashView) return false;
+        if (isTemplatesView) return demo.isTemplate;
+        return demo.folderId === selectedFolderId;
+      }),
+    [demos, isTemplatesView, isTrashView, selectedFolderId]
   );
   const sortedDemos = useMemo(() => sortDemos(scopedDemos, sort), [scopedDemos, sort]);
   const totalPages = Math.max(1, Math.ceil(sortedDemos.length / pageSize));
@@ -300,6 +308,53 @@ export function DemoDashboardScreen({
       setError("The demo could not be permanently deleted.");
     } finally {
       setDeletingPermanently(false);
+    }
+  };
+
+  const duplicateDemo = async (demoToDuplicate: Demo): Promise<void> => {
+    if (!workspace || !canCreate) return;
+    setError(undefined);
+    try {
+      const duplicated = await demoRef.current.duplicate(workspace.workspaceId, demoToDuplicate.id);
+      setDemos((current) => [duplicated, ...current]);
+      setMessage(`“${demoToDuplicate.title}” was duplicated successfully.`);
+    } catch {
+      setError("The demo could not be duplicated.");
+    }
+  };
+
+  const toggleDemoTemplate = async (targetDemo: Demo): Promise<void> => {
+    if (!workspace || !canManageFolders) return;
+    setError(undefined);
+    try {
+      const updated = await demoRef.current.setTemplate(
+        workspace.workspaceId,
+        targetDemo.id,
+        !targetDemo.isTemplate
+      );
+      setDemos((current) => current.map((item) => (item.id === targetDemo.id ? updated : item)));
+      setMessage(
+        updated.isTemplate
+          ? `“${targetDemo.title}” was set as a template.`
+          : `“${targetDemo.title}” is no longer a template.`
+      );
+    } catch {
+      setError("Template status could not be updated.");
+    }
+  };
+
+  const instantiateTemplate = async (templateDemo: Demo): Promise<void> => {
+    if (!workspace || !canCreate) return;
+    setError(undefined);
+    try {
+      const newDemo = await demoRef.current.createFromTemplate(
+        workspace.workspaceId,
+        templateDemo.id
+      );
+      setDemos((current) => [newDemo, ...current]);
+      setMessage(`Created new demo from template “${templateDemo.title}”.`);
+    } catch {
+      setError("Could not create demo from template.");
     }
   };
 
@@ -573,6 +628,7 @@ export function DemoDashboardScreen({
         <FolderSidebar
           folders={folders}
           selectedFolderId={selectedFolderId}
+          templatesCount={demos.filter((demo) => demo.isTemplate).length}
           trashCount={trashItems.length}
           canManage={canManageFolders}
           dragged={dragged}
@@ -587,7 +643,9 @@ export function DemoDashboardScreen({
             <p aria-label="Current folder">
               {isTrashView
                 ? "Demos / Trash"
-                : folderBreadcrumbs(folders, selectedFolderId).join(" / ")}
+                : isTemplatesView
+                  ? "Demos / Templates"
+                  : folderBreadcrumbs(folders, selectedFolderId).join(" / ")}
             </p>
             {isTrashView ? (
               <span>Trashed items are retained for 30 days before permanent deletion.</span>
@@ -745,7 +803,11 @@ export function DemoDashboardScreen({
                       onDragEnd={() => setDragged(undefined)}
                       canManageTags={canManageFolders}
                       onManageTags={() => setTaggingDemo(demo)}
+                      canCreateDemos={canCreate}
+                      onDuplicate={() => void duplicateDemo(demo)}
                       canManageDemos={canManageFolders}
+                      onToggleTemplate={() => void toggleDemoTemplate(demo)}
+                      onInstantiateTemplate={() => void instantiateTemplate(demo)}
                       canDeleteDemos={canDelete}
                       onArchive={() => void archiveDemo(demo)}
                       onUnarchive={() => void unarchiveDemo(demo)}
@@ -764,7 +826,11 @@ export function DemoDashboardScreen({
                       onDragEnd={() => setDragged(undefined)}
                       canManageTags={canManageFolders}
                       onManageTags={() => setTaggingDemo(demo)}
+                      canCreateDemos={canCreate}
+                      onDuplicate={() => void duplicateDemo(demo)}
                       canManageDemos={canManageFolders}
+                      onToggleTemplate={() => void toggleDemoTemplate(demo)}
+                      onInstantiateTemplate={() => void instantiateTemplate(demo)}
                       canDeleteDemos={canDelete}
                       onArchive={() => void archiveDemo(demo)}
                       onUnarchive={() => void unarchiveDemo(demo)}
@@ -1165,7 +1231,11 @@ export function DemoCard({
   onDragEnd,
   canManageTags = false,
   onManageTags,
+  canCreateDemos = false,
+  onDuplicate,
   canManageDemos = false,
+  onToggleTemplate,
+  onInstantiateTemplate,
   canDeleteDemos = false,
   onArchive,
   onUnarchive,
@@ -1177,7 +1247,11 @@ export function DemoCard({
   readonly onDragEnd?: () => void;
   readonly canManageTags?: boolean;
   readonly onManageTags?: () => void;
+  readonly canCreateDemos?: boolean;
+  readonly onDuplicate?: () => void;
   readonly canManageDemos?: boolean;
+  readonly onToggleTemplate?: () => void;
+  readonly onInstantiateTemplate?: () => void;
   readonly canDeleteDemos?: boolean;
   readonly onArchive?: () => void;
   readonly onUnarchive?: () => void;
@@ -1195,6 +1269,7 @@ export function DemoCard({
       <div className="demo-card-content">
         <div>
           <Badge variant={statusVariant(demo.status)}>{statusLabel(demo.status)}</Badge>
+          {demo.isTemplate ? <Badge variant="warning">Template</Badge> : null}
           <h2>{demo.title}</h2>
           <p>{demo.description || "No description yet."}</p>
         </div>
@@ -1203,6 +1278,21 @@ export function DemoCard({
           {canManageTags ? (
             <Button type="button" size="sm" variant="ghost" onClick={onManageTags}>
               Tags
+            </Button>
+          ) : null}
+          {canCreateDemos ? (
+            <Button type="button" size="sm" variant="ghost" onClick={onDuplicate}>
+              Duplicate
+            </Button>
+          ) : null}
+          {canManageDemos ? (
+            <Button type="button" size="sm" variant="ghost" onClick={onToggleTemplate}>
+              {demo.isTemplate ? "Remove template" : "Save as template"}
+            </Button>
+          ) : null}
+          {demo.isTemplate && canCreateDemos ? (
+            <Button type="button" size="sm" variant="secondary" onClick={onInstantiateTemplate}>
+              Use template
             </Button>
           ) : null}
           {canManageDemos ? (
@@ -1235,7 +1325,11 @@ function DemoListRow({
   onDragEnd,
   canManageTags = false,
   onManageTags,
+  canCreateDemos = false,
+  onDuplicate,
   canManageDemos = false,
+  onToggleTemplate,
+  onInstantiateTemplate,
   canDeleteDemos = false,
   onArchive,
   onUnarchive,
@@ -1247,7 +1341,11 @@ function DemoListRow({
   readonly onDragEnd?: () => void;
   readonly canManageTags?: boolean;
   readonly onManageTags?: () => void;
+  readonly canCreateDemos?: boolean;
+  readonly onDuplicate?: () => void;
   readonly canManageDemos?: boolean;
+  readonly onToggleTemplate?: () => void;
+  readonly onInstantiateTemplate?: () => void;
   readonly canDeleteDemos?: boolean;
   readonly onArchive?: () => void;
   readonly onUnarchive?: () => void;
@@ -1268,9 +1366,25 @@ function DemoListRow({
       </div>
       <span>{typeLabel(demo.type)}</span>
       <Badge variant={statusVariant(demo.status)}>{statusLabel(demo.status)}</Badge>
+      {demo.isTemplate ? <Badge variant="warning">Template</Badge> : null}
       {canManageTags ? (
         <Button type="button" size="sm" variant="ghost" onClick={onManageTags}>
           Tags
+        </Button>
+      ) : null}
+      {canCreateDemos ? (
+        <Button type="button" size="sm" variant="ghost" onClick={onDuplicate}>
+          Duplicate
+        </Button>
+      ) : null}
+      {canManageDemos ? (
+        <Button type="button" size="sm" variant="ghost" onClick={onToggleTemplate}>
+          {demo.isTemplate ? "Remove template" : "Save as template"}
+        </Button>
+      ) : null}
+      {demo.isTemplate && canCreateDemos ? (
+        <Button type="button" size="sm" variant="secondary" onClick={onInstantiateTemplate}>
+          Use template
         </Button>
       ) : null}
       {canManageDemos ? (
@@ -1347,6 +1461,7 @@ function TrashCard({
 function FolderSidebar({
   folders,
   selectedFolderId,
+  templatesCount = 0,
   trashCount = 0,
   canManage,
   dragged,
@@ -1358,6 +1473,7 @@ function FolderSidebar({
 }: {
   readonly folders: readonly Folder[];
   readonly selectedFolderId: string | null;
+  readonly templatesCount?: number;
   readonly trashCount?: number;
   readonly canManage: boolean;
   readonly dragged: { readonly kind: "demo" | "folder"; readonly id: string } | undefined;
@@ -1404,6 +1520,17 @@ function FolderSidebar({
             onDrop={onDrop}
           />
         ))}
+        <button
+          type="button"
+          className={
+            selectedFolderId === "templates" ? "folder-tree-item is-active" : "folder-tree-item"
+          }
+          role="treeitem"
+          aria-selected={selectedFolderId === "templates"}
+          onClick={() => onSelect("templates")}
+        >
+          Templates ({templatesCount})
+        </button>
         <button
           type="button"
           className={

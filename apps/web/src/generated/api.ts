@@ -1109,6 +1109,243 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/workspaces/{workspaceId}/demos/{demoId}/duplicate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Duplicate a demo */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          workspaceId: string;
+          demoId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["DuplicateDemo"];
+        };
+      };
+      responses: {
+        /** @description The demo operation completed. */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Demo"];
+          };
+        };
+        /** @description Authentication is required. */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description The actor cannot perform this operation. */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description The demo was not found in this workspace. */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description The status transition or mutation conflicts. */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/workspaces/{workspaceId}/demos/{demoId}/template": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Designate or remove demo template state */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          workspaceId: string;
+          demoId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["SetDemoTemplate"];
+        };
+      };
+      responses: {
+        /** @description The demo operation completed. */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Demo"];
+          };
+        };
+        /** @description Authentication is required. */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description The actor cannot perform this operation. */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description The demo was not found in this workspace. */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description The status transition or mutation conflicts. */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/workspaces/{workspaceId}/demos/{demoId}/instantiate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Create a new demo from a template */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          workspaceId: string;
+          demoId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["CreateFromTemplate"];
+        };
+      };
+      responses: {
+        /** @description The demo operation completed. */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Demo"];
+          };
+        };
+        /** @description Authentication is required. */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description The actor cannot perform this operation. */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description The demo was not found in this workspace. */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description The status transition or mutation conflicts. */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/workspaces/{workspaceId}/folders": {
     parameters: {
       query?: never;
@@ -3151,6 +3388,7 @@ export interface components {
       type: "guided_html" | "screenshot" | "video" | "sandbox";
       /** @enum {string} */
       status: "draft" | "processing" | "published" | "failed" | "needs_update" | "archived";
+      isTemplate: boolean;
       /** Format: date-time */
       publishedAt: string | null;
       /** Format: date-time */
@@ -3186,6 +3424,17 @@ export interface components {
       /** Format: date-time */
       expiresAt: string;
       daysRemaining: number;
+    };
+    DuplicateDemo: {
+      title?: string;
+      folderId?: string | null;
+    };
+    SetDemoTemplate: {
+      isTemplate: boolean;
+    };
+    CreateFromTemplate: {
+      title?: string;
+      folderId?: string | null;
     };
     Folder: {
       id: string;

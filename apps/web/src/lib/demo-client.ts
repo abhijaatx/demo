@@ -14,6 +14,7 @@ export type Demo = Readonly<{
   description: string | null;
   type: DemoType;
   status: DemoStatus;
+  isTemplate: boolean;
   publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -31,6 +32,20 @@ export type CreateDemoInput = Readonly<{
   title: string;
   description: string | null;
   type: DemoType;
+}>;
+
+export type DuplicateDemoInput = Readonly<{
+  title?: string;
+  folderId?: string | null;
+}>;
+
+export type CreateFromTemplateInput = Readonly<{
+  title?: string;
+  folderId?: string | null;
+}>;
+
+export type SetDemoTemplateInput = Readonly<{
+  isTemplate: boolean;
 }>;
 
 export type DemoListFilters = Readonly<{
@@ -68,6 +83,13 @@ export interface DemoClient {
   softDelete(workspaceId: string, demoId: string): Promise<void>;
   restore(workspaceId: string, demoId: string): Promise<Demo>;
   permanentDelete(workspaceId: string, demoId: string): Promise<void>;
+  duplicate(workspaceId: string, demoId: string, input?: DuplicateDemoInput): Promise<Demo>;
+  setTemplate(workspaceId: string, demoId: string, isTemplate: boolean): Promise<Demo>;
+  createFromTemplate(
+    workspaceId: string,
+    templateDemoId: string,
+    input?: CreateFromTemplateInput
+  ): Promise<Demo>;
 }
 
 export function createDemoClient(fetcher: typeof fetch = fetch): DemoClient {
@@ -147,6 +169,41 @@ export function createDemoClient(fetcher: typeof fetch = fetch): DemoClient {
         `/workspaces/${encodeURIComponent(workspaceId)}/demos/${encodeURIComponent(demoId)}/permanent`,
         { method: "DELETE" }
       );
+    },
+    async duplicate(workspaceId, demoId, input = {}) {
+      const value: unknown = await request(
+        `/workspaces/${encodeURIComponent(workspaceId)}/demos/${encodeURIComponent(demoId)}/duplicate`,
+        {
+          method: "POST",
+          headers: { "Idempotency-Key": `duplicate-${globalThis.crypto.randomUUID()}` },
+          body: JSON.stringify(input)
+        }
+      );
+      if (!isDemo(value)) throw new DemoClientError(502);
+      return value;
+    },
+    async setTemplate(workspaceId, demoId, isTemplate) {
+      const value: unknown = await request(
+        `/workspaces/${encodeURIComponent(workspaceId)}/demos/${encodeURIComponent(demoId)}/template`,
+        {
+          method: "POST",
+          body: JSON.stringify({ isTemplate })
+        }
+      );
+      if (!isDemo(value)) throw new DemoClientError(502);
+      return value;
+    },
+    async createFromTemplate(workspaceId, templateDemoId, input = {}) {
+      const value: unknown = await request(
+        `/workspaces/${encodeURIComponent(workspaceId)}/demos/${encodeURIComponent(templateDemoId)}/instantiate`,
+        {
+          method: "POST",
+          headers: { "Idempotency-Key": `instantiate-${globalThis.crypto.randomUUID()}` },
+          body: JSON.stringify(input)
+        }
+      );
+      if (!isDemo(value)) throw new DemoClientError(502);
+      return value;
     }
   };
 }
@@ -175,6 +232,7 @@ function isDemo(value: unknown): value is Demo {
     (demo["description"] === null || typeof demo["description"] === "string") &&
     isDemoType(demo["type"]) &&
     isDemoStatus(demo["status"]) &&
+    typeof demo["isTemplate"] === "boolean" &&
     (demo["publishedAt"] === null || typeof demo["publishedAt"] === "string") &&
     typeof demo["createdAt"] === "string" &&
     typeof demo["updatedAt"] === "string" &&

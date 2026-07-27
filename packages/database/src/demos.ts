@@ -4,6 +4,7 @@ import {
   calculateTrashRetention,
   capabilitiesForRole,
   DemoConflictError,
+  DemoNotFoundError,
   DemoStoreError,
   DemoValidationError,
   demoFingerprint,
@@ -13,9 +14,12 @@ import {
   normalizeIdempotencyKey,
   normalizeUserId,
   parseCreateDemoInput,
+  parseCreateFromTemplateInput,
   parseDemoPatch,
+  parseDuplicateDemoInput,
   TRASH_RETENTION_DAYS,
   type CreateDemoInput,
+  type CreateFromTemplateInput,
   type Demo,
   type DemoAuditAction,
   type DemoPatch,
@@ -23,6 +27,7 @@ import {
   type DemoSearchFilters,
   type DemoStatus,
   type DemoType,
+  type DuplicateDemoInput,
   type TrashItem,
   type WorkspaceCapability,
   type WorkspaceRole
@@ -40,6 +45,7 @@ type DemoRow = Readonly<{
   description: string | null;
   type: DemoType;
   status: DemoStatus;
+  is_template?: boolean | null;
   published_at: Date | string | null;
   created_at: Date | string;
   updated_at: Date | string;
@@ -756,6 +762,320 @@ export class DatabaseDemoRepository implements DemoRepository {
       throw normalizeStoreError(error);
     }
   }
+
+  async duplicate(
+    actorUserIdInput: string,
+    workspaceIdInput: string,
+    demoIdInput: string,
+    inputInput?: DuplicateDemoInput,
+    idempotencyKeyInput?: string
+  ): Promise<Demo | null> {
+    const actorUserId = normalizeUserId(actorUserIdInput);
+    const workspaceId = normalizeWorkspaceId(workspaceIdInput);
+    const demoId = normalizeDemoId(demoIdInput);
+    const input = parseDuplicateDemoInput(inputInput);
+    const idempotencyKey = idempotencyKeyInput
+      ? normalizeIdempotencyKey(idempotencyKeyInput)
+      : null;
+    try {
+      return await withTransaction(this.pool, async (client) => {
+        await requireWorkspaceCapability(client, workspaceId, actorUserId, "demo:create");
+        if (idempotencyKey) {
+          const request = await query<{ demo_id: string | null }>(
+            client,
+            `
+              SELECT demo_id
+              FROM demo_creation_requests
+              WHERE workspace_id = $1 AND owner_user_id = $2 AND idempotency_key = $3
+              LIMIT 1
+              FOR UPDATE
+            `,
+            [workspaceId, actorUserId, idempotencyKey]
+          );
+          const existingDemoId = request.rows[0]?.demo_id;
+          if (existingDemoId) {
+            const existing = await query<DemoRow>(
+              client,
+              `SELECT ${demoColumns} FROM demos WHERE id = $1 AND workspace_id = $2`,
+              [existingDemoId, workspaceId]
+            );
+            return existing.rows[0] ? mapDemo(existing.rows[0]) : null;
+          }
+        }
+
+        const sourceResult = await query<DemoRow>(
+          client,
+          `SELECT ${demoColumns} FROM demos WHERE id = $1 AND workspace_id = $2 FOR SHARE`,
+          [demoId, workspaceId]
+        );
+        const sourceRow = sourceResult.rows[0];
+        if (!sourceRow) throw new DemoNotFoundError("Demo not found.");
+        if (sourceRow.deleted_at !== null) {
+          throw new DemoConflictError("Trashed demos cannot be duplicated.");
+        }
+
+        let targetFolderId = sourceRow.folder_id;
+        if (input.folderId !== undefined) {
+          targetFolderId = input.folderId;
+        }
+        if (targetFolderId) {
+          const folder = await query<{ id: string }>(
+            client,
+            "SELECT id FROM folders WHERE id = $1 AND workspace_id = $2 LIMIT 1 FOR SHARE",
+            [targetFolderId, workspaceId]
+          );
+          if (!folder.rows[0]) {
+            throw new DemoValidationError("The folder was not found.", "folderId");
+          }
+        }
+
+        const title = input.title ?? `${sourceRow.title} (Copy)`;
+        const newDemoId = createUuidV7();
+
+        if (idempotencyKey) {
+          await query(
+            client,
+            `
+              INSERT INTO demo_creation_requests
+                (workspace_id, owner_user_id, idempotency_key, demo_id)
+              VALUES ($1, $2, $3, NULL)
+              ON CONFLICT (workspace_id, owner_user_id, idempotency_key) DO NOTHING
+            `,
+            [workspaceId, actorUserId, idempotencyKey]
+          );
+        }
+
+        const insertResult = await query<DemoRow>(
+          client,
+          `
+            INSERT INTO demos (
+              id, workspace_id, folder_id, owner_user_id, title, description, type, status, is_template, published_at
+            ) VALUES (
+              $1, $2, $3, $4, $5, $6, $7, 'draft', false, NULL
+            )
+            RETURNING ${demoColumns}
+          `,
+          [
+            newDemoId,
+            workspaceId,
+            targetFolderId,
+            actorUserId,
+            title,
+            sourceRow.description,
+            sourceRow.type
+          ]
+        );
+        const newRow = insertResult.rows[0];
+        if (!newRow) throw new DemoStoreError();
+
+        if (idempotencyKey) {
+          await query(
+            client,
+            `
+              UPDATE demo_creation_requests
+              SET demo_id = $4
+              WHERE workspace_id = $1 AND owner_user_id = $2 AND idempotency_key = $3
+            `,
+            [workspaceId, actorUserId, idempotencyKey, newDemoId]
+          );
+        }
+
+        await insertDemoAuditEvent(
+          client,
+          workspaceId,
+          newDemoId,
+          actorUserId,
+          "demo.duplicated",
+          null,
+          "draft"
+        );
+        return mapDemo(newRow);
+      });
+    } catch (error) {
+      throw normalizeStoreError(error);
+    }
+  }
+
+  async setTemplate(
+    actorUserIdInput: string,
+    workspaceIdInput: string,
+    demoIdInput: string,
+    isTemplate: boolean
+  ): Promise<Demo | null> {
+    const actorUserId = normalizeUserId(actorUserIdInput);
+    const workspaceId = normalizeWorkspaceId(workspaceIdInput);
+    const demoId = normalizeDemoId(demoIdInput);
+    try {
+      return await withTransaction(this.pool, async (client) => {
+        await requireWorkspaceCapability(client, workspaceId, actorUserId, "demo:update");
+        const currentResult = await query<{ status: DemoStatus; is_template: boolean }>(
+          client,
+          "SELECT status, is_template FROM demos WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL FOR UPDATE",
+          [demoId, workspaceId]
+        );
+        const current = currentResult.rows[0];
+        if (!current) throw new DemoNotFoundError("Demo not found.");
+
+        const result = await query<DemoRow>(
+          client,
+          `
+            UPDATE demos
+            SET is_template = $3, updated_at = now()
+            WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL
+            RETURNING ${demoColumns}
+          `,
+          [demoId, workspaceId, isTemplate]
+        );
+        const row = result.rows[0];
+        if (!row) return null;
+
+        await insertDemoAuditEvent(
+          client,
+          workspaceId,
+          demoId,
+          actorUserId,
+          "demo.template_designated",
+          null,
+          row.status
+        );
+        return mapDemo(row);
+      });
+    } catch (error) {
+      throw normalizeStoreError(error);
+    }
+  }
+
+  async createFromTemplate(
+    actorUserIdInput: string,
+    workspaceIdInput: string,
+    templateDemoIdInput: string,
+    inputInput?: CreateFromTemplateInput,
+    idempotencyKeyInput?: string
+  ): Promise<Demo | null> {
+    const actorUserId = normalizeUserId(actorUserIdInput);
+    const workspaceId = normalizeWorkspaceId(workspaceIdInput);
+    const templateDemoId = normalizeDemoId(templateDemoIdInput);
+    const input = parseCreateFromTemplateInput(inputInput);
+    const idempotencyKey = idempotencyKeyInput
+      ? normalizeIdempotencyKey(idempotencyKeyInput)
+      : null;
+    try {
+      return await withTransaction(this.pool, async (client) => {
+        await requireWorkspaceCapability(client, workspaceId, actorUserId, "demo:create");
+        if (idempotencyKey) {
+          const request = await query<{ demo_id: string | null }>(
+            client,
+            `
+              SELECT demo_id
+              FROM demo_creation_requests
+              WHERE workspace_id = $1 AND owner_user_id = $2 AND idempotency_key = $3
+              LIMIT 1
+              FOR UPDATE
+            `,
+            [workspaceId, actorUserId, idempotencyKey]
+          );
+          const existingDemoId = request.rows[0]?.demo_id;
+          if (existingDemoId) {
+            const existing = await query<DemoRow>(
+              client,
+              `SELECT ${demoColumns} FROM demos WHERE id = $1 AND workspace_id = $2`,
+              [existingDemoId, workspaceId]
+            );
+            return existing.rows[0] ? mapDemo(existing.rows[0]) : null;
+          }
+        }
+
+        const templateResult = await query<DemoRow>(
+          client,
+          `SELECT ${demoColumns} FROM demos WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL AND is_template = true FOR SHARE`,
+          [templateDemoId, workspaceId]
+        );
+        const templateRow = templateResult.rows[0];
+        if (!templateRow) {
+          throw new DemoConflictError("The specified demo is not a valid template.");
+        }
+
+        let targetFolderId = templateRow.folder_id;
+        if (input.folderId !== undefined) {
+          targetFolderId = input.folderId;
+        }
+        if (targetFolderId) {
+          const folder = await query<{ id: string }>(
+            client,
+            "SELECT id FROM folders WHERE id = $1 AND workspace_id = $2 LIMIT 1 FOR SHARE",
+            [targetFolderId, workspaceId]
+          );
+          if (!folder.rows[0]) {
+            throw new DemoValidationError("The folder was not found.", "folderId");
+          }
+        }
+
+        const title = input.title ?? templateRow.title;
+        const newDemoId = createUuidV7();
+
+        if (idempotencyKey) {
+          await query(
+            client,
+            `
+              INSERT INTO demo_creation_requests
+                (workspace_id, owner_user_id, idempotency_key, demo_id)
+              VALUES ($1, $2, $3, NULL)
+              ON CONFLICT (workspace_id, owner_user_id, idempotency_key) DO NOTHING
+            `,
+            [workspaceId, actorUserId, idempotencyKey]
+          );
+        }
+
+        const insertResult = await query<DemoRow>(
+          client,
+          `
+            INSERT INTO demos (
+              id, workspace_id, folder_id, owner_user_id, title, description, type, status, is_template, published_at
+            ) VALUES (
+              $1, $2, $3, $4, $5, $6, $7, 'draft', false, NULL
+            )
+            RETURNING ${demoColumns}
+          `,
+          [
+            newDemoId,
+            workspaceId,
+            targetFolderId,
+            actorUserId,
+            title,
+            templateRow.description,
+            templateRow.type
+          ]
+        );
+        const newRow = insertResult.rows[0];
+        if (!newRow) throw new DemoStoreError();
+
+        if (idempotencyKey) {
+          await query(
+            client,
+            `
+              UPDATE demo_creation_requests
+              SET demo_id = $4
+              WHERE workspace_id = $1 AND owner_user_id = $2 AND idempotency_key = $3
+            `,
+            [workspaceId, actorUserId, idempotencyKey, newDemoId]
+          );
+        }
+
+        await insertDemoAuditEvent(
+          client,
+          workspaceId,
+          newDemoId,
+          actorUserId,
+          "demo.template_created",
+          null,
+          "draft"
+        );
+        return mapDemo(newRow);
+      });
+    } catch (error) {
+      throw normalizeStoreError(error);
+    }
+  }
 }
 
 const demoColumns = [
@@ -767,6 +1087,7 @@ const demoColumns = [
   "description",
   "type",
   "status",
+  "is_template",
   "published_at",
   "created_at",
   "updated_at",
@@ -831,6 +1152,7 @@ function mapDemo(row: DemoRow): Demo {
     description: row.description,
     type: row.type,
     status: row.status,
+    isTemplate: Boolean(row.is_template),
     publishedAt: toIso(row.published_at),
     createdAt: requireIso(row.created_at),
     updatedAt: requireIso(row.updated_at),

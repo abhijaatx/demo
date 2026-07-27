@@ -28,6 +28,7 @@ function demoRow(overrides = {}) {
     description: null,
     type: "guided_html",
     status: "draft",
+    is_template: false,
     published_at: null,
     created_at: "2026-07-12T00:00:00.000Z",
     updated_at: "2026-07-12T00:00:00.000Z",
@@ -282,8 +283,7 @@ test("archive and unarchive transition status and write audit events", async () 
       if (text === "BEGIN" || text === "COMMIT" || text === "ROLLBACK") return { rows: [] };
       if (text.includes("SELECT role FROM memberships")) return { rows: [{ role: "editor" }] };
       if (text.includes("SELECT status")) return { rows: [{ status: "draft" }] };
-      if (text.includes("UPDATE demos"))
-        return { rows: [demoRow({ status: "archived" })] };
+      if (text.includes("UPDATE demos")) return { rows: [demoRow({ status: "archived" })] };
       if (text.includes("INSERT INTO demo_audit_events")) return { rows: [] };
       throw new Error("Unexpected query in archive test");
     },
@@ -451,4 +451,222 @@ test("trash and permanent deletion migration relaxes demo_id constraint and adds
   assert.match(migration, /demo.archived/u);
   assert.match(migration, /FOREIGN KEY \(demo_id\) REFERENCES demos \(id\) ON DELETE SET NULL/u);
   assert.match(migration, /CREATE INDEX IF NOT EXISTS demos_workspace_trash_list_idx/u);
+});
+
+test("demo duplication creates transactional deep copy with reset draft status and tenant reassignment", async () => {
+  const calls = [];
+  const client = {
+    query: async (text, values = []) => {
+      calls.push({ text, values });
+      if (text === "BEGIN" || text === "COMMIT" || text === "ROLLBACK") return { rows: [] };
+      if (text.includes("SELECT role FROM memberships")) return { rows: [{ role: "editor" }] };
+      if (text.includes("demo_creation_requests")) return { rows: [] };
+      if (
+        text.includes("SELECT") &&
+        text.includes("FROM demos WHERE id = $1 AND workspace_id = $2 FOR SHARE")
+      ) {
+        return {
+          rows: [
+            demoRow({
+              id: demoId,
+              title: "Original Demo",
+              status: "published",
+              description: "Original Desc",
+              published_at: "2026-07-20T00:00:00.000Z"
+            })
+          ]
+        };
+      }
+      if (text.includes("INSERT INTO demos")) {
+        return {
+          rows: [
+            demoRow({
+              id: "018f0f7e-9b7d-7c4b-8c1b-1c0f2e6e0099",
+              title: "Original Demo (Copy)",
+              status: "draft",
+              description: "Original Desc",
+              published_at: null,
+              owner_user_id: actorId
+            })
+          ]
+        };
+      }
+      if (text.includes("INSERT INTO demo_audit_events")) return { rows: [] };
+      throw new Error(`Unexpected query: ${text}`);
+    },
+    release: () => undefined
+  };
+
+  const repository = new DatabaseDemoRepository({ connect: async () => client });
+  const copy = await repository.duplicate(actorId, workspaceId, demoId, {}, "idemp-dup-1");
+  assert.equal(copy.title, "Original Demo (Copy)");
+  assert.equal(copy.status, "draft");
+  assert.equal(copy.publishedAt, null);
+  assert.equal(copy.ownerUserId, actorId);
+  assert.equal(copy.isTemplate, false);
+
+  const audit = calls.find(
+    ({ text, values }) =>
+      text.includes("INSERT INTO demo_audit_events") && values[4] === "demo.duplicated"
+  );
+  assert.ok(audit);
+});
+
+test("demo template designation toggles template state and audits action", async () => {
+  const calls = [];
+  const client = {
+    query: async (text, values = []) => {
+      calls.push({ text, values });
+      if (text === "BEGIN" || text === "COMMIT" || text === "ROLLBACK") return { rows: [] };
+      if (text.includes("SELECT role FROM memberships")) return { rows: [{ role: "editor" }] };
+      if (text.includes("SELECT status, is_template FROM demos")) {
+        return { rows: [{ status: "draft", is_template: false }] };
+      }
+      if (text.includes("is_template = $3")) {
+        return { rows: [demoRow({ is_template: true })] };
+      }
+      if (text.includes("INSERT INTO demo_audit_events")) return { rows: [] };
+      throw new Error(`Unexpected template query: ${text}`);
+    },
+    release: () => undefined
+  };
+
+  const repository = new DatabaseDemoRepository({ connect: async () => client });
+  const updated = await repository.setTemplate(actorId, workspaceId, demoId, true);
+  assert.equal(updated.isTemplate, true);
+
+  const audit = calls.find(
+    ({ text, values }) =>
+      text.includes("INSERT INTO demo_audit_events") && values[4] === "demo.template_designated"
+  );
+  assert.ok(audit);
+});
+
+test("createFromTemplate instantiates new demo from template with audit event", async () => {
+  const calls = [];
+  const client = {
+    query: async (text, values = []) => {
+      calls.push({ text, values });
+      if (text === "BEGIN" || text === "COMMIT" || text === "ROLLBACK") return { rows: [] };
+      if (text.includes("SELECT role FROM memberships")) return { rows: [{ role: "editor" }] };
+      if (text.includes("SELECT demo_id FROM demo_creation_requests")) return { rows: [] };
+      if (text.includes("is_template = true FOR SHARE")) {
+        return {
+          rows: [
+            demoRow({
+              id: demoId,
+              title: "Template Demo",
+              status: "published",
+              is_template: true
+            })
+          ]
+        };
+      }
+      if (text.includes("INSERT INTO demo_creation_requests")) return { rows: [] };
+      if (text.includes("INSERT INTO demos")) {
+        return {
+          rows: [
+            demoRow({
+              id: "018f0f7e-9b7d-7c4b-8c1b-1c0f2e6e0088",
+              title: "Template Demo",
+              status: "draft",
+              is_template: false
+            })
+          ]
+        };
+      }
+      if (text.includes("UPDATE demo_creation_requests")) return { rows: [] };
+      if (text.includes("INSERT INTO demo_audit_events")) return { rows: [] };
+      throw new Error(`Unexpected template instantiation query: ${text}`);
+    },
+    release: () => undefined
+  };
+
+  const repository = new DatabaseDemoRepository({ connect: async () => client });
+  const instantiated = await repository.createFromTemplate(actorId, workspaceId, demoId);
+  assert.equal(instantiated.title, "Template Demo");
+  assert.equal(instantiated.status, "draft");
+  assert.equal(instantiated.isTemplate, false);
+
+  const audit = calls.find(
+    ({ text, values }) =>
+      text.includes("INSERT INTO demo_audit_events") && values[4] === "demo.template_created"
+  );
+  assert.ok(audit);
+});
+
+test("negative tests for demo duplication and template workflows", async () => {
+  // Viewer role denied
+  const viewerClient = {
+    query: async (text) => {
+      if (text === "BEGIN" || text === "ROLLBACK") return { rows: [] };
+      if (text.includes("SELECT role FROM memberships")) return { rows: [{ role: "viewer" }] };
+      return { rows: [] };
+    },
+    release: () => undefined
+  };
+  const viewerRepo = new DatabaseDemoRepository({ connect: async () => viewerClient });
+  await assert.rejects(
+    viewerRepo.duplicate(actorId, workspaceId, demoId),
+    AuthorizationDeniedError
+  );
+  await assert.rejects(
+    viewerRepo.createFromTemplate(actorId, workspaceId, demoId),
+    AuthorizationDeniedError
+  );
+
+  // Duplicating trashed demo throws DemoConflictError
+  const trashedClient = {
+    query: async (text) => {
+      if (text === "BEGIN" || text === "ROLLBACK") return { rows: [] };
+      if (text.includes("SELECT role FROM memberships")) return { rows: [{ role: "editor" }] };
+      if (text.includes("SELECT demo_id FROM demo_creation_requests")) return { rows: [] };
+      if (text.includes("SELECT") && text.includes("FOR SHARE")) {
+        return {
+          rows: [
+            demoRow({
+              id: demoId,
+              deleted_at: "2026-07-20T00:00:00.000Z"
+            })
+          ]
+        };
+      }
+      return { rows: [] };
+    },
+    release: () => undefined
+  };
+  const trashedRepo = new DatabaseDemoRepository({ connect: async () => trashedClient });
+  await assert.rejects(trashedRepo.duplicate(actorId, workspaceId, demoId), DemoConflictError);
+
+  // Instantiating non-template demo throws DemoConflictError
+  const nonTemplateClient = {
+    query: async (text) => {
+      if (text === "BEGIN" || text === "ROLLBACK") return { rows: [] };
+      if (text.includes("SELECT role FROM memberships")) return { rows: [{ role: "editor" }] };
+      if (text.includes("SELECT demo_id FROM demo_creation_requests")) return { rows: [] };
+      if (text.includes("is_template = true")) return { rows: [] };
+      return { rows: [] };
+    },
+    release: () => undefined
+  };
+  const nonTemplateRepo = new DatabaseDemoRepository({ connect: async () => nonTemplateClient });
+  await assert.rejects(
+    nonTemplateRepo.createFromTemplate(actorId, workspaceId, demoId),
+    DemoConflictError
+  );
+});
+
+test("demo templates and duplication SQL migration schema", async () => {
+  const migration = await readFile(
+    new URL(
+      "../packages/database/migrations/2026071201000_demo_templates_and_duplication.sql",
+      import.meta.url
+    ),
+    "utf8"
+  );
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS is_template boolean/u);
+  assert.match(migration, /CREATE INDEX IF NOT EXISTS demos_workspace_template_idx/u);
+  assert.match(migration, /demo.duplicated/u);
+  assert.match(migration, /demo.template_designated/u);
+  assert.match(migration, /demo.template_created/u);
 });

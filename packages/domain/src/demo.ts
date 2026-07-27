@@ -20,6 +20,7 @@ export type Demo = Readonly<{
   description: string | null;
   type: DemoType;
   status: DemoStatus;
+  isTemplate: boolean;
   publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -30,6 +31,20 @@ export type CreateDemoInput = Readonly<{
   title: string;
   description: string | null;
   type: DemoType;
+}>;
+
+export type DuplicateDemoInput = Readonly<{
+  title?: string;
+  folderId?: string | null;
+}>;
+
+export type CreateFromTemplateInput = Readonly<{
+  title?: string;
+  folderId?: string | null;
+}>;
+
+export type SetDemoTemplateInput = Readonly<{
+  isTemplate: boolean;
 }>;
 
 export type DemoPatch = Readonly<{
@@ -73,12 +88,15 @@ export type DemoAuditAction =
   | "demo.restored"
   | "demo.archived"
   | "demo.unarchived"
-  | "demo.permanently_deleted";
+  | "demo.permanently_deleted"
+  | "demo.duplicated"
+  | "demo.template_designated"
+  | "demo.template_created";
 
 export type DemoAuditEvent = Readonly<{
   id: string;
   workspaceId: string;
-  demoId: string;
+  demoId: string | null;
   actorUserId: string;
   action: DemoAuditAction;
   previousStatus: DemoStatus | null;
@@ -97,15 +115,22 @@ export class DemoValidationError extends Error {
 }
 
 export class DemoConflictError extends Error {
-  constructor(message = "The demo could not be updated.") {
+  constructor(message: string) {
     super(message);
     this.name = "DemoConflictError";
   }
 }
 
+export class DemoNotFoundError extends Error {
+  constructor(message = "Demo not found.") {
+    super(message);
+    this.name = "DemoNotFoundError";
+  }
+}
+
 export class DemoStoreError extends Error {
-  constructor() {
-    super("The demo could not be loaded or saved.");
+  constructor(message = "The demo could not be loaded or saved.") {
+    super(message);
     this.name = "DemoStoreError";
   }
 }
@@ -150,6 +175,26 @@ export interface DemoRepository {
     demoId: string,
     folderId: string | null
   ): Promise<Demo | null>;
+  duplicate(
+    actorUserId: string,
+    workspaceId: string,
+    demoId: string,
+    input?: DuplicateDemoInput,
+    idempotencyKey?: string
+  ): Promise<Demo | null>;
+  setTemplate(
+    actorUserId: string,
+    workspaceId: string,
+    demoId: string,
+    isTemplate: boolean
+  ): Promise<Demo | null>;
+  createFromTemplate(
+    actorUserId: string,
+    workspaceId: string,
+    templateDemoId: string,
+    input?: CreateFromTemplateInput,
+    idempotencyKey?: string
+  ): Promise<Demo | null>;
 }
 
 const allowedTransitions: Readonly<Record<DemoStatus, readonly DemoStatus[]>> = {
@@ -170,6 +215,46 @@ export function parseCreateDemoInput(value: unknown): CreateDemoInput {
     description: normalizeDemoDescription(value["description"]),
     type: normalizeDemoType(value["type"])
   });
+}
+
+export function parseDuplicateDemoInput(value: unknown): DuplicateDemoInput {
+  if (value === undefined || value === null) return Object.freeze({});
+  if (!isRecord(value) || !hasOnlyKeys(value, ["title", "folderId"])) {
+    throw new DemoValidationError("The duplicate demo request is invalid.");
+  }
+  const result: { title?: string; folderId?: string | null } = {};
+  if ("title" in value && value["title"] !== undefined && value["title"] !== null) {
+    result.title = normalizeDemoTitle(value["title"]);
+  }
+  if ("folderId" in value && value["folderId"] !== undefined) {
+    result.folderId = value["folderId"] === null ? null : normalizeFolderId(value["folderId"]);
+  }
+  return Object.freeze(result);
+}
+
+export function parseCreateFromTemplateInput(value: unknown): CreateFromTemplateInput {
+  if (value === undefined || value === null) return Object.freeze({});
+  if (!isRecord(value) || !hasOnlyKeys(value, ["title", "folderId"])) {
+    throw new DemoValidationError("The template instantiation request is invalid.");
+  }
+  const result: { title?: string; folderId?: string | null } = {};
+  if ("title" in value && value["title"] !== undefined && value["title"] !== null) {
+    result.title = normalizeDemoTitle(value["title"]);
+  }
+  if ("folderId" in value && value["folderId"] !== undefined) {
+    result.folderId = value["folderId"] === null ? null : normalizeFolderId(value["folderId"]);
+  }
+  return Object.freeze(result);
+}
+
+export function parseSetDemoTemplateInput(value: unknown): SetDemoTemplateInput {
+  if (!isRecord(value) || !hasOnlyKeys(value, ["isTemplate"])) {
+    throw new DemoValidationError("The template setting request is invalid.");
+  }
+  if (typeof value["isTemplate"] !== "boolean") {
+    throw new DemoValidationError("The isTemplate value must be a boolean.", "isTemplate");
+  }
+  return Object.freeze({ isTemplate: value["isTemplate"] });
 }
 
 export function parseDemoPatch(value: unknown): DemoPatch {
@@ -204,6 +289,16 @@ export function normalizeDemoId(value: unknown): string {
     !/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(value)
   ) {
     throw new DemoValidationError("The demo identifier is invalid.", "demoId");
+  }
+  return value.toLowerCase();
+}
+
+function normalizeFolderId(value: unknown): string {
+  if (
+    typeof value !== "string" ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(value)
+  ) {
+    throw new DemoValidationError("The folder identifier is invalid.", "folderId");
   }
   return value.toLowerCase();
 }

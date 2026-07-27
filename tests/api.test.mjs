@@ -76,6 +76,7 @@ test("API demo routes authenticate, validate writes, enforce idempotency, and pr
     description: null,
     type: "guided_html",
     status: "draft",
+    isTemplate: false,
     publishedAt: null,
     createdAt: "2026-07-12T00:00:00.000Z",
     updatedAt: "2026-07-12T00:00:00.000Z",
@@ -139,7 +140,26 @@ test("API demo routes authenticate, validate writes, enforce idempotency, and pr
         calls.push({ operation: "permanentDelete", actor, workspaceId, demoId });
         return true;
       },
-      assignFolder: async () => demo
+      assignFolder: async () => demo,
+      duplicate: async (actor, workspaceId, demoId, input, idempotencyKey) => {
+        calls.push({ operation: "duplicate", actor, workspaceId, demoId, input, idempotencyKey });
+        return { ...demo, title: input?.title ?? `${demo.title} (Copy)`, status: "draft" };
+      },
+      setTemplate: async (actor, workspaceId, demoId, isTemplate) => {
+        calls.push({ operation: "setTemplate", actor, workspaceId, demoId, isTemplate });
+        return { ...demo, isTemplate };
+      },
+      createFromTemplate: async (actor, workspaceId, demoId, input, idempotencyKey) => {
+        calls.push({
+          operation: "createFromTemplate",
+          actor,
+          workspaceId,
+          demoId,
+          input,
+          idempotencyKey
+        });
+        return { ...demo, title: input?.title ?? demo.title, status: "draft", isTemplate: false };
+      }
     }
   });
   server.listen(0, "127.0.0.1");
@@ -237,6 +257,41 @@ test("API demo routes authenticate, validate writes, enforce idempotency, and pr
     headers: { authorization: "Bearer demo-token" }
   });
   assert.equal(permanentDelete.status, 200);
+
+  const duplicate = await fetch(`${baseUrl}${path}/${apiDemoId}/duplicate`, {
+    method: "POST",
+    headers: {
+      authorization: "Bearer demo-token",
+      "content-type": "application/json",
+      "idempotency-key": "idemp-dup-api-1"
+    },
+    body: JSON.stringify({ title: "Custom Copy Title" })
+  });
+  assert.equal(duplicate.status, 201);
+  const duplicateBody = await duplicate.json();
+  assert.equal(duplicateBody.title, "Custom Copy Title");
+
+  const setTemplate = await fetch(`${baseUrl}${path}/${apiDemoId}/template`, {
+    method: "POST",
+    headers: { authorization: "Bearer demo-token", "content-type": "application/json" },
+    body: JSON.stringify({ isTemplate: true })
+  });
+  assert.equal(setTemplate.status, 200);
+  const templateBody = await setTemplate.json();
+  assert.equal(templateBody.isTemplate, true);
+
+  const instantiate = await fetch(`${baseUrl}${path}/${apiDemoId}/instantiate`, {
+    method: "POST",
+    headers: {
+      authorization: "Bearer demo-token",
+      "content-type": "application/json",
+      "idempotency-key": "idemp-inst-api-1"
+    },
+    body: JSON.stringify({ title: "Instantiated Demo Title" })
+  });
+  assert.equal(instantiate.status, 201);
+  const instantiateBody = await instantiate.json();
+  assert.equal(instantiateBody.title, "Instantiated Demo Title");
 
   const invalidStatus = await fetch(`${baseUrl}${path}/${apiDemoId}/status`, {
     method: "POST",

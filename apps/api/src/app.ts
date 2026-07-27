@@ -23,6 +23,7 @@ import {
   parseUserProfilePatch,
   AuthorizationDeniedError,
   DemoConflictError,
+  DemoNotFoundError,
   DemoStoreError,
   DemoValidationError,
   FolderConflictError,
@@ -39,8 +40,11 @@ import {
   normalizeInvitationToken,
   normalizeDemoStatus,
   parseCreateDemoInput,
+  parseCreateFromTemplateInput,
   parseDemoSearchFilters,
   parseDemoPatch,
+  parseDuplicateDemoInput,
+  parseSetDemoTemplateInput,
   parseAssignDemoFolderInput,
   parseCreateFolderInput,
   parseMoveFolderInput,
@@ -1292,6 +1296,58 @@ async function handleDemoRequest(
       sendJson(response, 200, demo);
       return;
     }
+    if (route.kind === "duplicate") {
+      const body = await readJsonObjectBody(request);
+      const rawIdempotencyKey = request.headers["idempotency-key"];
+      const idempotencyKey = typeof rawIdempotencyKey === "string" ? rawIdempotencyKey : undefined;
+      const demo = await options.demoRepository.duplicate(
+        profile.userId,
+        route.workspaceId,
+        route.demoId,
+        parseDuplicateDemoInput(body),
+        idempotencyKey
+      );
+      if (!demo) {
+        sendError(response, 404, "not_found", "The requested resource was not found.", requestId);
+        return;
+      }
+      sendJson(response, 201, demo);
+      return;
+    }
+    if (route.kind === "template") {
+      const body = await readJsonObjectBody(request);
+      const parsed = parseSetDemoTemplateInput(body);
+      const demo = await options.demoRepository.setTemplate(
+        profile.userId,
+        route.workspaceId,
+        route.demoId,
+        parsed.isTemplate
+      );
+      if (!demo) {
+        sendError(response, 404, "not_found", "The requested resource was not found.", requestId);
+        return;
+      }
+      sendJson(response, 200, demo);
+      return;
+    }
+    if (route.kind === "instantiate") {
+      const body = await readJsonObjectBody(request);
+      const rawIdempotencyKey = request.headers["idempotency-key"];
+      const idempotencyKey = typeof rawIdempotencyKey === "string" ? rawIdempotencyKey : undefined;
+      const demo = await options.demoRepository.createFromTemplate(
+        profile.userId,
+        route.workspaceId,
+        route.demoId,
+        parseCreateFromTemplateInput(body),
+        idempotencyKey
+      );
+      if (!demo) {
+        sendError(response, 404, "not_found", "The requested resource was not found.", requestId);
+        return;
+      }
+      sendJson(response, 201, demo);
+      return;
+    }
     const demo = await options.demoRepository.restore(
       profile.userId,
       route.workspaceId,
@@ -1305,6 +1361,10 @@ async function handleDemoRequest(
   } catch (error) {
     if (error instanceof AuthorizationDeniedError) {
       sendError(response, 403, "forbidden", error.message, requestId);
+      return;
+    }
+    if (error instanceof DemoNotFoundError) {
+      sendError(response, 404, "not_found", (error as Error).message, requestId);
       return;
     }
     if (error instanceof DemoValidationError) {
@@ -1660,7 +1720,10 @@ type DemoRoute =
   | { readonly kind: "archive"; readonly workspaceId: string; readonly demoId: string }
   | { readonly kind: "unarchive"; readonly workspaceId: string; readonly demoId: string }
   | { readonly kind: "restore"; readonly workspaceId: string; readonly demoId: string }
-  | { readonly kind: "permanent"; readonly workspaceId: string; readonly demoId: string };
+  | { readonly kind: "permanent"; readonly workspaceId: string; readonly demoId: string }
+  | { readonly kind: "duplicate"; readonly workspaceId: string; readonly demoId: string }
+  | { readonly kind: "template"; readonly workspaceId: string; readonly demoId: string }
+  | { readonly kind: "instantiate"; readonly workspaceId: string; readonly demoId: string };
 
 function resolveDemoRoute(path: string): DemoRoute | undefined {
   const collection = new RegExp(`^${API_V1_PREFIX}/workspaces/([^/]+)/demos$`, "u").exec(path);
@@ -1668,13 +1731,22 @@ function resolveDemoRoute(path: string): DemoRoute | undefined {
   const trash = new RegExp(`^${API_V1_PREFIX}/workspaces/([^/]+)/trash$`, "u").exec(path);
   if (trash) return { kind: "trash", workspaceId: trash[1]! };
   const action = new RegExp(
-    `^${API_V1_PREFIX}/workspaces/([^/]+)/demos/([^/]+)/(status|restore|folder|archive|unarchive|permanent)$`,
+    `^${API_V1_PREFIX}/workspaces/([^/]+)/demos/([^/]+)/(status|restore|folder|archive|unarchive|permanent|duplicate|template|instantiate)$`,
     "u"
   ).exec(path);
   if (action) {
     const act = action[3]!;
     return {
-      kind: act as "status" | "folder" | "restore" | "archive" | "unarchive" | "permanent",
+      kind: act as
+        | "status"
+        | "folder"
+        | "restore"
+        | "archive"
+        | "unarchive"
+        | "permanent"
+        | "duplicate"
+        | "template"
+        | "instantiate",
       workspaceId: action[1]!,
       demoId: action[2]!
     };

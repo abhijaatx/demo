@@ -36,6 +36,10 @@ test("demo dashboard keeps the Demos journey simple, responsive, and URL-backed"
   assert.match(screen, /EmptyState/u);
   assert.match(screen, /aria-label="Choose demo view"/u);
   assert.match(screen, /role="list"/u);
+  assert.match(screen, /Duplicate/u);
+  assert.match(screen, /Save as template/u);
+  assert.match(screen, /Use template/u);
+  assert.match(screen, /Templates \(/u);
   assert.match(css, /\.demo-card-grid/u);
   assert.match(css, /@media \(max-width: 520px\)/u);
   assert.doesNotMatch(`${screen}\n${shell}`, /dangerouslySetInnerHTML|innerHTML|eval\(/u);
@@ -50,7 +54,10 @@ test("demo dashboard browser client scopes API requests, validates response shap
   assert.match(client, /encodeURIComponent\(workspaceId\)/u);
   assert.match(client, /Idempotency-Key/u);
   assert.match(client, /globalThis\.crypto\.randomUUID\(\)/u);
-  assert.match(client, /demo\["deletedAt"\] === null/u);
+  assert.match(client, /duplicate/u);
+  assert.match(client, /setTemplate/u);
+  assert.match(client, /createFromTemplate/u);
+  assert.match(client, /typeof demo\["isTemplate"\] === "boolean"/u);
   assert.match(client, /isDemoStatus/u);
   assert.doesNotMatch(
     client,
