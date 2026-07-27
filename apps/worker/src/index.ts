@@ -1,5 +1,6 @@
 import { ConfigurationError, loadConfig } from "@supademo/config";
-import { closeDatabasePool, createDatabasePool } from "@supademo/database";
+import { closeDatabasePool, createDatabasePool, DatabaseDemoRepository } from "@supademo/database";
+import { TRASH_RETENTION_DAYS } from "@supademo/domain";
 import {
   createHookedTracer,
   createJsonLogger,
@@ -17,6 +18,7 @@ import {
   type QueueSpanStatus,
   type QueueTracer
 } from "@supademo/queue";
+import type { Pool } from "pg";
 import { SqlIdempotencyStore } from "./idempotency.js";
 
 async function main(): Promise<void> {
@@ -38,7 +40,10 @@ async function main(): Promise<void> {
     adapter,
     queueName: config.queue.name,
     deadLetterQueueName: config.queue.deadLetterName,
-    handlers: new Map<string, JobHandler>([["demo.sample", sampleJobHandler]]),
+    handlers: new Map<string, JobHandler>([
+      ["demo.sample", sampleJobHandler],
+      ["demo.purge_trash", createPurgeTrashJobHandler(pool)]
+    ]),
     idempotencyStore: new SqlIdempotencyStore(pool, config.queue.visibilityTimeoutSeconds + 60),
     visibilityTimeoutSeconds: config.queue.visibilityTimeoutSeconds,
     pollWaitSeconds: config.queue.pollWaitSeconds,
@@ -114,6 +119,36 @@ function isSamplePayload(value: unknown): value is { readonly message: string } 
   }
   const record = value as { readonly message?: unknown };
   return typeof record.message === "string" && record.message.length <= 200;
+}
+
+function createPurgeTrashJobHandler(pool: Pool): JobHandler {
+  const repository = new DatabaseDemoRepository(pool);
+  return {
+    async handle(job) {
+      const retentionDays =
+        isPurgePayload(job.payload) && typeof job.payload.retentionDays === "number"
+          ? job.payload.retentionDays
+          : TRASH_RETENTION_DAYS;
+      const purged = await repository.purgeExpiredTrash(retentionDays);
+      console.log(
+        JSON.stringify({
+          level: "info",
+          message: "purge_trash_job_completed",
+          jobId: job.jobId,
+          purgedCount: purged.length
+        })
+      );
+    }
+  };
+}
+
+function isPurgePayload(value: unknown): value is { readonly retentionDays?: number } {
+  if (value === null || typeof value !== "object") return true;
+  const record = value as { readonly retentionDays?: unknown };
+  return (
+    record.retentionDays === undefined ||
+    (typeof record.retentionDays === "number" && record.retentionDays > 0)
+  );
 }
 
 function configurationErrorMessage(error: unknown): string {

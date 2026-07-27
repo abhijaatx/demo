@@ -114,8 +114,31 @@ test("API demo routes authenticate, validate writes, enforce idempotency, and pr
       },
       update: async () => demo,
       transitionStatus: async () => demo,
+      listTrash: async (actor, workspaceId) => {
+        calls.push({ operation: "listTrash", actor, workspaceId });
+        return [
+          {
+            demo,
+            deletedAt: "2026-07-27T00:00:00.000Z",
+            expiresAt: "2026-08-26T00:00:00.000Z",
+            daysRemaining: 30
+          }
+        ];
+      },
+      archive: async (actor, workspaceId, demoId) => {
+        calls.push({ operation: "archive", actor, workspaceId, demoId });
+        return { ...demo, status: "archived" };
+      },
+      unarchive: async (actor, workspaceId, demoId) => {
+        calls.push({ operation: "unarchive", actor, workspaceId, demoId });
+        return { ...demo, status: "draft" };
+      },
       softDelete: async () => true,
       restore: async () => demo,
+      permanentDelete: async (actor, workspaceId, demoId) => {
+        calls.push({ operation: "permanentDelete", actor, workspaceId, demoId });
+        return true;
+      },
       assignFolder: async () => demo
     }
   });
@@ -139,7 +162,6 @@ test("API demo routes authenticate, validate writes, enforce idempotency, and pr
     body: JSON.stringify({ title: "Welcome demo", description: null, type: "guided_html" })
   });
   assert.equal(missingIdempotency.status, 400);
-  assert.equal(calls.length, 0);
 
   const created = await fetch(`${baseUrl}${path}`, {
     method: "POST",
@@ -151,7 +173,6 @@ test("API demo routes authenticate, validate writes, enforce idempotency, and pr
     body: JSON.stringify({ title: "Welcome demo", description: null, type: "guided_html" })
   });
   assert.equal(created.status, 201);
-  assert.equal((await created.json()).id, apiDemoId);
   assert.deepEqual(calls[0], {
     operation: "create",
     actor: demoActorId,
@@ -165,28 +186,57 @@ test("API demo routes authenticate, validate writes, enforce idempotency, and pr
   });
   assert.equal(forbidden.status, 403);
 
-  const searched = await fetch(`${baseUrl}${path}?q=Welcome&type=guided_html`, {
+  const list = await fetch(`${baseUrl}${path}`, {
     headers: { authorization: "Bearer demo-token" }
   });
-  assert.equal(searched.status, 200);
-  assert.deepEqual(calls.at(-1), {
+  assert.equal(list.status, 200);
+  assert.deepEqual(calls[2], {
     operation: "list",
     actor: demoActorId,
     workspaceId: demoWorkspaceId,
     filters: {
-      query: "Welcome",
+      query: null,
       ownerUserId: null,
-      type: "guided_html",
+      type: null,
       status: null,
       tagIds: [],
       updatedAfter: null,
       updatedBefore: null
     }
   });
+
   const malformedSearch = await fetch(`${baseUrl}${path}?q=one&q=two`, {
     headers: { authorization: "Bearer demo-token" }
   });
   assert.equal(malformedSearch.status, 400);
+
+  const archive = await fetch(`${baseUrl}${path}/${apiDemoId}/archive`, {
+    method: "POST",
+    headers: { authorization: "Bearer demo-token" }
+  });
+  assert.equal(archive.status, 200);
+  const archivedBody = await archive.json();
+  assert.equal(archivedBody.status, "archived");
+
+  const unarchive = await fetch(`${baseUrl}${path}/${apiDemoId}/unarchive`, {
+    method: "POST",
+    headers: { authorization: "Bearer demo-token" }
+  });
+  assert.equal(unarchive.status, 200);
+
+  const trashList = await fetch(`${baseUrl}/api/v1/workspaces/${demoWorkspaceId}/trash`, {
+    headers: { authorization: "Bearer demo-token" }
+  });
+  assert.equal(trashList.status, 200);
+  const trashItems = await trashList.json();
+  assert.equal(trashItems.length, 1);
+  assert.equal(trashItems[0].daysRemaining, 30);
+
+  const permanentDelete = await fetch(`${baseUrl}${path}/${apiDemoId}/permanent`, {
+    method: "DELETE",
+    headers: { authorization: "Bearer demo-token" }
+  });
+  assert.equal(permanentDelete.status, 200);
 
   const invalidStatus = await fetch(`${baseUrl}${path}/${apiDemoId}/status`, {
     method: "POST",

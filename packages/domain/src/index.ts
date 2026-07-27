@@ -2,6 +2,7 @@ export const packageName = "@supademo/domain" as const;
 
 export {
   assertDemoStatusTransition,
+  calculateTrashRetention,
   DemoConflictError,
   DemoStoreError,
   DemoValidationError,
@@ -12,6 +13,7 @@ export {
   normalizeDemoStatus,
   parseCreateDemoInput,
   parseDemoPatch,
+  TRASH_RETENTION_DAYS,
   type CreateDemoInput,
   type Demo,
   type DemoAuditAction,
@@ -19,7 +21,8 @@ export {
   type DemoPatch,
   type DemoRepository,
   type DemoStatus,
-  type DemoType
+  type DemoType,
+  type TrashItem
 } from "./demo.js";
 
 export {

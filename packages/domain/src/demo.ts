@@ -38,8 +38,42 @@ export type DemoPatch = Readonly<{
   type?: DemoType;
 }>;
 
+export const TRASH_RETENTION_DAYS = 30;
+
+export type TrashItem = Readonly<{
+  demo: Demo;
+  deletedAt: string;
+  expiresAt: string;
+  daysRemaining: number;
+}>;
+
+export function calculateTrashRetention(
+  deletedAtIso: string,
+  now = new Date(),
+  retentionDays = TRASH_RETENTION_DAYS
+): Readonly<{ expiresAt: string; daysRemaining: number }> {
+  const deletedAtDate = new Date(deletedAtIso);
+  if (Number.isNaN(deletedAtDate.getTime())) {
+    throw new DemoValidationError("The deletedAt date is invalid.");
+  }
+  const expiresAtDate = new Date(deletedAtDate.getTime() + retentionDays * 24 * 60 * 60 * 1000);
+  const diffMs = expiresAtDate.getTime() - now.getTime();
+  const daysRemaining = Math.max(0, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
+  return Object.freeze({
+    expiresAt: expiresAtDate.toISOString(),
+    daysRemaining
+  });
+}
+
 export type DemoAuditAction =
-  "demo.created" | "demo.updated" | "demo.status_changed" | "demo.deleted" | "demo.restored";
+  | "demo.created"
+  | "demo.updated"
+  | "demo.status_changed"
+  | "demo.deleted"
+  | "demo.restored"
+  | "demo.archived"
+  | "demo.unarchived"
+  | "demo.permanently_deleted";
 
 export type DemoAuditEvent = Readonly<{
   id: string;
@@ -82,6 +116,7 @@ export interface DemoRepository {
     workspaceId: string,
     filters?: import("./tag.js").DemoSearchFilters
   ): Promise<readonly Demo[]>;
+  listTrash(actorUserId: string, workspaceId: string): Promise<readonly TrashItem[]>;
   get(actorUserId: string, workspaceId: string, demoId: string): Promise<Demo | null>;
   create(
     actorUserId: string,
@@ -101,8 +136,14 @@ export interface DemoRepository {
     demoId: string,
     status: DemoStatus
   ): Promise<Demo | null>;
+  archive(actorUserId: string, workspaceId: string, demoId: string): Promise<Demo | null>;
+  unarchive(actorUserId: string, workspaceId: string, demoId: string): Promise<Demo | null>;
   softDelete(actorUserId: string, workspaceId: string, demoId: string): Promise<boolean>;
   restore(actorUserId: string, workspaceId: string, demoId: string): Promise<Demo | null>;
+  permanentDelete(actorUserId: string, workspaceId: string, demoId: string): Promise<boolean>;
+  purgeExpiredTrash(
+    retentionDays?: number
+  ): Promise<readonly { workspaceId: string; demoId: string }[]>;
   assignFolder(
     actorUserId: string,
     workspaceId: string,

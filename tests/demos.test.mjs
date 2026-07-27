@@ -5,6 +5,7 @@ import { DatabaseDemoRepository } from "../packages/database/dist/index.js";
 import {
   assertDemoStatusTransition,
   AuthorizationDeniedError,
+  calculateTrashRetention,
   DemoConflictError,
   DemoValidationError,
   parseCreateDemoInput,
@@ -257,4 +258,197 @@ test("demo lifecycle migration records tenant ownership, soft deletion, audit ev
     /action = 'demo.restored' AND previous_status IS NULL AND status IS NOT NULL/u
   );
   assert.match(migration, /WHERE deleted_at IS NULL/u);
+});
+
+test("calculateTrashRetention computes 30-day retention and days remaining correctly", () => {
+  const now = new Date("2026-07-27T12:00:00.000Z");
+  const deletedAt = "2026-07-27T00:00:00.000Z";
+  const retention = calculateTrashRetention(deletedAt, now, 30);
+  assert.equal(retention.expiresAt, "2026-08-26T00:00:00.000Z");
+  assert.equal(retention.daysRemaining, 30);
+
+  const olderDeleted = "2026-06-20T00:00:00.000Z";
+  const olderRetention = calculateTrashRetention(olderDeleted, now, 30);
+  assert.equal(olderRetention.daysRemaining, 0);
+
+  assert.throws(() => calculateTrashRetention("invalid-date", now), DemoValidationError);
+});
+
+test("archive and unarchive transition status and write audit events", async () => {
+  const calls = [];
+  const client = {
+    query: async (text, values = []) => {
+      calls.push({ text, values });
+      if (text === "BEGIN" || text === "COMMIT" || text === "ROLLBACK") return { rows: [] };
+      if (text.includes("SELECT role FROM memberships")) return { rows: [{ role: "editor" }] };
+      if (text.includes("SELECT status")) return { rows: [{ status: "draft" }] };
+      if (text.includes("UPDATE demos"))
+        return { rows: [demoRow({ status: "archived" })] };
+      if (text.includes("INSERT INTO demo_audit_events")) return { rows: [] };
+      throw new Error("Unexpected query in archive test");
+    },
+    release: () => undefined
+  };
+  const repository = new DatabaseDemoRepository({ connect: async () => client });
+  const archived = await repository.archive(actorId, workspaceId, demoId);
+  assert.equal(archived.status, "archived");
+  const archiveAudit = calls.find(
+    ({ text, values }) =>
+      text.includes("INSERT INTO demo_audit_events") && values[4] === "demo.archived"
+  );
+  assert.ok(archiveAudit);
+  assert.equal(archiveAudit.values[1], workspaceId);
+  assert.equal(archiveAudit.values[2], demoId);
+});
+
+test("trash listing returns soft-deleted demos with calculated retention display metadata", async () => {
+  const calls = [];
+  const client = {
+    query: async (text, values = []) => {
+      calls.push({ text, values });
+      if (text === "BEGIN" || text === "COMMIT" || text === "ROLLBACK") return { rows: [] };
+      if (text.includes("SELECT role FROM memberships")) return { rows: [{ role: "editor" }] };
+      if (text.includes("FROM demos") && text.includes("deleted_at IS NOT NULL")) {
+        return {
+          rows: [
+            demoRow({
+              deleted_at: "2026-07-25T10:00:00.000Z",
+              status: "published"
+            })
+          ]
+        };
+      }
+      throw new Error("Unexpected trash list query");
+    },
+    release: () => undefined
+  };
+  const repository = new DatabaseDemoRepository({ connect: async () => client });
+  const trash = await repository.listTrash(actorId, workspaceId);
+  assert.equal(trash.length, 1);
+  assert.equal(trash[0].demo.id, demoId);
+  assert.equal(trash[0].deletedAt, "2026-07-25T10:00:00.000Z");
+  assert.ok(trash[0].daysRemaining >= 0 && trash[0].daysRemaining <= 30);
+});
+
+test("permanent deletion requires delete capability, is workspace-scoped, and audit logged", async () => {
+  const viewerClient = {
+    query: async (text) => {
+      if (text === "BEGIN" || text === "ROLLBACK") return { rows: [] };
+      if (text.includes("SELECT role FROM memberships")) return { rows: [{ role: "viewer" }] };
+      throw new Error("Viewer must not proceed to permanent delete");
+    },
+    release: () => undefined
+  };
+  const viewerRepository = new DatabaseDemoRepository({ connect: async () => viewerClient });
+  await assert.rejects(
+    viewerRepository.permanentDelete(actorId, workspaceId, demoId),
+    AuthorizationDeniedError
+  );
+
+  const activeDemoClient = {
+    query: async (text) => {
+      if (text === "BEGIN" || text === "ROLLBACK") return { rows: [] };
+      if (text.includes("SELECT role FROM memberships")) return { rows: [{ role: "owner" }] };
+      if (text.includes("SELECT status, deleted_at"))
+        return { rows: [{ status: "draft", deleted_at: null }] };
+      throw new Error("Active demo cannot be permanently deleted without being trashed first");
+    },
+    release: () => undefined
+  };
+  const activeDemoRepo = new DatabaseDemoRepository({ connect: async () => activeDemoClient });
+  await assert.rejects(
+    activeDemoRepo.permanentDelete(actorId, workspaceId, demoId),
+    DemoConflictError
+  );
+
+  const calls = [];
+  const permanentClient = {
+    query: async (text, values = []) => {
+      calls.push({ text, values });
+      if (text === "BEGIN" || text === "COMMIT" || text === "ROLLBACK") return { rows: [] };
+      if (text.includes("SELECT role FROM memberships")) return { rows: [{ role: "admin" }] };
+      if (text.includes("SELECT status, deleted_at"))
+        return { rows: [{ status: "published", deleted_at: "2026-07-20T00:00:00.000Z" }] };
+      if (text.includes("INSERT INTO demo_audit_events")) return { rows: [] };
+      if (text.includes("DELETE FROM demos")) return { rows: [] };
+      throw new Error("Unexpected permanent delete query");
+    },
+    release: () => undefined
+  };
+  const repository = new DatabaseDemoRepository({ connect: async () => permanentClient });
+  const result = await repository.permanentDelete(actorId, workspaceId, demoId);
+  assert.equal(result, true);
+  const audit = calls.find(
+    ({ text, values }) =>
+      text.includes("INSERT INTO demo_audit_events") && values[4] === "demo.permanently_deleted"
+  );
+  assert.ok(audit);
+  assert.equal(audit.values[1], workspaceId);
+  assert.equal(audit.values[2], demoId);
+
+  const idempotentCalls = [];
+  const alreadyDeletedClient = {
+    query: async (text, values = []) => {
+      idempotentCalls.push({ text, values });
+      if (text === "BEGIN" || text === "COMMIT" || text === "ROLLBACK") return { rows: [] };
+      if (text.includes("SELECT role FROM memberships")) return { rows: [{ role: "admin" }] };
+      if (text.includes("SELECT status, deleted_at")) return { rows: [] };
+      throw new Error("Idempotent rerun must not fail");
+    },
+    release: () => undefined
+  };
+  const idempotentRepo = new DatabaseDemoRepository({ connect: async () => alreadyDeletedClient });
+  const idempotentResult = await idempotentRepo.permanentDelete(actorId, workspaceId, demoId);
+  assert.equal(idempotentResult, true);
+});
+
+test("purgeExpiredTrash hard-deletes trashed demos past retention window and records audit events", async () => {
+  const calls = [];
+  const client = {
+    query: async (text, values = []) => {
+      calls.push({ text, values });
+      if (text === "BEGIN" || text === "COMMIT" || text === "ROLLBACK") return { rows: [] };
+      if (text.includes("SELECT id, workspace_id, owner_user_id, status")) {
+        return {
+          rows: [
+            {
+              id: demoId,
+              workspace_id: workspaceId,
+              owner_user_id: actorId,
+              status: "draft"
+            }
+          ]
+        };
+      }
+      if (text.includes("INSERT INTO demo_audit_events") || text.includes("DELETE FROM demos")) {
+        return { rows: [] };
+      }
+      throw new Error("Unexpected purge query");
+    },
+    release: () => undefined
+  };
+  const repository = new DatabaseDemoRepository({ connect: async () => client });
+  const purged = await repository.purgeExpiredTrash(30);
+  assert.equal(purged.length, 1);
+  assert.deepEqual(purged[0], { workspaceId, demoId });
+  const audit = calls.find(
+    ({ text, values }) =>
+      text.includes("INSERT INTO demo_audit_events") && values[4] === "demo.permanently_deleted"
+  );
+  assert.ok(audit);
+});
+
+test("trash and permanent deletion migration relaxes demo_id constraint and adds action check", async () => {
+  const migration = await readFile(
+    new URL(
+      "../packages/database/migrations/2026071200900_trash_and_permanent_deletion.sql",
+      import.meta.url
+    ),
+    "utf8"
+  );
+  assert.match(migration, /ALTER TABLE demo_audit_events ALTER COLUMN demo_id DROP NOT NULL/u);
+  assert.match(migration, /demo.permanently_deleted/u);
+  assert.match(migration, /demo.archived/u);
+  assert.match(migration, /FOREIGN KEY \(demo_id\) REFERENCES demos \(id\) ON DELETE SET NULL/u);
+  assert.match(migration, /CREATE INDEX IF NOT EXISTS demos_workspace_trash_list_idx/u);
 });

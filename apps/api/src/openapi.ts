@@ -173,11 +173,21 @@ const DemoMessageSchema = z
   .object({ message: z.string().min(1).max(240) })
   .strict()
   .openapi("DemoMessage");
+const TrashItemSchema = z
+  .object({
+    demo: DemoSchema,
+    deletedAt: z.string().datetime(),
+    expiresAt: z.string().datetime(),
+    daysRemaining: z.number().int().min(0)
+  })
+  .strict()
+  .openapi("TrashItem");
 registry.register("Demo", DemoSchema);
 registry.register("DemoCreate", DemoCreateSchema);
 registry.register("DemoPatch", DemoPatchSchema);
 registry.register("DemoStatusUpdate", DemoStatusSchema);
 registry.register("DemoMessage", DemoMessageSchema);
+registry.register("TrashItem", TrashItemSchema);
 
 const FolderSchema = z
   .object({
@@ -397,6 +407,13 @@ registry.registerPath({
 
 for (const [method, path, summary, body, success] of [
   [
+    "get",
+    "/api/v1/workspaces/{workspaceId}/trash",
+    "List trashed demos in a workspace",
+    undefined,
+    z.array(TrashItemSchema)
+  ],
+  [
     "post",
     "/api/v1/workspaces/{workspaceId}/demos/{demoId}/folder",
     "Move a demo into a folder or Unfiled",
@@ -433,10 +450,31 @@ for (const [method, path, summary, body, success] of [
   ],
   [
     "post",
+    "/api/v1/workspaces/{workspaceId}/demos/{demoId}/archive",
+    "Archive a demo",
+    undefined,
+    DemoSchema
+  ],
+  [
+    "post",
+    "/api/v1/workspaces/{workspaceId}/demos/{demoId}/unarchive",
+    "Unarchive a demo",
+    undefined,
+    DemoSchema
+  ],
+  [
+    "post",
     "/api/v1/workspaces/{workspaceId}/demos/{demoId}/restore",
     "Restore a trashed demo",
     undefined,
     DemoSchema
+  ],
+  [
+    "delete",
+    "/api/v1/workspaces/{workspaceId}/demos/{demoId}/permanent",
+    "Permanently delete a trashed demo",
+    undefined,
+    DemoMessageSchema
   ]
 ] as const) {
   registry.registerPath({

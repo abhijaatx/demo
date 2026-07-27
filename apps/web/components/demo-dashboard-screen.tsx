@@ -20,7 +20,8 @@ import {
   type Demo,
   type DemoClient,
   type DemoStatus,
-  type DemoType
+  type DemoType,
+  type TrashItem
 } from "../src/lib/demo-client";
 import { createFolderClient, type Folder, type FolderClient } from "../src/lib/folder-client";
 import { createTagClient, type Tag, type TagClient } from "../src/lib/tag-client";
@@ -71,6 +72,9 @@ export function DemoDashboardScreen({
   const [demos, setDemos] = useState<readonly Demo[]>([]);
   const [folders, setFolders] = useState<readonly Folder[]>([]);
   const [tags, setTags] = useState<readonly Tag[]>([]);
+  const [trashItems, setTrashItems] = useState<readonly TrashItem[]>([]);
+  const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<TrashItem | null>(null);
+  const [deletingPermanently, setDeletingPermanently] = useState(false);
   const [status, setStatus] = useState<DashboardStatus>("loading");
   const [error, setError] = useState<string | undefined>();
   const [message, setMessage] = useState<string | undefined>();
@@ -143,18 +147,21 @@ export function DemoDashboardScreen({
     setMessage(undefined);
     setDemos([]);
     setTags([]);
+    setTrashItems([]);
     try {
       const current = await workspaceRef.current.getCurrent();
-      const [loaded, loadedFolders, loadedTags] = await Promise.all([
+      const [loaded, loadedFolders, loadedTags, loadedTrash] = await Promise.all([
         demoRef.current.list(current.workspaceId, serverFilters),
         folderRef.current.list(current.workspaceId),
-        tagRef.current.list(current.workspaceId)
+        tagRef.current.list(current.workspaceId),
+        demoRef.current.listTrash(current.workspaceId)
       ]);
       if (sequence !== requestSequence.current) return;
       setWorkspace(current);
       setDemos(loaded);
       setFolders(loadedFolders);
       setTags(loadedTags);
+      setTrashItems(loadedTrash);
       setStatus("ready");
     } catch (caught) {
       if (sequence !== requestSequence.current) return;
@@ -195,13 +202,16 @@ export function DemoDashboardScreen({
     return () => window.clearTimeout(timeout);
   }, [query, searchDraft, setUrlState]);
 
-  const selectedFolderId = folders.some((folder) => folder.id === selectedFolderParam)
-    ? selectedFolderParam
-    : null;
+  const isTrashView = selectedFolderParam === "trash";
+  const selectedFolderId = isTrashView
+    ? "trash"
+    : folders.some((folder) => folder.id === selectedFolderParam)
+      ? selectedFolderParam
+      : null;
   const selectedFolder = folders.find((folder) => folder.id === selectedFolderId);
   const scopedDemos = useMemo(
-    () => demos.filter((demo) => demo.folderId === selectedFolderId),
-    [demos, selectedFolderId]
+    () => demos.filter((demo) => demo.folderId === (isTrashView ? null : selectedFolderId)),
+    [demos, isTrashView, selectedFolderId]
   );
   const sortedDemos = useMemo(() => sortDemos(scopedDemos, sort), [scopedDemos, sort]);
   const totalPages = Math.max(1, Math.ceil(sortedDemos.length / pageSize));
@@ -209,6 +219,7 @@ export function DemoDashboardScreen({
   const pageDemos = sortedDemos.slice((page - 1) * pageSize, page * pageSize);
   const canCreate = workspace?.capabilities.includes("demo:create") ?? false;
   const canManageFolders = workspace?.capabilities.includes("demo:update") ?? false;
+  const canDelete = workspace?.capabilities.includes("demo:delete") ?? false;
   const activeFilterCount = [
     ownerUserId,
     typeFilter,
@@ -218,6 +229,79 @@ export function DemoDashboardScreen({
     updatedBefore
   ].filter(Boolean).length;
   const hasSearchOrFilters = Boolean(query) || activeFilterCount > 0;
+
+  const archiveDemo = async (demoToArchive: Demo): Promise<void> => {
+    if (!workspace || !canManageFolders) return;
+    setError(undefined);
+    try {
+      const updated = await demoRef.current.archive(workspace.workspaceId, demoToArchive.id);
+      setDemos((current) => current.map((item) => (item.id === demoToArchive.id ? updated : item)));
+      setMessage(`“${demoToArchive.title}” was archived.`);
+    } catch {
+      setError("The demo could not be archived.");
+    }
+  };
+
+  const unarchiveDemo = async (demoToUnarchive: Demo): Promise<void> => {
+    if (!workspace || !canManageFolders) return;
+    setError(undefined);
+    try {
+      const updated = await demoRef.current.unarchive(workspace.workspaceId, demoToUnarchive.id);
+      setDemos((current) =>
+        current.map((item) => (item.id === demoToUnarchive.id ? updated : item))
+      );
+      setMessage(`“${demoToUnarchive.title}” was unarchived.`);
+    } catch {
+      setError("The demo could not be unarchived.");
+    }
+  };
+
+  const softDeleteDemo = async (demoToDelete: Demo): Promise<void> => {
+    if (!workspace || !canDelete) return;
+    setError(undefined);
+    try {
+      await demoRef.current.softDelete(workspace.workspaceId, demoToDelete.id);
+      setDemos((current) => current.filter((item) => item.id !== demoToDelete.id));
+      const loadedTrash = await demoRef.current.listTrash(workspace.workspaceId);
+      setTrashItems(loadedTrash);
+      setMessage(`“${demoToDelete.title}” was moved to trash.`);
+    } catch {
+      setError("The demo could not be moved to trash.");
+    }
+  };
+
+  const restoreDemo = async (itemToRestore: TrashItem): Promise<void> => {
+    if (!workspace || !canDelete) return;
+    setError(undefined);
+    try {
+      const restored = await demoRef.current.restore(workspace.workspaceId, itemToRestore.demo.id);
+      setTrashItems((current) => current.filter((item) => item.demo.id !== itemToRestore.demo.id));
+      if (restored) {
+        setDemos((current) => [restored, ...current.filter((item) => item.id !== restored.id)]);
+      }
+      setMessage(`“${itemToRestore.demo.title}” was restored.`);
+    } catch {
+      setError("The demo could not be restored.");
+    }
+  };
+
+  const confirmPermanentDelete = async (): Promise<void> => {
+    if (!workspace || !permanentDeleteTarget || !canDelete) return;
+    setDeletingPermanently(true);
+    setError(undefined);
+    try {
+      await demoRef.current.permanentDelete(workspace.workspaceId, permanentDeleteTarget.demo.id);
+      setTrashItems((current) =>
+        current.filter((item) => item.demo.id !== permanentDeleteTarget.demo.id)
+      );
+      setMessage(`“${permanentDeleteTarget.demo.title}” was permanently deleted.`);
+      setPermanentDeleteTarget(null);
+    } catch {
+      setError("The demo could not be permanently deleted.");
+    } finally {
+      setDeletingPermanently(false);
+    }
+  };
 
   const closeCreate = (): void => {
     setCreateOpen(false);
@@ -489,6 +573,7 @@ export function DemoDashboardScreen({
         <FolderSidebar
           folders={folders}
           selectedFolderId={selectedFolderId}
+          trashCount={trashItems.length}
           canManage={canManageFolders}
           dragged={dragged}
           onSelect={(folderId) => setUrlState({ folder: folderId ?? undefined, page: undefined })}
@@ -500,9 +585,13 @@ export function DemoDashboardScreen({
         <div className="demo-dashboard-main">
           <div className="demo-folder-context">
             <p aria-label="Current folder">
-              {folderBreadcrumbs(folders, selectedFolderId).join(" / ")}
+              {isTrashView
+                ? "Demos / Trash"
+                : folderBreadcrumbs(folders, selectedFolderId).join(" / ")}
             </p>
-            {selectedFolder ? (
+            {isTrashView ? (
+              <span>Trashed items are retained for 30 days before permanent deletion.</span>
+            ) : selectedFolder ? (
               <div className="demo-folder-actions">
                 <span>Drag demos or folders here to organize them.</span>
                 <Button
@@ -526,7 +615,30 @@ export function DemoDashboardScreen({
               <span>Unfiled demos</span>
             )}
           </div>
-          {demos.length === 0 ? (
+          {isTrashView ? (
+            trashItems.length === 0 ? (
+              <EmptyState
+                title="Trash is empty"
+                description="Soft-deleted demos stay here for up to 30 days before being automatically purged."
+              />
+            ) : (
+              <div
+                className={view === "grid" ? "demo-card-grid" : "demo-list-view"}
+                aria-label="Trashed Demos"
+                role="list"
+              >
+                {trashItems.map((item) => (
+                  <TrashCard
+                    key={item.demo.id}
+                    item={item}
+                    canDelete={canDelete}
+                    onRestore={() => void restoreDemo(item)}
+                    onPermanentDelete={() => setPermanentDeleteTarget(item)}
+                  />
+                ))}
+              </div>
+            )
+          ) : demos.length === 0 ? (
             <EmptyState
               title="Create your first demo"
               description="Start with a capture type, then add screens and guidance in the editor."
@@ -633,6 +745,11 @@ export function DemoDashboardScreen({
                       onDragEnd={() => setDragged(undefined)}
                       canManageTags={canManageFolders}
                       onManageTags={() => setTaggingDemo(demo)}
+                      canManageDemos={canManageFolders}
+                      canDeleteDemos={canDelete}
+                      onArchive={() => void archiveDemo(demo)}
+                      onUnarchive={() => void unarchiveDemo(demo)}
+                      onSoftDelete={() => void softDeleteDemo(demo)}
                     />
                   ))}
                 </div>
@@ -647,6 +764,11 @@ export function DemoDashboardScreen({
                       onDragEnd={() => setDragged(undefined)}
                       canManageTags={canManageFolders}
                       onManageTags={() => setTaggingDemo(demo)}
+                      canManageDemos={canManageFolders}
+                      canDeleteDemos={canDelete}
+                      onArchive={() => void archiveDemo(demo)}
+                      onUnarchive={() => void unarchiveDemo(demo)}
+                      onSoftDelete={() => void softDeleteDemo(demo)}
                     />
                   ))}
                 </div>
@@ -665,6 +787,31 @@ export function DemoDashboardScreen({
           )}
         </div>
       </div>
+
+      <Modal
+        open={permanentDeleteTarget !== null}
+        onClose={() => setPermanentDeleteTarget(null)}
+        title={`Permanently delete “${permanentDeleteTarget?.demo.title ?? ""}”?`}
+      >
+        <p className="demo-dashboard-modal-description">
+          This action is permanent and cannot be undone. “{permanentDeleteTarget?.demo.title}” and
+          all associated assets will be permanently removed.
+        </p>
+        <div className="demo-dashboard-modal-actions">
+          <Button variant="ghost" onClick={() => setPermanentDeleteTarget(null)}>
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => void confirmPermanentDelete()}
+            loading={deletingPermanently}
+            loadingLabel="Deleting demo"
+            disabled={!canDelete}
+          >
+            Delete permanently
+          </Button>
+        </div>
+      </Modal>
 
       <Modal
         open={taggingDemo !== null}
@@ -1017,7 +1164,12 @@ export function DemoCard({
   onDragStart,
   onDragEnd,
   canManageTags = false,
-  onManageTags
+  onManageTags,
+  canManageDemos = false,
+  canDeleteDemos = false,
+  onArchive,
+  onUnarchive,
+  onSoftDelete
 }: {
   readonly demo: Demo;
   readonly draggable?: boolean;
@@ -1025,6 +1177,11 @@ export function DemoCard({
   readonly onDragEnd?: () => void;
   readonly canManageTags?: boolean;
   readonly onManageTags?: () => void;
+  readonly canManageDemos?: boolean;
+  readonly canDeleteDemos?: boolean;
+  readonly onArchive?: () => void;
+  readonly onUnarchive?: () => void;
+  readonly onSoftDelete?: () => void;
 }) {
   return (
     <article
@@ -1048,6 +1205,22 @@ export function DemoCard({
               Tags
             </Button>
           ) : null}
+          {canManageDemos ? (
+            demo.status === "archived" ? (
+              <Button type="button" size="sm" variant="ghost" onClick={onUnarchive}>
+                Unarchive
+              </Button>
+            ) : (
+              <Button type="button" size="sm" variant="ghost" onClick={onArchive}>
+                Archive
+              </Button>
+            )
+          ) : null}
+          {canDeleteDemos ? (
+            <Button type="button" size="sm" variant="ghost" onClick={onSoftDelete}>
+              Trash
+            </Button>
+          ) : null}
           <time dateTime={demo.updatedAt}>{relativeTime(demo.updatedAt)}</time>
         </footer>
       </div>
@@ -1061,7 +1234,12 @@ function DemoListRow({
   onDragStart,
   onDragEnd,
   canManageTags = false,
-  onManageTags
+  onManageTags,
+  canManageDemos = false,
+  canDeleteDemos = false,
+  onArchive,
+  onUnarchive,
+  onSoftDelete
 }: {
   readonly demo: Demo;
   readonly draggable?: boolean;
@@ -1069,6 +1247,11 @@ function DemoListRow({
   readonly onDragEnd?: () => void;
   readonly canManageTags?: boolean;
   readonly onManageTags?: () => void;
+  readonly canManageDemos?: boolean;
+  readonly canDeleteDemos?: boolean;
+  readonly onArchive?: () => void;
+  readonly onUnarchive?: () => void;
+  readonly onSoftDelete?: () => void;
 }) {
   return (
     <article
@@ -1090,7 +1273,73 @@ function DemoListRow({
           Tags
         </Button>
       ) : null}
+      {canManageDemos ? (
+        demo.status === "archived" ? (
+          <Button type="button" size="sm" variant="ghost" onClick={onUnarchive}>
+            Unarchive
+          </Button>
+        ) : (
+          <Button type="button" size="sm" variant="ghost" onClick={onArchive}>
+            Archive
+          </Button>
+        )
+      ) : null}
+      {canDeleteDemos ? (
+        <Button type="button" size="sm" variant="ghost" onClick={onSoftDelete}>
+          Trash
+        </Button>
+      ) : null}
       <time dateTime={demo.updatedAt}>{relativeTime(demo.updatedAt)}</time>
+    </article>
+  );
+}
+
+function TrashCard({
+  item,
+  canDelete = false,
+  onRestore,
+  onPermanentDelete
+}: {
+  readonly item: TrashItem;
+  readonly canDelete?: boolean;
+  readonly onRestore: () => void;
+  readonly onPermanentDelete: () => void;
+}) {
+  return (
+    <article className="demo-card demo-trash-card" role="listitem">
+      <DemoThumbnail type={item.demo.type} />
+      <div className="demo-card-content">
+        <div>
+          <Badge variant="danger">In Trash</Badge>
+          <h2>{item.demo.title}</h2>
+          <p>{item.demo.description || "No description yet."}</p>
+          <p className="trash-retention-notice">
+            Permanently deletes in {item.daysRemaining} day{item.daysRemaining === 1 ? "" : "s"}{" "}
+            (30-day retention)
+          </p>
+        </div>
+        <footer>
+          <span>{typeLabel(item.demo.type)}</span>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={onRestore}
+            disabled={!canDelete}
+          >
+            Restore
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="danger"
+            onClick={onPermanentDelete}
+            disabled={!canDelete}
+          >
+            Delete permanently
+          </Button>
+        </footer>
+      </div>
     </article>
   );
 }
@@ -1098,6 +1347,7 @@ function DemoListRow({
 function FolderSidebar({
   folders,
   selectedFolderId,
+  trashCount = 0,
   canManage,
   dragged,
   onSelect,
@@ -1108,6 +1358,7 @@ function FolderSidebar({
 }: {
   readonly folders: readonly Folder[];
   readonly selectedFolderId: string | null;
+  readonly trashCount?: number;
   readonly canManage: boolean;
   readonly dragged: { readonly kind: "demo" | "folder"; readonly id: string } | undefined;
   readonly onSelect: (folderId: string | null) => void;
@@ -1153,6 +1404,17 @@ function FolderSidebar({
             onDrop={onDrop}
           />
         ))}
+        <button
+          type="button"
+          className={
+            selectedFolderId === "trash" ? "folder-tree-item is-active" : "folder-tree-item"
+          }
+          role="treeitem"
+          aria-selected={selectedFolderId === "trash"}
+          onClick={() => onSelect("trash")}
+        >
+          Trash ({trashCount})
+        </button>
       </div>
     </aside>
   );

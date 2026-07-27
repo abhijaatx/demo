@@ -1187,6 +1187,11 @@ async function handleDemoRequest(
       sendJson(response, 201, demo);
       return;
     }
+    if (route.kind === "trash") {
+      const items = await options.demoRepository.listTrash(profile.userId, route.workspaceId);
+      sendJson(response, 200, items);
+      return;
+    }
     if (route.kind === "demo") {
       if (request.method === "GET") {
         const demo = await options.demoRepository.get(
@@ -1225,6 +1230,37 @@ async function handleDemoRequest(
         return;
       }
       sendJson(response, 200, { message: "The demo was moved to trash." });
+      return;
+    }
+    if (route.kind === "archive") {
+      const demo = await options.demoRepository.archive(
+        profile.userId,
+        route.workspaceId,
+        route.demoId
+      );
+      if (!demo) {
+        sendError(response, 404, "not_found", "The requested resource was not found.", requestId);
+        return;
+      }
+      sendJson(response, 200, demo);
+      return;
+    }
+    if (route.kind === "unarchive") {
+      const demo = await options.demoRepository.unarchive(
+        profile.userId,
+        route.workspaceId,
+        route.demoId
+      );
+      if (!demo) {
+        sendError(response, 404, "not_found", "The requested resource was not found.", requestId);
+        return;
+      }
+      sendJson(response, 200, demo);
+      return;
+    }
+    if (route.kind === "permanent") {
+      await options.demoRepository.permanentDelete(profile.userId, route.workspaceId, route.demoId);
+      sendJson(response, 200, { message: "The demo was permanently deleted." });
       return;
     }
     if (route.kind === "status") {
@@ -1617,21 +1653,28 @@ function resolveMembershipRoute(path: string): MembershipRoute | undefined {
 
 type DemoRoute =
   | { readonly kind: "collection"; readonly workspaceId: string }
+  | { readonly kind: "trash"; readonly workspaceId: string }
   | { readonly kind: "demo"; readonly workspaceId: string; readonly demoId: string }
   | { readonly kind: "status"; readonly workspaceId: string; readonly demoId: string }
   | { readonly kind: "folder"; readonly workspaceId: string; readonly demoId: string }
-  | { readonly kind: "restore"; readonly workspaceId: string; readonly demoId: string };
+  | { readonly kind: "archive"; readonly workspaceId: string; readonly demoId: string }
+  | { readonly kind: "unarchive"; readonly workspaceId: string; readonly demoId: string }
+  | { readonly kind: "restore"; readonly workspaceId: string; readonly demoId: string }
+  | { readonly kind: "permanent"; readonly workspaceId: string; readonly demoId: string };
 
 function resolveDemoRoute(path: string): DemoRoute | undefined {
   const collection = new RegExp(`^${API_V1_PREFIX}/workspaces/([^/]+)/demos$`, "u").exec(path);
   if (collection) return { kind: "collection", workspaceId: collection[1]! };
+  const trash = new RegExp(`^${API_V1_PREFIX}/workspaces/([^/]+)/trash$`, "u").exec(path);
+  if (trash) return { kind: "trash", workspaceId: trash[1]! };
   const action = new RegExp(
-    `^${API_V1_PREFIX}/workspaces/([^/]+)/demos/([^/]+)/(status|restore|folder)$`,
+    `^${API_V1_PREFIX}/workspaces/([^/]+)/demos/([^/]+)/(status|restore|folder|archive|unarchive|permanent)$`,
     "u"
   ).exec(path);
   if (action) {
+    const act = action[3]!;
     return {
-      kind: action[3] === "status" ? "status" : action[3] === "folder" ? "folder" : "restore",
+      kind: act as "status" | "folder" | "restore" | "archive" | "unarchive" | "permanent",
       workspaceId: action[1]!,
       demoId: action[2]!
     };
@@ -1686,7 +1729,9 @@ function dynamicRouteMethods(path: string): readonly string[] | undefined {
   const demoRoute = resolveDemoRoute(path);
   if (demoRoute) {
     if (demoRoute.kind === "collection") return ["GET", "POST"];
+    if (demoRoute.kind === "trash") return ["GET"];
     if (demoRoute.kind === "demo") return ["GET", "PATCH", "DELETE"];
+    if (demoRoute.kind === "permanent") return ["DELETE"];
     return ["POST"];
   }
   const folderRoute = resolveFolderRoute(path);

@@ -1,6 +1,7 @@
 import {
   assertDemoStatusTransition,
   AuthorizationDeniedError,
+  calculateTrashRetention,
   capabilitiesForRole,
   DemoConflictError,
   DemoStoreError,
@@ -13,6 +14,7 @@ import {
   normalizeUserId,
   parseCreateDemoInput,
   parseDemoPatch,
+  TRASH_RETENTION_DAYS,
   type CreateDemoInput,
   type Demo,
   type DemoAuditAction,
@@ -21,6 +23,7 @@ import {
   type DemoSearchFilters,
   type DemoStatus,
   type DemoType,
+  type TrashItem,
   type WorkspaceCapability,
   type WorkspaceRole
 } from "@supademo/domain";
@@ -360,6 +363,45 @@ export class DatabaseDemoRepository implements DemoRepository {
     }
   }
 
+  async listTrash(
+    actorUserIdInput: string,
+    workspaceIdInput: string
+  ): Promise<readonly TrashItem[]> {
+    const actorUserId = normalizeUserId(actorUserIdInput);
+    const workspaceId = normalizeWorkspaceId(workspaceIdInput);
+    try {
+      return await withTransaction(this.pool, async (client) => {
+        await requireWorkspaceCapability(client, workspaceId, actorUserId, "demo:read");
+        const result = await query<DemoRow>(
+          client,
+          `
+            SELECT ${demoColumns}
+            FROM demos
+            WHERE workspace_id = $1 AND deleted_at IS NOT NULL
+            ORDER BY deleted_at DESC, id DESC
+          `,
+          [workspaceId]
+        );
+        const now = new Date();
+        return Object.freeze(
+          result.rows.map((row) => {
+            const demo = mapDemo(row);
+            const deletedAt = demo.deletedAt ?? new Date().toISOString();
+            const retention = calculateTrashRetention(deletedAt, now);
+            return Object.freeze({
+              demo,
+              deletedAt,
+              expiresAt: retention.expiresAt,
+              daysRemaining: retention.daysRemaining
+            });
+          })
+        );
+      });
+    } catch (error) {
+      throw normalizeStoreError(error);
+    }
+  }
+
   async softDelete(
     actorUserIdInput: string,
     workspaceIdInput: string,
@@ -382,7 +424,14 @@ export class DatabaseDemoRepository implements DemoRepository {
           [demoId, workspaceId]
         );
         const row = result.rows[0];
-        if (!row) return false;
+        if (!row) {
+          const checkTrashed = await query<{ id: string }>(
+            client,
+            `SELECT id FROM demos WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NOT NULL`,
+            [demoId, workspaceId]
+          );
+          return checkTrashed.rows.length > 0;
+        }
         await insertDemoAuditEvent(
           client,
           workspaceId,
@@ -421,7 +470,14 @@ export class DatabaseDemoRepository implements DemoRepository {
           [demoId, workspaceId]
         );
         const row = result.rows[0];
-        if (!row) return null;
+        if (!row) {
+          const activeDemo = await query<DemoRow>(
+            client,
+            `SELECT ${demoColumns} FROM demos WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL`,
+            [demoId, workspaceId]
+          );
+          return activeDemo.rows[0] ? mapDemo(activeDemo.rows[0]) : null;
+        }
         await insertDemoAuditEvent(
           client,
           workspaceId,
@@ -432,6 +488,219 @@ export class DatabaseDemoRepository implements DemoRepository {
           row.status
         );
         return mapDemo(row);
+      });
+    } catch (error) {
+      throw normalizeStoreError(error);
+    }
+  }
+
+  async archive(
+    actorUserIdInput: string,
+    workspaceIdInput: string,
+    demoIdInput: string
+  ): Promise<Demo | null> {
+    const actorUserId = normalizeUserId(actorUserIdInput);
+    const workspaceId = normalizeWorkspaceId(workspaceIdInput);
+    const demoId = normalizeDemoId(demoIdInput);
+    try {
+      return await withTransaction(this.pool, async (client) => {
+        await requireWorkspaceCapability(client, workspaceId, actorUserId, "demo:update");
+        const currentResult = await query<{ status: DemoStatus }>(
+          client,
+          `
+            SELECT status
+            FROM demos
+            WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL
+            FOR UPDATE
+          `,
+          [demoId, workspaceId]
+        );
+        const current = currentResult.rows[0];
+        if (!current) return null;
+        if (current.status === "archived") {
+          const existing = await query<DemoRow>(
+            client,
+            `SELECT ${demoColumns} FROM demos WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL`,
+            [demoId, workspaceId]
+          );
+          return existing.rows[0] ? mapDemo(existing.rows[0]) : null;
+        }
+        assertDemoStatusTransition(current.status, "archived");
+        const result = await query<DemoRow>(
+          client,
+          `
+            UPDATE demos
+            SET status = 'archived', updated_at = now()
+            WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL
+            RETURNING ${demoColumns}
+          `,
+          [demoId, workspaceId]
+        );
+        const row = result.rows[0];
+        if (!row) throw new DemoStoreError();
+        await insertDemoAuditEvent(
+          client,
+          workspaceId,
+          demoId,
+          actorUserId,
+          "demo.archived",
+          current.status,
+          "archived"
+        );
+        return mapDemo(row);
+      });
+    } catch (error) {
+      throw normalizeStoreError(error);
+    }
+  }
+
+  async unarchive(
+    actorUserIdInput: string,
+    workspaceIdInput: string,
+    demoIdInput: string
+  ): Promise<Demo | null> {
+    const actorUserId = normalizeUserId(actorUserIdInput);
+    const workspaceId = normalizeWorkspaceId(workspaceIdInput);
+    const demoId = normalizeDemoId(demoIdInput);
+    try {
+      return await withTransaction(this.pool, async (client) => {
+        await requireWorkspaceCapability(client, workspaceId, actorUserId, "demo:update");
+        const currentResult = await query<{ status: DemoStatus }>(
+          client,
+          `
+            SELECT status
+            FROM demos
+            WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL
+            FOR UPDATE
+          `,
+          [demoId, workspaceId]
+        );
+        const current = currentResult.rows[0];
+        if (!current) return null;
+        if (current.status !== "archived") {
+          const existing = await query<DemoRow>(
+            client,
+            `SELECT ${demoColumns} FROM demos WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL`,
+            [demoId, workspaceId]
+          );
+          return existing.rows[0] ? mapDemo(existing.rows[0]) : null;
+        }
+        assertDemoStatusTransition(current.status, "draft");
+        const result = await query<DemoRow>(
+          client,
+          `
+            UPDATE demos
+            SET status = 'draft', updated_at = now()
+            WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL
+            RETURNING ${demoColumns}
+          `,
+          [demoId, workspaceId]
+        );
+        const row = result.rows[0];
+        if (!row) throw new DemoStoreError();
+        await insertDemoAuditEvent(
+          client,
+          workspaceId,
+          demoId,
+          actorUserId,
+          "demo.unarchived",
+          "archived",
+          "draft"
+        );
+        return mapDemo(row);
+      });
+    } catch (error) {
+      throw normalizeStoreError(error);
+    }
+  }
+
+  async permanentDelete(
+    actorUserIdInput: string,
+    workspaceIdInput: string,
+    demoIdInput: string
+  ): Promise<boolean> {
+    const actorUserId = normalizeUserId(actorUserIdInput);
+    const workspaceId = normalizeWorkspaceId(workspaceIdInput);
+    const demoId = normalizeDemoId(demoIdInput);
+    try {
+      return await withTransaction(this.pool, async (client) => {
+        await requireWorkspaceCapability(client, workspaceId, actorUserId, "demo:delete");
+        const existing = await query<{ status: DemoStatus; deleted_at: Date | string | null }>(
+          client,
+          `
+            SELECT status, deleted_at
+            FROM demos
+            WHERE id = $1 AND workspace_id = $2
+            FOR UPDATE
+          `,
+          [demoId, workspaceId]
+        );
+        const row = existing.rows[0];
+        if (!row) return true;
+        if (row.deleted_at === null) {
+          throw new DemoConflictError(
+            "The demo must be in trash before it can be permanently deleted."
+          );
+        }
+        await insertDemoAuditEvent(
+          client,
+          workspaceId,
+          demoId,
+          actorUserId,
+          "demo.permanently_deleted",
+          row.status,
+          null
+        );
+        await query(client, `DELETE FROM demos WHERE id = $1 AND workspace_id = $2`, [
+          demoId,
+          workspaceId
+        ]);
+        return true;
+      });
+    } catch (error) {
+      throw normalizeStoreError(error);
+    }
+  }
+
+  async purgeExpiredTrash(
+    retentionDays = TRASH_RETENTION_DAYS
+  ): Promise<readonly { workspaceId: string; demoId: string }[]> {
+    try {
+      return await withTransaction(this.pool, async (client) => {
+        const expired = await query<{
+          id: string;
+          workspace_id: string;
+          owner_user_id: string;
+          status: DemoStatus;
+        }>(
+          client,
+          `
+            SELECT id, workspace_id, owner_user_id, status
+            FROM demos
+            WHERE deleted_at IS NOT NULL
+              AND deleted_at < (now() - ($1 || ' days')::interval)
+            FOR UPDATE
+          `,
+          [retentionDays]
+        );
+        const purged: { workspaceId: string; demoId: string }[] = [];
+        for (const row of expired.rows) {
+          await insertDemoAuditEvent(
+            client,
+            row.workspace_id,
+            row.id,
+            row.owner_user_id,
+            "demo.permanently_deleted",
+            row.status,
+            null
+          );
+          await query(client, `DELETE FROM demos WHERE id = $1 AND workspace_id = $2`, [
+            row.id,
+            row.workspace_id
+          ]);
+          purged.push({ workspaceId: row.workspace_id, demoId: row.id });
+        }
+        return Object.freeze(purged);
       });
     } catch (error) {
       throw normalizeStoreError(error);

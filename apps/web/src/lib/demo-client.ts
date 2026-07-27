@@ -20,6 +20,13 @@ export type Demo = Readonly<{
   deletedAt: string | null;
 }>;
 
+export type TrashItem = Readonly<{
+  demo: Demo;
+  deletedAt: string;
+  expiresAt: string;
+  daysRemaining: number;
+}>;
+
 export type CreateDemoInput = Readonly<{
   title: string;
   description: string | null;
@@ -54,7 +61,13 @@ export class DemoClientError extends Error {
 
 export interface DemoClient {
   list(workspaceId: string, filters?: DemoListFilters): Promise<readonly Demo[]>;
+  listTrash(workspaceId: string): Promise<readonly TrashItem[]>;
   create(workspaceId: string, input: CreateDemoInput): Promise<Demo>;
+  archive(workspaceId: string, demoId: string): Promise<Demo>;
+  unarchive(workspaceId: string, demoId: string): Promise<Demo>;
+  softDelete(workspaceId: string, demoId: string): Promise<void>;
+  restore(workspaceId: string, demoId: string): Promise<Demo>;
+  permanentDelete(workspaceId: string, demoId: string): Promise<void>;
 }
 
 export function createDemoClient(fetcher: typeof fetch = fetch): DemoClient {
@@ -85,6 +98,11 @@ export function createDemoClient(fetcher: typeof fetch = fetch): DemoClient {
       if (!Array.isArray(value) || !value.every(isDemo)) throw new DemoClientError(502);
       return value;
     },
+    async listTrash(workspaceId) {
+      const value: unknown = await request(`/workspaces/${encodeURIComponent(workspaceId)}/trash`);
+      if (!Array.isArray(value) || !value.every(isTrashItem)) throw new DemoClientError(502);
+      return value;
+    },
     async create(workspaceId, input) {
       const value: unknown = await request(`/workspaces/${encodeURIComponent(workspaceId)}/demos`, {
         method: "POST",
@@ -93,6 +111,42 @@ export function createDemoClient(fetcher: typeof fetch = fetch): DemoClient {
       });
       if (!isDemo(value)) throw new DemoClientError(502);
       return value;
+    },
+    async archive(workspaceId, demoId) {
+      const value: unknown = await request(
+        `/workspaces/${encodeURIComponent(workspaceId)}/demos/${encodeURIComponent(demoId)}/archive`,
+        { method: "POST" }
+      );
+      if (!isDemo(value)) throw new DemoClientError(502);
+      return value;
+    },
+    async unarchive(workspaceId, demoId) {
+      const value: unknown = await request(
+        `/workspaces/${encodeURIComponent(workspaceId)}/demos/${encodeURIComponent(demoId)}/unarchive`,
+        { method: "POST" }
+      );
+      if (!isDemo(value)) throw new DemoClientError(502);
+      return value;
+    },
+    async softDelete(workspaceId, demoId) {
+      await request(
+        `/workspaces/${encodeURIComponent(workspaceId)}/demos/${encodeURIComponent(demoId)}`,
+        { method: "DELETE" }
+      );
+    },
+    async restore(workspaceId, demoId) {
+      const value: unknown = await request(
+        `/workspaces/${encodeURIComponent(workspaceId)}/demos/${encodeURIComponent(demoId)}/restore`,
+        { method: "POST" }
+      );
+      if (!isDemo(value)) throw new DemoClientError(502);
+      return value;
+    },
+    async permanentDelete(workspaceId, demoId) {
+      await request(
+        `/workspaces/${encodeURIComponent(workspaceId)}/demos/${encodeURIComponent(demoId)}/permanent`,
+        { method: "DELETE" }
+      );
     }
   };
 }
@@ -124,7 +178,18 @@ function isDemo(value: unknown): value is Demo {
     (demo["publishedAt"] === null || typeof demo["publishedAt"] === "string") &&
     typeof demo["createdAt"] === "string" &&
     typeof demo["updatedAt"] === "string" &&
-    demo["deletedAt"] === null
+    (demo["deletedAt"] === null || typeof demo["deletedAt"] === "string")
+  );
+}
+
+function isTrashItem(value: unknown): value is TrashItem {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const item = value as Record<string, unknown>;
+  return (
+    isDemo(item["demo"]) &&
+    typeof item["deletedAt"] === "string" &&
+    typeof item["expiresAt"] === "string" &&
+    typeof item["daysRemaining"] === "number"
   );
 }
 
