@@ -12,6 +12,7 @@ import {
   Textarea,
   Input
 } from "@supademo/ui";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
@@ -47,7 +48,105 @@ const demoStatusValues = [
 type DashboardStatus = "loading" | "ready" | "error" | "denied";
 type DashboardSort = (typeof sortValues)[number];
 
+const demoOnlyWorkspace: WorkspaceSummary = {
+  organizationId: "demo-organization",
+  organizationName: "Supademo example organization",
+  workspaceId: "demo-workspace",
+  workspaceName: "Demo workspace",
+  slug: "demo-workspace",
+  role: "viewer",
+  capabilities: ["demo:read"],
+  createdAt: "2026-07-30T00:00:00.000Z"
+};
+
+const demoOnlyFolders: readonly Folder[] = [
+  {
+    id: "demo-folder-onboarding",
+    workspaceId: "demo-workspace",
+    parentId: null,
+    name: "Onboarding",
+    version: 1,
+    createdAt: "2026-07-20T00:00:00.000Z",
+    updatedAt: "2026-07-29T10:15:00.000Z"
+  },
+  {
+    id: "demo-folder-sales",
+    workspaceId: "demo-workspace",
+    parentId: null,
+    name: "Sales enablement",
+    version: 1,
+    createdAt: "2026-07-19T00:00:00.000Z",
+    updatedAt: "2026-07-28T15:45:00.000Z"
+  }
+];
+
+const demoOnlyTags: readonly Tag[] = [
+  {
+    id: "demo-tag-product",
+    workspaceId: "demo-workspace",
+    name: "Product",
+    createdAt: "2026-07-20T00:00:00.000Z",
+    updatedAt: "2026-07-20T00:00:00.000Z"
+  },
+  {
+    id: "demo-tag-sales",
+    workspaceId: "demo-workspace",
+    name: "Sales",
+    createdAt: "2026-07-20T00:00:00.000Z",
+    updatedAt: "2026-07-20T00:00:00.000Z"
+  }
+];
+
+const demoOnlyDemos: readonly Demo[] = [
+  {
+    id: "demo-product-tour",
+    workspaceId: "demo-workspace",
+    folderId: "demo-folder-onboarding",
+    ownerUserId: "demo-creator",
+    title: "Product tour for new teams",
+    description: "A guided introduction to the workspace.",
+    type: "guided_html",
+    status: "published",
+    isTemplate: false,
+    publishedAt: "2026-07-29T10:15:00.000Z",
+    createdAt: "2026-07-20T00:00:00.000Z",
+    updatedAt: "2026-07-29T10:15:00.000Z",
+    deletedAt: null
+  },
+  {
+    id: "demo-campaign-launch",
+    workspaceId: "demo-workspace",
+    folderId: "demo-folder-sales",
+    ownerUserId: "demo-creator",
+    title: "How to launch a campaign",
+    description: "A walkthrough for campaign setup.",
+    type: "screenshot",
+    status: "draft",
+    isTemplate: false,
+    publishedAt: null,
+    createdAt: "2026-07-21T00:00:00.000Z",
+    updatedAt: "2026-07-28T15:45:00.000Z",
+    deletedAt: null
+  },
+  {
+    id: "demo-support-handoff",
+    workspaceId: "demo-workspace",
+    folderId: null,
+    ownerUserId: "demo-creator",
+    title: "Support handoff walkthrough",
+    description: "A reusable customer handoff flow.",
+    type: "video",
+    status: "needs_update",
+    isTemplate: true,
+    publishedAt: "2026-07-18T08:30:00.000Z",
+    createdAt: "2026-07-18T00:00:00.000Z",
+    updatedAt: "2026-07-27T09:00:00.000Z",
+    deletedAt: null
+  }
+];
+
 export interface DemoDashboardScreenProps {
+  readonly demoOnly?: boolean;
   readonly demoClient?: DemoClient;
   readonly workspaceClient?: WorkspaceClient;
   readonly folderClient?: FolderClient;
@@ -55,11 +154,20 @@ export interface DemoDashboardScreenProps {
 }
 
 export function DemoDashboardScreen({
+  demoOnly = false,
   demoClient,
   workspaceClient,
   folderClient,
   tagClient
 }: DemoDashboardScreenProps) {
+  const isLocalPreviewHost =
+    typeof window !== "undefined" &&
+    ["localhost", "127.0.0.1", "10.2.13.175"].includes(window.location.hostname);
+  const localDemoOnly =
+    process.env.NODE_ENV !== "production" &&
+    process.env.NEXT_PUBLIC_DEMO_ONLY === "true" &&
+    isLocalPreviewHost;
+  const useDemoOnlyData = demoOnly || localDemoOnly;
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -148,6 +256,14 @@ export function DemoDashboardScreen({
     setDemos([]);
     setTags([]);
     setTrashItems([]);
+    if (useDemoOnlyData) {
+      setWorkspace(demoOnlyWorkspace);
+      setDemos(demoOnlyDemos);
+      setFolders(demoOnlyFolders);
+      setTags(demoOnlyTags);
+      setStatus("ready");
+      return;
+    }
     try {
       const current = await workspaceRef.current.getCurrent();
       const [loaded, loadedFolders, loadedTags, loadedTrash] = await Promise.all([
@@ -176,7 +292,7 @@ export function DemoDashboardScreen({
             : "Demos could not be loaded. Your existing work was not changed. Try again."
       );
     }
-  }, [filterKey, serverFilters]);
+  }, [filterKey, serverFilters, useDemoOnlyData]);
 
   useEffect(() => {
     void load();
@@ -622,6 +738,12 @@ export function DemoDashboardScreen({
           {message}
         </p>
       ) : null}
+      {useDemoOnlyData ? (
+        <InlineAlert title="Demo-only workspace">
+          Sample demos are shown locally. Creating, editing, and sharing are unavailable until the
+          API is connected.
+        </InlineAlert>
+      ) : null}
       {error ? <InlineAlert title="Could not create demo">{error}</InlineAlert> : null}
 
       <div className="demo-dashboard-layout">
@@ -809,6 +931,7 @@ export function DemoDashboardScreen({
                       onToggleTemplate={() => void toggleDemoTemplate(demo)}
                       onInstantiateTemplate={() => void instantiateTemplate(demo)}
                       canDeleteDemos={canDelete}
+                      openHref={`/demos/${encodeURIComponent(demo.id)}/edit`}
                       onArchive={() => void archiveDemo(demo)}
                       onUnarchive={() => void unarchiveDemo(demo)}
                       onSoftDelete={() => void softDeleteDemo(demo)}
@@ -832,6 +955,7 @@ export function DemoDashboardScreen({
                       onToggleTemplate={() => void toggleDemoTemplate(demo)}
                       onInstantiateTemplate={() => void instantiateTemplate(demo)}
                       canDeleteDemos={canDelete}
+                      openHref={`/demos/${encodeURIComponent(demo.id)}/edit`}
                       onArchive={() => void archiveDemo(demo)}
                       onUnarchive={() => void unarchiveDemo(demo)}
                       onSoftDelete={() => void softDeleteDemo(demo)}
@@ -1237,6 +1361,7 @@ export function DemoCard({
   onToggleTemplate,
   onInstantiateTemplate,
   canDeleteDemos = false,
+  openHref,
   onArchive,
   onUnarchive,
   onSoftDelete
@@ -1253,6 +1378,7 @@ export function DemoCard({
   readonly onToggleTemplate?: () => void;
   readonly onInstantiateTemplate?: () => void;
   readonly canDeleteDemos?: boolean;
+  readonly openHref?: string;
   readonly onArchive?: () => void;
   readonly onUnarchive?: () => void;
   readonly onSoftDelete?: () => void;
@@ -1275,6 +1401,11 @@ export function DemoCard({
         </div>
         <footer>
           <span>{typeLabel(demo.type)}</span>
+          {openHref ? (
+            <Link className="ui-button ui-button-secondary ui-button-sm" href={openHref}>
+              Open demo
+            </Link>
+          ) : null}
           {canManageTags ? (
             <Button type="button" size="sm" variant="ghost" onClick={onManageTags}>
               Tags
@@ -1331,6 +1462,7 @@ function DemoListRow({
   onToggleTemplate,
   onInstantiateTemplate,
   canDeleteDemos = false,
+  openHref,
   onArchive,
   onUnarchive,
   onSoftDelete
@@ -1347,6 +1479,7 @@ function DemoListRow({
   readonly onToggleTemplate?: () => void;
   readonly onInstantiateTemplate?: () => void;
   readonly canDeleteDemos?: boolean;
+  readonly openHref?: string;
   readonly onArchive?: () => void;
   readonly onUnarchive?: () => void;
   readonly onSoftDelete?: () => void;
@@ -1367,6 +1500,11 @@ function DemoListRow({
       <span>{typeLabel(demo.type)}</span>
       <Badge variant={statusVariant(demo.status)}>{statusLabel(demo.status)}</Badge>
       {demo.isTemplate ? <Badge variant="warning">Template</Badge> : null}
+      {openHref ? (
+        <Link className="ui-button ui-button-secondary ui-button-sm" href={openHref}>
+          Open demo
+        </Link>
+      ) : null}
       {canManageTags ? (
         <Button type="button" size="sm" variant="ghost" onClick={onManageTags}>
           Tags

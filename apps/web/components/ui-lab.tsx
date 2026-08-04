@@ -8,8 +8,7 @@ import {
   Link as UiLink,
   Stack,
   Switch,
-  Tabs,
-  Thumbnail
+  Tabs
 } from "@supademo/ui";
 import { useState } from "react";
 
@@ -36,7 +35,7 @@ export function UiLab() {
     <main className="ui-lab" data-lab-stage={stage.toLowerCase()}>
       <header className="ui-lab-header">
         <div className="ui-lab-header-copy">
-          <UiLink href="/" variant="muted">
+          <UiLink href="/app" variant="muted">
             ← Home
           </UiLink>
           <div>
@@ -82,11 +81,19 @@ export function UiLab() {
           <div className="ui-lab-choice-grid">
             {captureOptions.map((option, index) => (
               <Card key={option.title} title={option.title} description={option.description}>
-                <Thumbnail
-                  src={`/ui-lab/capture-${index + 1}.png`}
-                  alt={`${option.title} preview`}
-                  size="md"
-                />
+                <div
+                  className={`ui-lab-capture-preview ui-lab-capture-preview-${index + 1}`}
+                  role="img"
+                  aria-label={`${option.title} preview`}
+                >
+                  <span className="ui-lab-capture-browser-bar" aria-hidden="true" />
+                  <span className="ui-lab-capture-sidebar" aria-hidden="true" />
+                  <span className="ui-lab-capture-panel" aria-hidden="true" />
+                  <span
+                    className="ui-lab-capture-panel ui-lab-capture-panel-small"
+                    aria-hidden="true"
+                  />
+                </div>
                 <Button onClick={() => moveTo("Edit")}>
                   {index === 0 ? "Start with screenshot" : `Choose ${option.title.toLowerCase()}`}
                 </Button>

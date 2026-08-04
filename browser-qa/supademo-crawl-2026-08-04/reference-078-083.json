@@ -1,0 +1,139 @@
+[
+  {
+    "index": 78,
+    "name": "078-customers-greenpeace",
+    "url": "https://supademo.com/customers/greenpeace",
+    "file": "reference/078-078-customers-greenpeace.png",
+    "bodyH": 8008,
+    "buttonCount": 4,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources"
+    ],
+    "headings": [
+      "Greenpeace CEE saves support hours and scales digitalization with Supademo",
+      "About Greenpeace CEE",
+      "What challenges did Greenpeace CEE face before Supademo?",
+      "Why did Greenpeace CEE choose Supademo as their internal tool adoption platform?",
+      "What results has Greenpeace CEE achieved with Supademo?",
+      "FAQs",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "How Greenpeace CEE saved 40+ hours and scaled digitalization with Supademo"
+  },
+  {
+    "index": 79,
+    "name": "079-customers-revio",
+    "url": "https://supademo.com/customers/revio",
+    "file": "reference/079-079-customers-revio.png",
+    "bodyH": 8646,
+    "buttonCount": 4,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources"
+    ],
+    "headings": [
+      "Rev.io creates training material in hours instead of weeks",
+      "About Rev.io",
+      "What challenges did Rev.io face before Supademo?",
+      "Why did Rev.io choose Supademo as their interactive training platform?",
+      "What results has Rev.io achieved with Supademo?",
+      "What's next?",
+      "FAQs",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "How Rev.io creates training material in hours instead of weeks with a 50% smaller team using Supademo"
+  },
+  {
+    "index": 80,
+    "name": "080-customers-bullhorn",
+    "url": "https://supademo.com/customers/bullhorn",
+    "file": "reference/080-080-customers-bullhorn.png",
+    "bodyH": 10142,
+    "buttonCount": 4,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources"
+    ],
+    "headings": [
+      "How Bullhorn accelerates training and documentation with interactive demos",
+      "About Bullhorn",
+      "What is Bullhorn?",
+      "What challenges did Bullhorn face before Supademo?",
+      "Video-based learning bottlenecks",
+      "Why did Bullhorn choose Supademo as their demo automation solution?",
+      "eLearning and LMS training",
+      "Product documentation",
+      "HTML interactive demos and sandbox demo environments",
+      "What results has Bullhorn achieved with Supademo?",
+      "Time & workflow efficiency",
+      "Improved learning outcomes"
+    ],
+    "title": "Bullhorn cuts course-creation time in half with Supademo"
+  },
+  {
+    "index": 81,
+    "name": "081-customers-vrify",
+    "url": "https://supademo.com/customers/vrify",
+    "file": "reference/081-081-customers-vrify.png",
+    "bodyH": 8134,
+    "buttonCount": 4,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources"
+    ],
+    "headings": [
+      "How VRIFY reduced enablement content production time by 75%",
+      "About VRIFY",
+      "What challenges did VRIFY face before Supademo?",
+      "Why did VRIFY choose Supademo as their interactive demo platform?",
+      "How does VRIFY use Supademo?",
+      "What Supademo features does VRIFY like the most?",
+      "What results has VRIFY achieved with Supademo?",
+      "What's next?",
+      "FAQs",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "How VRIFY reduced enablement content production time by 75%"
+  },
+  {
+    "index": 82,
+    "name": "082-terms-of-service",
+    "url": "https://supademo.com/terms",
+    "file": "reference/082-082-terms-of-service.png",
+    "bodyH": 7264,
+    "buttonCount": 4,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources"
+    ],
+    "headings": [
+      "Terms of Service",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "Supademo | Terms of Service"
+  },
+  {
+    "index": 83,
+    "name": "083-privacy-policy",
+    "url": "https://supademo.com/privacy-policy",
+    "file": "reference/083-083-privacy-policy.png",
+    "bodyH": 9928,
+    "buttonCount": 4,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources"
+    ],
+    "headings": [
+      "Privacy Policy and Data Security",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "Privacy Policy and Data Security | Supademo"
+  }
+]

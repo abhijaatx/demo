@@ -92,17 +92,24 @@ export {
   CopyIcon,
   DemosIcon,
   ExternalLinkIcon,
+  FilterIcon,
+  FolderPlusIcon,
+  GiftIcon,
+  HelpCircleIcon,
   HubsIcon,
   HomeIcon,
   ImageIcon,
   InfoIcon,
+  LayoutIcon,
   LeadsIcon,
   MenuIcon,
   MoreIcon,
   PlusIcon,
   PlayIcon,
   SearchIcon,
-  SettingsIcon
+  SettingsIcon,
+  SortIcon,
+  VideoIcon
 } from "./icons.js";
 export type { IconProps } from "./icons.js";
 

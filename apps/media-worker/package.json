@@ -8,5 +8,8 @@
   "scripts": {
     "build": "tsc --build",
     "clean": "tsc --build --clean"
+  },
+  "dependencies": {
+    "@supademo/domain": "*"
   }
 }

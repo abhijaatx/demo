@@ -1474,6 +1474,153 @@ registry.registerPath({
   }
 });
 
+// ── Upload Session Schemas ─────────────────────────────────────────────────────
+
+const UploadSessionSchema = z
+  .object({
+    id: z.string().uuid(),
+    workspaceId: z.string().uuid(),
+    uploaderUserId: z.string().uuid(),
+    fileName: z.string(),
+    mimeType: z.string(),
+    totalSizeInBytes: z.number().int().positive(),
+    checksumSha256: z.string().length(64),
+    storageKey: z.string(),
+    providerUploadId: z.string().nullable(),
+    status: z.enum(["pending", "finalizing", "complete", "aborted"]),
+    partCount: z.number().int().positive(),
+    partSizeInBytes: z.number().int().positive(),
+    completedPartCount: z.number().int(),
+    assetId: z.string().uuid().nullable(),
+    idempotencyKey: z.string(),
+    expiresAt: z.string().datetime(),
+    createdAt: z.string().datetime(),
+    updatedAt: z.string().datetime()
+  })
+  .openapi("UploadSession");
+
+const UploadPartSchema = z
+  .object({
+    partNumber: z.number().int().positive(),
+    uploadUrl: z.string().url(),
+    headers: z.record(z.string(), z.string()),
+    expiresInSeconds: z.number().int().positive()
+  })
+  .openapi("UploadPart");
+
+const InitiateUploadSessionSchema = z
+  .object({
+    fileName: z.string().min(1).max(255),
+    mimeType: z.string().min(1),
+    totalSizeInBytes: z.number().int().positive(),
+    checksumSha256: z.string().length(64),
+    idempotencyKey: z.string().min(1).max(128)
+  })
+  .strict()
+  .openapi("InitiateUploadSessionInput");
+
+registry.register("UploadSession", UploadSessionSchema);
+registry.register("UploadPart", UploadPartSchema);
+registry.register("InitiateUploadSessionInput", InitiateUploadSessionSchema);
+
+registry.registerPath({
+  method: "post",
+  path: "/api/v1/workspaces/{workspaceId}/upload-sessions",
+  summary: "Initiate a multipart upload session",
+  request: {
+    params: z.object({ workspaceId: z.string().uuid() }),
+    body: { content: { "application/json": { schema: InitiateUploadSessionSchema } } }
+  },
+  responses: {
+    201: {
+      description: "Upload session created with presigned part URLs",
+      content: {
+        "application/json": {
+          schema: z.object({
+            session: UploadSessionSchema,
+            parts: z.array(UploadPartSchema)
+          })
+        }
+      }
+    }
+  }
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/v1/workspaces/{workspaceId}/upload-sessions/{sessionId}/parts/{partNumber}/url",
+  summary: "Get a presigned URL for a specific upload part",
+  request: {
+    params: z.object({
+      workspaceId: z.string().uuid(),
+      sessionId: z.string().uuid(),
+      partNumber: z.string()
+    })
+  },
+  responses: {
+    200: {
+      description: "Presigned part upload URL",
+      content: { "application/json": { schema: UploadPartSchema } }
+    }
+  }
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/v1/workspaces/{workspaceId}/upload-sessions/{sessionId}/finalize",
+  summary: "Finalize a multipart upload session and create the asset",
+  request: {
+    params: z.object({ workspaceId: z.string().uuid(), sessionId: z.string().uuid() }),
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({ checksumSha256: z.string().length(64).optional() })
+        }
+      }
+    }
+  },
+  responses: {
+    200: {
+      description: "Upload session finalized and asset created",
+      content: {
+        "application/json": {
+          schema: z.object({ session: UploadSessionSchema, assetId: z.string().uuid() })
+        }
+      }
+    }
+  }
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/v1/workspaces/{workspaceId}/upload-sessions/{sessionId}/abort",
+  summary: "Abort an upload session",
+  request: {
+    params: z.object({ workspaceId: z.string().uuid(), sessionId: z.string().uuid() })
+  },
+  responses: {
+    200: {
+      description: "Upload session aborted",
+      content: { "application/json": { schema: z.object({ aborted: z.literal(true) }) } }
+    }
+  }
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/v1/workspaces/{workspaceId}/upload-sessions/{sessionId}",
+  summary: "Get upload session status",
+  request: {
+    params: z.object({ workspaceId: z.string().uuid(), sessionId: z.string().uuid() })
+  },
+  responses: {
+    200: {
+      description: "Upload session details",
+      content: { "application/json": { schema: UploadSessionSchema } }
+    }
+  }
+});
+
 export function createOpenApiDocument() {
   return new OpenApiGeneratorV3(registry.definitions).generateDocument({
     openapi: "3.0.3",

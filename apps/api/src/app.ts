@@ -65,11 +65,17 @@ import {
   AssetNotFoundError,
   AssetValidationError,
   parseCreateAssetInput,
+  UploadSessionNotFoundError,
+  UploadSessionConflictError,
+  UploadSessionValidationError,
+  parseInitiateUploadSessionInput,
+  parseFinalizeUploadSessionInput,
   UserProfileStoreError,
   UserProfileValidationError,
   type CommentRepository,
   type NotificationRepository,
   type AssetRepository,
+  type UploadSessionRepository,
   type UserProfileRepository,
   type WorkspaceRepository,
   type InvitationDelivery,
@@ -121,6 +127,7 @@ export interface ApiServerOptions {
   readonly commentRepository?: CommentRepository;
   readonly notificationRepository?: NotificationRepository;
   readonly assetRepository?: AssetRepository;
+  readonly uploadSessionRepository?: UploadSessionRepository;
   readonly invitationDelivery?: InvitationDelivery;
   readonly logger?: Logger;
   readonly metrics?: Metrics;
@@ -393,6 +400,20 @@ async function handleRequest(
     return;
   }
 
+  const uploadSessionRoute = resolveUploadSessionRoute(path);
+  if (uploadSessionRoute) {
+    await handleUploadSessionRequest(
+      request,
+      response,
+      options,
+      method,
+      uploadSessionRoute,
+      context.requestId,
+      url.searchParams
+    );
+    return;
+  }
+
   if (resolveDemoRoute(path)) {
     await handleDemoRequest(request, response, options, path, context.requestId, url.searchParams);
     return;
@@ -500,9 +521,58 @@ async function handleAuthRequest(
 
   let body: Record<string, string>;
   try {
-    body = await readAuthBody(request);
+    if (
+      path === `${API_V1_PREFIX}/auth/sign-out` ||
+      path === `${API_V1_PREFIX}/auth/refresh-session`
+    ) {
+      request.resume();
+      body = {};
+    } else {
+      body = await readAuthBody(request);
+    }
   } catch {
     sendError(response, 400, "invalid_request", "The request body is invalid.", requestId);
+    return;
+  }
+
+  if (path === `${API_V1_PREFIX}/auth/refresh-session`) {
+    if (!options.authSessionStore) {
+      sendError(
+        response,
+        503,
+        "authentication_unavailable",
+        "Authentication is temporarily unavailable. Try again later.",
+        requestId
+      );
+      return;
+    }
+    const existingSessionId = readCookie(
+      request.headers["cookie"],
+      resolveSessionCookiePolicy(options).name
+    );
+    const existingSession = existingSessionId
+      ? await options.authSessionStore.getActive(existingSessionId)
+      : undefined;
+    if (!existingSession || !existingSessionId) {
+      sendError(response, 401, "missing_session", "Authentication is required.", requestId);
+      return;
+    }
+    const policy = resolveSessionCookiePolicy(options);
+    const issuedAt = Math.floor(Date.now() / 1000);
+    const csrfToken = randomUUID();
+    const session = createAuthSession(
+      {
+        ...existingSession.identity,
+        expiresAt: Math.min(existingSession.identity.expiresAt, issuedAt + policy.maxAgeSeconds)
+      },
+      randomUUID(),
+      issuedAt,
+      csrfToken
+    );
+    await options.authSessionStore.revoke(existingSessionId);
+    await options.authSessionStore.create(session);
+    response.setHeader("Set-Cookie", serializeSessionCookie(policy, session));
+    sendJson(response, 200, { message: "Session refreshed.", csrfToken });
     return;
   }
 
@@ -2063,10 +2133,216 @@ async function handleNotificationRequest(
   }
 }
 
+// ── Upload Session Routes ─────────────────────────────────────────────────────
+
+type UploadSessionRoute =
+  | { readonly kind: "initiate"; readonly workspaceId: string }
+  | {
+      readonly kind: "partUrl";
+      readonly workspaceId: string;
+      readonly sessionId: string;
+      readonly partNumber: number;
+    }
+  | { readonly kind: "finalize"; readonly workspaceId: string; readonly sessionId: string }
+  | { readonly kind: "abort"; readonly workspaceId: string; readonly sessionId: string }
+  | { readonly kind: "session"; readonly workspaceId: string; readonly sessionId: string };
+
+function resolveUploadSessionRoute(path: string): UploadSessionRoute | undefined {
+  const initiate = new RegExp(`^${API_V1_PREFIX}/workspaces/([^/]+)/upload-sessions$`, "u").exec(
+    path
+  );
+  if (initiate) return { kind: "initiate", workspaceId: initiate[1]! };
+
+  const partUrl = new RegExp(
+    `^${API_V1_PREFIX}/workspaces/([^/]+)/upload-sessions/([^/]+)/parts/(\\d+)/url$`,
+    "u"
+  ).exec(path);
+  if (partUrl) {
+    return {
+      kind: "partUrl",
+      workspaceId: partUrl[1]!,
+      sessionId: partUrl[2]!,
+      partNumber: parseInt(partUrl[3]!, 10)
+    };
+  }
+
+  const finalize = new RegExp(
+    `^${API_V1_PREFIX}/workspaces/([^/]+)/upload-sessions/([^/]+)/finalize$`,
+    "u"
+  ).exec(path);
+  if (finalize) return { kind: "finalize", workspaceId: finalize[1]!, sessionId: finalize[2]! };
+
+  const abort = new RegExp(
+    `^${API_V1_PREFIX}/workspaces/([^/]+)/upload-sessions/([^/]+)/abort$`,
+    "u"
+  ).exec(path);
+  if (abort) return { kind: "abort", workspaceId: abort[1]!, sessionId: abort[2]! };
+
+  const session = new RegExp(
+    `^${API_V1_PREFIX}/workspaces/([^/]+)/upload-sessions/([^/]+)$`,
+    "u"
+  ).exec(path);
+  if (session) return { kind: "session", workspaceId: session[1]!, sessionId: session[2]! };
+
+  return undefined;
+}
+
+async function handleUploadSessionRequest(
+  request: IncomingMessage,
+  response: ServerResponse,
+  options: ApiServerOptions,
+  method: string,
+  route: UploadSessionRoute,
+  requestId: string,
+  _searchParams: URLSearchParams
+): Promise<void> {
+  if (!options.uploadSessionRepository) {
+    sendError(
+      response,
+      503,
+      "upload_sessions_unavailable",
+      "Upload session service is not configured.",
+      requestId
+    );
+    return;
+  }
+
+  try {
+    let identity;
+    try {
+      identity = await authenticateProtectedRequest(request, options);
+    } catch (error) {
+      request.resume();
+      if (error instanceof AuthenticationError) {
+        sendError(response, 401, error.code, error.message, requestId);
+        return;
+      }
+      sendError(response, 401, "invalid_token", "Authentication is required.", requestId);
+      return;
+    }
+
+    if (!identity.identity.email) {
+      request.resume();
+      sendError(
+        response,
+        503,
+        "upload_session_unavailable",
+        "Upload session service is temporarily unavailable. Try again later.",
+        requestId
+      );
+      return;
+    }
+
+    if (!options.userProfileRepository) {
+      sendError(
+        response,
+        503,
+        "profile_unavailable",
+        "User profiles service is not configured.",
+        requestId
+      );
+      return;
+    }
+
+    const profile = await options.userProfileRepository.syncIdentity({
+      subject: identity.identity.subject,
+      email: identity.identity.email
+    });
+
+    if (route.kind === "initiate" && method === "POST") {
+      const body = await readJsonObjectBody(request);
+      const input = parseInitiateUploadSessionInput(body);
+      const result = await options.uploadSessionRepository.initiate(
+        profile.userId,
+        route.workspaceId,
+        input
+      );
+      sendJson(response, 201, result);
+      return;
+    }
+
+    if (route.kind === "partUrl" && method === "GET") {
+      const part = await options.uploadSessionRepository.getPartUrl(
+        profile.userId,
+        route.workspaceId,
+        route.sessionId,
+        route.partNumber
+      );
+      sendJson(response, 200, part);
+      return;
+    }
+
+    if (route.kind === "finalize" && method === "POST") {
+      const body = await readJsonObjectBody(request);
+      const input = parseFinalizeUploadSessionInput(body);
+      const result = await options.uploadSessionRepository.finalize(
+        profile.userId,
+        route.workspaceId,
+        route.sessionId,
+        input
+      );
+      sendJson(response, 200, result);
+      return;
+    }
+
+    if (route.kind === "abort" && method === "POST") {
+      await options.uploadSessionRepository.abort(
+        profile.userId,
+        route.workspaceId,
+        route.sessionId
+      );
+      sendJson(response, 200, { aborted: true });
+      return;
+    }
+
+    if (route.kind === "session" && method === "GET") {
+      const session = await options.uploadSessionRepository.getSession(
+        profile.userId,
+        route.workspaceId,
+        route.sessionId
+      );
+      sendJson(response, 200, session);
+      return;
+    }
+
+    sendError(response, 405, "method_not_allowed", "Method not allowed.", requestId);
+  } catch (error) {
+    if (error instanceof AuthenticationError) {
+      request.resume();
+      sendError(response, 401, (error as AuthenticationError).code, error.message, requestId);
+      return;
+    }
+    if (error instanceof AuthorizationDeniedError) {
+      sendError(response, 403, "forbidden", error.message, requestId);
+      return;
+    }
+    if (error instanceof UploadSessionNotFoundError) {
+      sendError(response, 404, "not_found", error.message, requestId);
+      return;
+    }
+    if (error instanceof UploadSessionConflictError) {
+      sendError(response, 409, "upload_session_conflict", error.message, requestId);
+      return;
+    }
+    if (error instanceof UploadSessionValidationError) {
+      sendError(response, 400, "invalid_upload_session_request", error.message, requestId);
+      return;
+    }
+    sendError(
+      response,
+      503,
+      "upload_session_unavailable",
+      "Upload session service is temporarily unavailable. Try again later.",
+      requestId
+    );
+  }
+}
+
 type AssetRoute =
   | { readonly kind: "presignUpload"; readonly workspaceId: string }
   | { readonly kind: "complete"; readonly workspaceId: string; readonly assetId: string }
   | { readonly kind: "presignDownload"; readonly workspaceId: string; readonly assetId: string }
+  | { readonly kind: "status"; readonly workspaceId: string; readonly assetId: string }
   | { readonly kind: "asset"; readonly workspaceId: string; readonly assetId: string };
 
 function resolveAssetRoute(path: string): AssetRoute | undefined {
@@ -2092,6 +2368,13 @@ function resolveAssetRoute(path: string): AssetRoute | undefined {
       workspaceId: presignDownload[1]!,
       assetId: presignDownload[2]!
     };
+
+  const statusRoute = new RegExp(
+    `^${API_V1_PREFIX}/workspaces/([^/]+)/assets/([^/]+)/status$`,
+    "u"
+  ).exec(path);
+  if (statusRoute)
+    return { kind: "status", workspaceId: statusRoute[1]!, assetId: statusRoute[2]! };
 
   const asset = new RegExp(`^${API_V1_PREFIX}/workspaces/([^/]+)/assets/([^/]+)$`, "u").exec(path);
   if (asset) return { kind: "asset", workspaceId: asset[1]!, assetId: asset[2]! };
@@ -2189,6 +2472,28 @@ async function handleAssetRequest(
         route.assetId
       );
       sendJson(response, 200, { downloadUrl });
+      return;
+    }
+
+    if (route.kind === "status" && method === "GET") {
+      const asset = await options.assetRepository.getById(
+        profile.userId,
+        route.workspaceId,
+        route.assetId
+      );
+      sendJson(response, 200, {
+        id: asset.id,
+        workspaceId: asset.workspaceId,
+        status: asset.status,
+        rejectionCode: asset.rejectionCode,
+        quarantineReason: asset.quarantineReason,
+        thumbnailPath: asset.thumbnailPath,
+        width: asset.width,
+        height: asset.height,
+        durationSeconds: asset.durationSeconds,
+        isReady: asset.status === "ready",
+        isFailed: asset.status === "quarantined" || asset.status === "failed"
+      });
       return;
     }
 
@@ -2394,16 +2699,35 @@ function dynamicRouteMethods(path: string): readonly string[] | undefined {
   const tagRoute = resolveTagRoute(path);
   if (tagRoute) return tagRoute.kind === "collection" ? ["GET", "POST"] : ["POST", "DELETE"];
   const route = resolveMembershipRoute(path);
-  if (!route) return undefined;
-  if (
-    route.kind === "members" ||
-    route.kind === "pendingInvitations" ||
-    route.kind === "auditEvents"
-  ) {
-    return ["GET"];
+  if (route) {
+    if (
+      route.kind === "members" ||
+      route.kind === "pendingInvitations" ||
+      route.kind === "auditEvents"
+    ) {
+      return ["GET"];
+    }
+    if (route.kind === "member") return ["PATCH", "DELETE"];
+    return ["POST"];
   }
-  if (route.kind === "member") return ["PATCH", "DELETE"];
-  return ["POST"];
+  const assetRoute = resolveAssetRoute(path);
+  if (assetRoute) {
+    if (assetRoute.kind === "presignUpload") return ["POST"];
+    if (assetRoute.kind === "complete") return ["POST"];
+    if (assetRoute.kind === "presignDownload") return ["GET"];
+    if (assetRoute.kind === "asset") return ["GET", "DELETE"];
+    return ["POST"];
+  }
+  const uploadSessionRoute = resolveUploadSessionRoute(path);
+  if (uploadSessionRoute) {
+    if (uploadSessionRoute.kind === "initiate") return ["POST"];
+    if (uploadSessionRoute.kind === "partUrl") return ["GET"];
+    if (uploadSessionRoute.kind === "finalize") return ["POST"];
+    if (uploadSessionRoute.kind === "abort") return ["POST"];
+    if (uploadSessionRoute.kind === "session") return ["GET"];
+    return ["GET", "POST"];
+  }
+  return undefined;
 }
 
 function requireExactStringFields(
@@ -2456,15 +2780,18 @@ function readDemoSearchQuery(searchParams: URLSearchParams): Record<string, stri
 function isBodyRequestTarget(target: string | undefined, method: string | undefined): boolean {
   try {
     const path = new URL(target ?? "/", "http://api.local").pathname;
+    const m = method ?? "GET";
     return (
       path.startsWith(`${API_V1_PREFIX}/auth/`) ||
       path === `${API_V1_PREFIX}/me/profile` ||
       path === `${API_V1_PREFIX}/workspaces` ||
       path === `${API_V1_PREFIX}/workspaces/current` ||
-      ((method ?? "GET") !== "GET" && resolveDemoRoute(path) !== undefined) ||
-      ((method ?? "GET") !== "GET" && resolveFolderRoute(path) !== undefined) ||
-      ((method ?? "GET") !== "GET" && resolveTagRoute(path) !== undefined) ||
-      ((method ?? "GET") !== "GET" && resolveMembershipRoute(path) !== undefined)
+      (m !== "GET" && resolveDemoRoute(path) !== undefined) ||
+      (m !== "GET" && resolveFolderRoute(path) !== undefined) ||
+      (m !== "GET" && resolveTagRoute(path) !== undefined) ||
+      (m !== "GET" && resolveMembershipRoute(path) !== undefined) ||
+      (m !== "GET" && resolveAssetRoute(path) !== undefined) ||
+      (m !== "GET" && resolveUploadSessionRoute(path) !== undefined)
     );
   } catch {
     return false;
@@ -2642,10 +2969,19 @@ async function validateCookieCsrf(
   requestId: string
 ): Promise<boolean> {
   if (!isUnsafeMethod(request.method ?? "GET") || !options.authSessionStore) return true;
+  // Public account and recovery operations can be opened in a fresh browser tab while an
+  // existing HttpOnly session cookie is still present. Their CSRF token is intentionally
+  // not required: the tab-scoped token returned by a prior sign-in lives in sessionStorage,
+  // so requiring it here would make sign-up/sign-in intermittently fail across tabs. Session
+  // rotation (refresh/sign-out) and every protected application mutation remain CSRF-bound.
+  if (isPublicAuthOperation(request.url)) return true;
   const sessionId = readCookie(request.headers["cookie"], resolveSessionCookiePolicy(options).name);
   if (!sessionId) return true;
   const session = await options.authSessionStore.getActive(sessionId);
-  if (!session?.csrfToken || request.headers["x-csrf-token"] !== session.csrfToken) {
+  // A stale/expired cookie must not block public auth operations such as sign-up
+  // or sign-in. Protected operations still fail closed in authenticateProtectedRequest.
+  if (!session) return true;
+  if (!session.csrfToken || request.headers["x-csrf-token"] !== session.csrfToken) {
     request.resume();
     sendError(
       response,
@@ -2657,6 +2993,22 @@ async function validateCookieCsrf(
     return false;
   }
   return true;
+}
+
+function isPublicAuthOperation(target: string | undefined): boolean {
+  let path: string;
+  try {
+    path = new URL(target ?? "/", "http://api.local").pathname;
+  } catch {
+    return false;
+  }
+  return new Set([
+    `${API_V1_PREFIX}/auth/sign-up`,
+    `${API_V1_PREFIX}/auth/verify-email`,
+    `${API_V1_PREFIX}/auth/sign-in`,
+    `${API_V1_PREFIX}/auth/forgot-password`,
+    `${API_V1_PREFIX}/auth/reset-password`
+  ]).has(path);
 }
 
 function isUnsafeMethod(method: string): boolean {

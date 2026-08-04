@@ -19,3 +19,5 @@ export { DatabaseTagRepository } from "./tags.js";
 export { DatabaseCommentRepository } from "./comments.js";
 export { DatabaseNotificationRepository } from "./notifications.js";
 export { DatabaseAssetRepository } from "./assets.js";
+export { DatabaseUploadSessionRepository } from "./upload-sessions.js";
+export { DatabaseDemoRevisionRepository } from "./demo-revisions.js";

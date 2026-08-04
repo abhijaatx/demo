@@ -180,6 +180,9 @@ test("workspace replay with a different payload is rejected and listing is user-
         "demo:publish",
         "demo:share",
         "demo:export",
+        "asset:read",
+        "asset:create",
+        "asset:delete",
         "analytics:read"
       ],
       createdAt: workspaceRow.created_at

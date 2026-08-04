@@ -1,0 +1,193 @@
+[
+  {
+    "index": 54,
+    "name": "054-blog-product-updates",
+    "url": "https://supademo.com/blog/product-updates",
+    "file": "reference/054-054-blog-product-updates.png",
+    "bodyH": 6360,
+    "buttonCount": 6,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources"
+    ],
+    "headings": [
+      "Product Updates",
+      "New in June 2026: Voiceovers 2.0, Advanced Search, UI Redesign & Seismic Integration",
+      "New in May 2026: Free 4K Screen Recording, Showcases 2.0, Pronounciation Dictionary",
+      "New in April 2026: Account Analytics, Offline Demos, MCP, Route Hub & AI Demo Agents",
+      "Announcing Supademo's MCP Server",
+      "Introducing RouteHub: Personalized Demo Journeys From One Link",
+      "New in March 2026: Video Hotspots, Smarter AI Creation, Preview of New Features",
+      "New in February ’26: AI Demo Audits, Video Edit Updates, Bulk Crop & More",
+      "New in January ’26: Demo Tagging, Hotspots 2.0, and AI Data Edits",
+      "New in December ’25: Screen Recorder, Zoom & Pan on HTML & Typewriter Effect",
+      "New in November ’25: Smarter Recording, Editing, Sharing, Analytics & More",
+      "New in October '25: Demo Hubs, External Comments, New Translations Hub & More"
+    ],
+    "title": "Product Updates | Supademo Blog"
+  },
+  {
+    "index": 55,
+    "name": "055-showcase",
+    "url": "https://supademo.com/showcase",
+    "file": "reference/055-055-showcase.png",
+    "bodyH": 9359,
+    "buttonCount": 13,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources",
+      "Demo Type",
+      "Use Case",
+      "Industry",
+      "Show more",
+      "Show more",
+      "Show more",
+      "Show more",
+      "Show more",
+      "Show more"
+    ],
+    "headings": [
+      "Explore the interactive demo showcase",
+      "HTML Interactive Demos",
+      "Sandbox Demo Environments",
+      "Interactive Mobile App Demos",
+      "Tours, Collections and Multi-Demo Showcase",
+      "Route Hubs",
+      "Demo Hubs",
+      "Customer Success",
+      "Product Marketing",
+      "Sales and Enablement",
+      "Training and Education",
+      "Finance & Banking"
+    ],
+    "title": "Demo Showcase | Supademo"
+  },
+  {
+    "index": 56,
+    "name": "056-tutorials",
+    "url": "https://supademo.com/tutorials",
+    "file": "reference/056-056-tutorials.png",
+    "bodyH": 4091,
+    "buttonCount": 77,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources",
+      "All",
+      "Ahrefs",
+      "Airtable",
+      "Apollo",
+      "Asana",
+      "Attio",
+      "Brevo",
+      "Calendly",
+      "Canva",
+      "ChatGPT",
+      "Clearbit",
+      "ClickUp",
+      "Customer.io",
+      "DocuSign",
+      "Dover",
+      "Dripify",
+      "ElevenLabs",
+      "Fathom",
+      "Figma",
+      "Freshdesk",
+      "Gainsight",
+      "GitHub",
+      "Gmail",
+      "Google Analytics",
+      "Google Calendar",
+      "Google Chrome",
+      "Google Docs"
+    ],
+    "headings": [
+      "Explore step-by-step, interactive tutorials of the tools you use",
+      "Browse tutorials by tool",
+      "All tutorials",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "Software Tutorials | Step-by-Step Interactive Guides | Supademo"
+  },
+  {
+    "index": 57,
+    "name": "057-integrations",
+    "url": "https://supademo.com/integrations",
+    "file": "reference/057-057-integrations.png",
+    "bodyH": 7704,
+    "buttonCount": 5,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources",
+      "Categories"
+    ],
+    "headings": [
+      "Supercharge your workflow with Supademo integrations",
+      "Embed in Supademo",
+      "Knowledge Base",
+      "Sales & CRM",
+      "Internal Documentation",
+      "Websites & Blogs",
+      "Digital Sales Rooms",
+      "Others",
+      "Amplify your tools and workflow",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "Featured Integrations | Supademo"
+  },
+  {
+    "index": 58,
+    "name": "058-compare",
+    "url": "https://supademo.com/compare",
+    "file": "reference/058-058-compare.png",
+    "bodyH": 8261,
+    "buttonCount": 15,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources",
+      "Featured",
+      "Featured",
+      "All",
+      "AI Demo Agents",
+      "Interactive Demos",
+      "Video",
+      "Documentation",
+      "Digital Adoption",
+      "Show more comparisons",
+      "Previous",
+      "Next"
+    ],
+    "headings": [
+      "Compare Supademo to every alternative",
+      "Supademo is a top-rated interactive demo platform on G2. See how it stacks up against demo automation, video, and process documentation tools.",
+      "Trusted by 200,000+ top operators and 3,000+ paying organizations",
+      "Key reasons why growing companies choose Supademo",
+      "Supademo is G2's Grid Leader for a reason",
+      "Scale how your team demonstrates products",
+      "Frequently asked questions about Supademo",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "Compare Supademo to Alternatives | Interactive Demo Platform Comparison"
+  },
+  {
+    "index": 59,
+    "name": "059-help",
+    "url": "https://supademo.com/help",
+    "file": "reference/059-059-help.png",
+    "bodyH": 761,
+    "buttonCount": 4,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources"
+    ],
+    "headings": [
+      "We're here to help"
+    ],
+    "title": "Get help from the Supademo team"
+  }
+]

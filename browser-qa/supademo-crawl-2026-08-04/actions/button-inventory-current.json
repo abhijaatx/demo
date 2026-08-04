@@ -1,0 +1,1750 @@
+{
+  "capturedAt": "2026-08-04",
+  "routeCount": 91,
+  "routes": [
+    {
+      "index": 1,
+      "url": "https://supademo.com/",
+      "title": "Supademo: AI Interactive Product Demos",
+      "bodyH": 13770,
+      "buttonCount": 28,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Talk to it",
+        "Try Instant AI Agent Demo",
+        "Mobile",
+        "Guided Demo",
+        "Sandbox",
+        "AI Demo Agent",
+        "Route Hub",
+        "Demo Hub",
+        "Featured",
+        "Featured",
+        "Guided Interactive Demo",
+        "Sandbox",
+        "AI Demo Agent",
+        "Route Hub",
+        "In-App Demo Hub",
+        "Video & Screenshot",
+        "Sales & Enablement\\n\\nClose more deals with personalized interactive demos for enablement, demo leave-behinds, prospecting, and more.\\n\\nExplore Sales & Enablement",
+        "Growth & Product Marketing\\n\\nQualify more leads and drive revenue with high-converting, self-paced product tours that accelerate the \"aha\" moment.\\n\\nExplore Growth & Product Marketing",
+        "Customer Success\\n\\nDrive adoption and feature discovery with modular, interactive product tutorials within onboarding, user guides, or support docs.\\n\\nExplore Customer Success",
+        "Previous",
+        "Next",
+        "Previous",
+        "Next"
+      ],
+      "screenshot": "reference/001-home.jpg"
+    },
+    {
+      "index": 2,
+      "url": "https://supademo.com/blog/product-update-mcp-server",
+      "title": "Supademo MCP Server: Agentic Demo Editing | Supademo Blog",
+      "bodyH": 9558,
+      "buttonCount": 12,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "What is an MCP? How does it work with Supademo?",
+        "Why this matters",
+        "Common use cases",
+        "What this unlocks for Supademo users"
+      ],
+      "screenshot": "reference/002-002-blog-product-update-mcp-server.jpg"
+    },
+    {
+      "index": 3,
+      "url": "https://supademo.com/ai/demo-agents",
+      "title": "AI Demo Agent: Run Product Demos & Qualification on Autopilot | Supademo",
+      "bodyH": 13472,
+      "buttonCount": 16,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Try instant AI demo",
+        "Try Instant AI Agent Demo",
+        "Featured",
+        "Featured",
+        "Talk to it"
+      ],
+      "screenshot": "reference/003-003-ai-demo-agents.jpg"
+    },
+    {
+      "index": 4,
+      "url": "https://supademo.com/pricing",
+      "title": "Plans & Pricing | Supademo",
+      "bodyH": 12357,
+      "buttonCount": 13,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "-",
+        "+",
+        "-",
+        "+",
+        "Compare plans and features ↓",
+        "Featured",
+        "Featured",
+        "Talk to it"
+      ],
+      "screenshot": "reference/004-004-pricing.jpg"
+    },
+    {
+      "index": 5,
+      "url": "https://supademo.com/product-demo",
+      "title": "Book a Demo | Supademo — Interactive Demo Platform",
+      "bodyH": 720,
+      "buttonCount": 2,
+      "buttons": [
+        "Next",
+        "Or skip the wait and get an instant AI demo"
+      ],
+      "screenshot": "reference/005-005-product-demo.jpg"
+    },
+    {
+      "index": 6,
+      "url": "https://supademo.com/features/guided-html-demo",
+      "title": "HTML-Based Interactive Demo Environments | Supademo",
+      "bodyH": 8200,
+      "buttonCount": 11,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Sales & Enablement",
+        "Marketing & Growth",
+        "Customer Success",
+        "Onboarding",
+        "Support",
+        "Product",
+        "Training"
+      ],
+      "screenshot": "reference/006-006-features-guided-html-demo.jpg"
+    },
+    {
+      "index": 7,
+      "url": "https://supademo.com/features/sandbox-demos",
+      "title": "Sandbox Demo Environments — Supademo",
+      "bodyH": 8546,
+      "buttonCount": 8,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "Previous",
+        "Next"
+      ],
+      "screenshot": "reference/007-007-features-sandbox-demos.jpg"
+    },
+    {
+      "index": 8,
+      "url": "https://supademo.com/features/route-hub",
+      "title": "RouteHub: Personalized Demo Routing and Content Delivery | Supademo",
+      "bodyH": 7736,
+      "buttonCount": 13,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Sales",
+        "Onboarding",
+        "Product Marketing",
+        "Training",
+        "Conservative",
+        "Expected",
+        "Aggressive",
+        "Advanced assumptions",
+        "Copy link"
+      ],
+      "screenshot": "reference/008-008-features-route-hub.jpg"
+    },
+    {
+      "index": 9,
+      "url": "https://supademo.com/features/demo-hub",
+      "title": "In-App Demo Hub & Product Tours | Supademo",
+      "bodyH": 7907,
+      "buttonCount": 7,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "Open example Demo Hub"
+      ],
+      "screenshot": "reference/009-009-features-demo-hub.jpg"
+    },
+    {
+      "index": 10,
+      "url": "https://supademo.com/features/screen-recorder",
+      "title": "Screen Recorder to Replace Loom, Vidyard & Camtasia | Supademo",
+      "bodyH": 8565,
+      "buttonCount": 10,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Smart Recording",
+        "Free Editing",
+        "Trackable Sharing",
+        "Add Interactive Elements",
+        "Previous",
+        "Next"
+      ],
+      "screenshot": "reference/010-010-features-screen-recorder.jpg"
+    },
+    {
+      "index": 11,
+      "url": "https://supademo.com/use-cases/sales-enablement",
+      "title": "Interactive Product Demos & Videos for Sales",
+      "bodyH": 7804,
+      "buttonCount": 15,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "Previous",
+        "Next",
+        "Sales & Enablement",
+        "Marketing & Growth",
+        "Customer Success",
+        "Onboarding",
+        "Support",
+        "Product",
+        "Training"
+      ],
+      "screenshot": "reference/011-011-use-cases-sales-enablement.jpg"
+    },
+    {
+      "index": 12,
+      "url": "https://supademo.com/use-cases/product-marketing",
+      "title": "Interactive Product Demos & Videos for Marketing",
+      "bodyH": 7821,
+      "buttonCount": 15,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "Previous",
+        "Next",
+        "Sales & Enablement",
+        "Marketing & Growth",
+        "Customer Success",
+        "Onboarding",
+        "Support",
+        "Product",
+        "Training"
+      ],
+      "screenshot": "reference/012-012-use-cases-product-marketing.jpg"
+    },
+    {
+      "index": 13,
+      "url": "https://supademo.com/use-cases/customer-success",
+      "title": "Interactive Product Demos & Videos for Customer Success",
+      "bodyH": 7203,
+      "buttonCount": 15,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "Previous",
+        "Next",
+        "Sales & Enablement",
+        "Marketing & Growth",
+        "Customer Success",
+        "Onboarding",
+        "Support",
+        "Product",
+        "Training"
+      ],
+      "screenshot": "reference/013-013-use-cases-customer-success.jpg"
+    },
+    {
+      "index": 14,
+      "url": "https://supademo.com/features/analytics",
+      "title": "Analytics For Your Interactive Product Demos | Supademo",
+      "bodyH": 7192,
+      "buttonCount": 11,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Sales & Enablement",
+        "Marketing & Growth",
+        "Customer Success",
+        "Onboarding",
+        "Support",
+        "Product",
+        "Training"
+      ],
+      "screenshot": "reference/014-014-features-analytics.jpg"
+    },
+    {
+      "index": 15,
+      "url": "https://supademo.com/features/sharing",
+      "title": "Share, Embed, Export Your Product Demos | Supademo",
+      "bodyH": 8609,
+      "buttonCount": 6,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured"
+      ],
+      "screenshot": "reference/015-015-features-sharing.jpg"
+    },
+    {
+      "index": 16,
+      "url": "https://supademo.com/features/demo-recorder",
+      "title": "The Best Online Product Demo Recorder | Supademo",
+      "bodyH": 8574,
+      "buttonCount": 13,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Sales & Enablement",
+        "Marketing & Growth",
+        "Customer Success",
+        "Onboarding",
+        "Support",
+        "Product",
+        "Training",
+        "Featured",
+        "Featured"
+      ],
+      "screenshot": "reference/016-016-features-demo-recorder.jpg"
+    },
+    {
+      "index": 17,
+      "url": "https://supademo.com/ai",
+      "title": "Supademo AI — AI Demo Agents, Audits, Voice, and More",
+      "bodyH": 6651,
+      "buttonCount": 6,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured"
+      ],
+      "screenshot": "reference/017-017-ai.jpg"
+    },
+    {
+      "index": 18,
+      "url": "https://supademo.com/customers/vrify-case-study",
+      "title": "How VRIFY reduced enablement content production time by 75%",
+      "bodyH": 8134,
+      "buttonCount": 4,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources"
+      ],
+      "screenshot": "reference/018-018-customers-vrify-case-study.jpg"
+    },
+    {
+      "index": 19,
+      "url": "https://supademo.com/customers/bullhorn-case-study",
+      "title": "Bullhorn cuts course-creation time in half with Supademo",
+      "bodyH": 10327,
+      "buttonCount": 4,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources"
+      ],
+      "screenshot": "reference/019-019-customers-bullhorn-case-study.jpg"
+    },
+    {
+      "index": 20,
+      "url": "https://supademo.com/customers/beehiiv-case-study",
+      "title": "beehiiv increases paid conversions by 50% with Supademo",
+      "bodyH": 7849,
+      "buttonCount": 4,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources"
+      ],
+      "screenshot": "reference/020-020-customers-beehiiv-case-study.jpg"
+    },
+    {
+      "index": 21,
+      "url": "https://supademo.com/customers/easy-software-case-study",
+      "title": "How Easy Uses Interactive Demos To Enhance Their Pre-Sales Workflow",
+      "bodyH": 7662,
+      "buttonCount": 4,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources"
+      ],
+      "screenshot": "reference/021-021-customers-easy-software-case-study.jpg"
+    },
+    {
+      "index": 22,
+      "url": "https://supademo.com/customers",
+      "title": "Teams Like Yours Are Driving Impact with Supademo",
+      "bodyH": 7900,
+      "buttonCount": 13,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Company Size",
+        "Use Case",
+        "Show 7 more",
+        "Featured",
+        "Enterprise",
+        "Software",
+        "Healthcare",
+        "Finance & Banking",
+        "Government & Non-Profit"
+      ],
+      "screenshot": "reference/022-022-customers.jpg"
+    },
+    {
+      "index": 23,
+      "url": "https://supademo.com/blog/sales/interactive-product-demo/",
+      "title": "Create Interactive Demos: Benefits, Usecases, Tips | Supademo Blog",
+      "bodyH": 24104,
+      "buttonCount": 15,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "What is an interactive product demo?",
+        "What are the benefits of interactive demos?",
+        "Popular use cases for interactive product demos",
+        "Examples of Interactive Product Demos",
+        "How to create an interactive product demo",
+        "Interactive product demo best practices",
+        "Get started with your first interactive demo"
+      ],
+      "screenshot": "reference/023-023-blog-sales-interactive-product-demo.jpg"
+    },
+    {
+      "index": 24,
+      "url": "https://supademo.com/features/in-app-product-tour",
+      "title": "In-App Demo Hub & Product Tours | Supademo",
+      "bodyH": 7907,
+      "buttonCount": 7,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "Open example Demo Hub"
+      ],
+      "screenshot": "reference/024-024-features-in-app-product-tour.jpg"
+    },
+    {
+      "index": 25,
+      "url": "https://supademo.com/blog/sales/create-better-interactive-demos/",
+      "title": "Step-by-Step Guide: 7 Tips on Creating Better Interactive Demos | Supademo Blog",
+      "bodyH": 14045,
+      "buttonCount": 20,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "First off: what are interactive product demos?",
+        "Key benefits of interactive product demos",
+        "Step-by-step: making great interactive demos",
+        "1) Storyboard your benefits",
+        "2) Focus on clear, aha moments",
+        "3) Tailor the interactive demo for specific use cases",
+        "4) Set expectations for the viewer",
+        "5) Add CTAs throughout the interactive demo",
+        "6) Add design variations to your hotspots",
+        "7) Personalize with variables and trackable share links",
+        "Tips for maintenance and updates",
+        "Conclusion"
+      ],
+      "screenshot": "reference/025-025-blog-sales-create-better-interactive-demos.jpg"
+    },
+    {
+      "index": 26,
+      "url": "https://supademo.com/blog/sales/leveraging-interactive-demos",
+      "title": "Top 6 Interactive Product Demo Use Cases You Need to Know | Supademo Blog",
+      "bodyH": 14719,
+      "buttonCount": 14,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "What is an interactive product demo?",
+        "6 Helpful Use Cases of Interactive Product Demos",
+        "Use cases for the marketing team",
+        "Use cases for customer success team",
+        "Use cases for the sales team",
+        "Start with your first interactive product demo"
+      ],
+      "screenshot": "reference/026-026-blog-sales-leveraging-interactive-demos.jpg"
+    },
+    {
+      "index": 27,
+      "url": "https://supademo.com/blog/startup/how-supademo-uses-supademo",
+      "title": "How Supademo uses Supademo for Demo Automation | Supademo Blog",
+      "bodyH": 20882,
+      "buttonCount": 15,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Why Supademo uses Supademo",
+        "Sales & Enablement",
+        "Marketing",
+        "Product Design and Validation",
+        "Customer Success, Support & Onboarding",
+        "Internal training + communication",
+        "In Conclusion"
+      ],
+      "screenshot": "reference/027-027-blog-startup-how-supademo-uses-supademo.jpg"
+    },
+    {
+      "index": 28,
+      "url": "https://supademo.com/features",
+      "title": "Supademo Product Features",
+      "bodyH": 11287,
+      "buttonCount": 20,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Screenshot & Video",
+        "Guided HTML Demos",
+        "Mobile Demos",
+        "Sandbox Demos",
+        "In-App Demo Hub",
+        "Featured",
+        "Featured",
+        "Previous",
+        "Next",
+        "Sales & Enablement",
+        "Marketing & Growth",
+        "Customer Success",
+        "Onboarding",
+        "Support",
+        "Product",
+        "Training"
+      ],
+      "screenshot": "reference/028-028-features.jpg"
+    },
+    {
+      "index": 29,
+      "url": "https://supademo.com/blog/sales/create-better-interactive-demos",
+      "title": "Step-by-Step Guide: 7 Tips on Creating Better Interactive Demos | Supademo Blog",
+      "bodyH": 14045,
+      "buttonCount": 20,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "First off: what are interactive product demos?",
+        "Key benefits of interactive product demos",
+        "Step-by-step: making great interactive demos",
+        "1) Storyboard your benefits",
+        "2) Focus on clear, aha moments",
+        "3) Tailor the interactive demo for specific use cases",
+        "4) Set expectations for the viewer",
+        "5) Add CTAs throughout the interactive demo",
+        "6) Add design variations to your hotspots",
+        "7) Personalize with variables and trackable share links",
+        "Tips for maintenance and updates",
+        "Conclusion"
+      ],
+      "screenshot": "reference/029-029-blog-sales-create-better-interactive-demos.jpg"
+    },
+    {
+      "index": 30,
+      "url": "https://supademo.com/blog/product-update-june-recap",
+      "title": "Supademo June 2026 Update: Voiceovers 2.0, Command K Search | Supademo Blog",
+      "bodyH": 11837,
+      "buttonCount": 14,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Voiceovers 2.0 with a new expressive mode",
+        "Command K search across every layer of Supademo",
+        "A redesigned dashboard built around Create, Share, and Measure",
+        "A unified Workspace Settings hub",
+        "Integration updates: manual field mapping and Seismic",
+        "Wrapping up"
+      ],
+      "screenshot": "reference/030-030-blog-product-update-june-recap.jpg"
+    },
+    {
+      "index": 31,
+      "url": "https://supademo.com/blog/supademo-vs-claude-code",
+      "title": "Supademo vs Claude Code: Vibe-Code or Use Demo Platform? | Supademo Blog",
+      "bodyH": 18371,
+      "buttonCount": 13,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "The short answer",
+        "The main types of product demos (and how automatable each one is)",
+        "The five demo “modules” / where vibe-coding wins and where it breaks",
+        "The verdict: build (vibe-code) vs. buy (Supademo), by demo type",
+        "Use AI for momentum, Supademo for the demos that have to perform"
+      ],
+      "screenshot": "reference/031-031-blog-supademo-vs-claude-code.jpg"
+    },
+    {
+      "index": 32,
+      "url": "https://supademo.com/blog/saas-is-changing",
+      "title": "Why SaaS Is About to Change Forever (A Founder's Take) | Supademo Blog",
+      "bodyH": 14824,
+      "buttonCount": 15,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Shift #1: Being Top of Mind Beats Having More Features",
+        "What \"top of mind\" looks like in practice",
+        "How to build your way into that position",
+        "Shift #2: Buyers Run Their Own Evaluation Now",
+        "Shift #3: The Winners Become Part of the Workflow",
+        "Shift #4: Lean, Capital-Efficient, AI-Native Teams Are Winning",
+        "What to do this week"
+      ],
+      "screenshot": "reference/032-032-blog-saas-is-changing.jpg"
+    },
+    {
+      "index": 33,
+      "url": "https://supademo.com/blog/product-update-may-recap",
+      "title": "New in May 2026: Free 4K Screen Recording, Showcases 2.0, Pronounciation Dictionary | Supademo Blog",
+      "bodyH": 13834,
+      "buttonCount": 16,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Unlimited free 4K screen and webcam recording",
+        "Why it matters",
+        "Showcases 2.0",
+        "Custom pronunciation dictionary for AI voiceovers and agents",
+        "Faster, lower-cost AI Demo Agents",
+        "Improved demo playback and caption controls",
+        "Better video embeds and uploads",
+        "Wrapping up"
+      ],
+      "screenshot": "reference/033-033-blog-product-update-may-recap.jpg"
+    },
+    {
+      "index": 34,
+      "url": "https://supademo.com/blog/ai-demo-agent-guide",
+      "title": "How to Build an AI Demo Agent That Qualifies Buyers 24/7 | Supademo Blog",
+      "bodyH": 18803,
+      "buttonCount": 15,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "What Is an AI Demo Agent?",
+        "Step 1: Train the Agent on Your Product Knowledge",
+        "Step 2: Configure How the Agent Sells",
+        "Step 3: Validate With the Agent Readiness Checklist",
+        "Step 4: Go Live and Track Every Conversation",
+        "Why Agentic Demos Are the Future of SaaS Sales",
+        "Getting Started With Your Own AI Demo Agent"
+      ],
+      "screenshot": "reference/034-034-blog-ai-demo-agent-guide.jpg"
+    },
+    {
+      "index": 35,
+      "url": "https://supademo.com/blog/naoma-alternatives",
+      "title": "7 Best Naoma AI Alternatives for Product Demos in 2026 | Supademo Blog",
+      "bodyH": 14670,
+      "buttonCount": 23,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "TL;DR",
+        "Quick comparison: Naoma alternatives at a glance",
+        "What is Naoma AI?",
+        "Why look for Naoma AI alternatives?",
+        "How we selected the best Naoma AI alternatives",
+        "Top 7 Naoma AI alternatives in 2026",
+        "1. Supademo AI Demo Agent",
+        "2. Karumi AI",
+        "3. 1Mind",
+        "4. Saleo AI Demo Agent",
+        "5. Consensus AI",
+        "6. Warmly",
+        "7. Dialora",
+        "Which Naoma AI alternative should you choose?",
+        "Final thoughts on choosing the right agentic demo platform"
+      ],
+      "screenshot": "reference/035-035-blog-naoma-alternatives.jpg"
+    },
+    {
+      "index": 36,
+      "url": "https://supademo.com/blog/bootstrapping-vs-vc",
+      "title": "Bootstrapping vs VC: Which Is Better in the Age of AI? | Supademo Blog",
+      "bodyH": 15746,
+      "buttonCount": 16,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "The Hidden Costs of Raising Venture Capital",
+        "Raising VC Is Not Validation",
+        "Cost #1: The Fundraising Treadmill",
+        "Cost #2: Headline Valuation Could Reduce Optionality",
+        "Cost #3: The Scarcity Mindset Can Disappear Fast",
+        "Why Bootstrapping Is Not Always the Answer",
+        "The Framework for Deciding Between VC and Bootstrapping",
+        "The Bottom Line: AI Lowers the Cost of Starting, Not Winning"
+      ],
+      "screenshot": "reference/036-036-blog-bootstrapping-vs-vc.jpg"
+    },
+    {
+      "index": 37,
+      "url": "https://supademo.com/blog/karumi-alternatives",
+      "title": "7 Best Karumi Alternatives for Agentic Product Demos in 2026 | Supademo Blog",
+      "bodyH": 18139,
+      "buttonCount": 22,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "TL;DR: Best Karumi alternative in 2026",
+        "What is Karumi?",
+        "How I evaluated the top Karumi alternatives",
+        "Karumi alternatives at a glance",
+        "The 7 best Karumi alternatives in 2026",
+        "1. Supademo AI Demo Agent",
+        "2. 1Mind",
+        "3. Naoma AI",
+        "4. Saleo AI Demo Agent",
+        "5. Consensus AI Agents",
+        "6. Storylane RepX",
+        "7. Navattic Agent Demos",
+        "How to choose the right Karumi alternative",
+        "Final thoughts"
+      ],
+      "screenshot": "reference/037-037-blog-karumi-alternatives.jpg"
+    },
+    {
+      "index": 38,
+      "url": "https://supademo.com/blog/best-ai-bdr-tools",
+      "title": "8 AI BDR Tools to Build More Pipeline in 2026 | Supademo Blog",
+      "bodyH": 12034,
+      "buttonCount": 13,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "TL;DR: The best AI BDR tools by use case",
+        "What is an AI BDR?",
+        "Top 8 AI SDR tools for winning deals in 2026",
+        "AI BDR tools by workflow",
+        "How to choose the right AI BDR tool"
+      ],
+      "screenshot": "reference/038-038-blog-best-ai-bdr-tools.jpg"
+    },
+    {
+      "index": 39,
+      "url": "https://supademo.com/blog/rise-of-ai-demo-agents",
+      "title": "AI Demo Agents: A Founder's POV On New B2B SaaS Demo Motion | Supademo Blog",
+      "bodyH": 12987,
+      "buttonCount": 16,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "TL;DR:",
+        "What is an AI demo agent?",
+        "Where AI demo agents fit and where they don’t",
+        "What changes with AI demo agents?",
+        "How AI demo agents actually work",
+        "Curated vs. live: how autonomous should an AI demo agent be?",
+        "What to evaluate when you're choosing an AI demo agent",
+        "The future of product demos with AI agents"
+      ],
+      "screenshot": "reference/039-039-blog-rise-of-ai-demo-agents.jpg"
+    },
+    {
+      "index": 40,
+      "url": "https://supademo.com/features/demo-editor",
+      "title": "Create and Edit Product Demos in Minutes | Supademo",
+      "bodyH": 7659,
+      "buttonCount": 13,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Sales & Enablement",
+        "Marketing & Growth",
+        "Customer Success",
+        "Onboarding",
+        "Support",
+        "Product",
+        "Training",
+        "Featured",
+        "Featured"
+      ],
+      "screenshot": "reference/040-040-features-demo-editor.jpg"
+    },
+    {
+      "index": 41,
+      "url": "https://supademo.com/features/personalization",
+      "title": "Create Personalized Interactive Product Demos | Supademo",
+      "bodyH": 7764,
+      "buttonCount": 13,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Sales & Enablement",
+        "Marketing & Growth",
+        "Customer Success",
+        "Onboarding",
+        "Support",
+        "Product",
+        "Training",
+        "Featured",
+        "Featured"
+      ],
+      "screenshot": "reference/041-041-features-personalization.jpg"
+    },
+    {
+      "index": 42,
+      "url": "https://supademo.com/download",
+      "title": "Download the Supademo Desktop App",
+      "bodyH": 2528,
+      "buttonCount": 4,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources"
+      ],
+      "screenshot": "reference/042-042-download.jpg"
+    },
+    {
+      "index": 43,
+      "url": "https://supademo.com/features/figma",
+      "title": "Figma Prototype Walkthrough and Interactive Demo Tool | Supademo",
+      "bodyH": 8764,
+      "buttonCount": 6,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured"
+      ],
+      "screenshot": "reference/043-043-features-figma.jpg"
+    },
+    {
+      "index": 44,
+      "url": "https://supademo.com/use-cases/product-onboarding",
+      "title": "Interactive Demos & Videos for Product Onboarding",
+      "bodyH": 7230,
+      "buttonCount": 15,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "Previous",
+        "Next",
+        "Sales & Enablement",
+        "Marketing & Growth",
+        "Customer Success",
+        "Onboarding",
+        "Support",
+        "Product",
+        "Training"
+      ],
+      "screenshot": "reference/044-044-use-cases-product-onboarding.jpg"
+    },
+    {
+      "index": 45,
+      "url": "https://supademo.com/use-cases/product",
+      "title": "Interactive Demos & Videos for Product Managers",
+      "bodyH": 6885,
+      "buttonCount": 15,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "Previous",
+        "Next",
+        "Sales & Enablement",
+        "Marketing & Growth",
+        "Customer Success",
+        "Onboarding",
+        "Support",
+        "Product",
+        "Training"
+      ],
+      "screenshot": "reference/045-045-use-cases-product.jpg"
+    },
+    {
+      "index": 46,
+      "url": "https://supademo.com/use-cases/education-training",
+      "title": "Interactive Product Demos & Videos for Employee Training",
+      "bodyH": 7492,
+      "buttonCount": 15,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "Previous",
+        "Next",
+        "Sales & Enablement",
+        "Marketing & Growth",
+        "Customer Success",
+        "Onboarding",
+        "Support",
+        "Product",
+        "Training"
+      ],
+      "screenshot": "reference/046-046-use-cases-education-training.jpg"
+    },
+    {
+      "index": 47,
+      "url": "https://supademo.com/use-cases/customer-support",
+      "title": "Interactive Product Demos & Videos for Customer Support",
+      "bodyH": 6377,
+      "buttonCount": 15,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "Previous",
+        "Next",
+        "Sales & Enablement",
+        "Marketing & Growth",
+        "Customer Success",
+        "Onboarding",
+        "Support",
+        "Product",
+        "Training"
+      ],
+      "screenshot": "reference/047-047-use-cases-customer-support.jpg"
+    },
+    {
+      "index": 48,
+      "url": "https://supademo.com/use-cases",
+      "title": "Interactive Product Demos for All Use Cases",
+      "bodyH": 5232,
+      "buttonCount": 15,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Sales & Enablement",
+        "Marketing & Growth",
+        "Customer Success",
+        "Onboarding",
+        "Support",
+        "Product",
+        "Training",
+        "Previous",
+        "Next",
+        "Featured",
+        "Featured"
+      ],
+      "screenshot": "reference/048-048-use-cases.jpg"
+    },
+    {
+      "index": 49,
+      "url": "https://supademo.com/industries/software",
+      "title": "Interactive Demos for Software Teams | Supademo",
+      "bodyH": 7747,
+      "buttonCount": 13,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "Dropbox",
+        "Intercom",
+        "Wise",
+        "Supademo",
+        "Turo",
+        "Previous",
+        "Next"
+      ],
+      "screenshot": "reference/049-049-industries-software.jpg"
+    },
+    {
+      "index": 50,
+      "url": "https://supademo.com/industries/healthcare",
+      "title": "Interactive Demos for Healthcare Teams | Supademo",
+      "bodyH": 8144,
+      "buttonCount": 11,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "MockCare",
+        "똑닥",
+        "TriageFlow",
+        "Previous",
+        "Next"
+      ],
+      "screenshot": "reference/050-050-industries-healthcare.jpg"
+    },
+    {
+      "index": 51,
+      "url": "https://supademo.com/industries/finance-banking",
+      "title": "Interactive Demos for Banking and Finance | Supademo",
+      "bodyH": 8145,
+      "buttonCount": 13,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "Robinhood",
+        "Mercury",
+        "Wise",
+        "Rabobank",
+        "Wells Fargo",
+        "Previous",
+        "Next"
+      ],
+      "screenshot": "reference/051-051-industries-finance-banking.jpg"
+    },
+    {
+      "index": 52,
+      "url": "https://supademo.com/industries/government",
+      "title": "Interactive Demos for Government Agencies | Supademo",
+      "bodyH": 7824,
+      "buttonCount": 11,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "Canada Revenue",
+        "USCIS",
+        "Mijn Rijswijk",
+        "Previous",
+        "Next"
+      ],
+      "screenshot": "reference/052-052-industries-government.jpg"
+    },
+    {
+      "index": 53,
+      "url": "https://supademo.com/academy",
+      "title": "Supademo Academy | Learn to Create Interactive Demos",
+      "bodyH": 3224,
+      "buttonCount": 8,
+      "buttons": [
+        "Previous",
+        "Next",
+        "Welcome to the Academy\n\nLearn how our Academy is organized: tactical Playbooks for specific use cases, and structured Courses with step-by-step lessons to master every Supademo feature.",
+        "3 Minute Overview\n\nWatch this quick intro video to learn how Supademo helps you create stunning interactive demos in minutes.",
+        "Recommended Use Cases\n\nExplore recommended use cases on how and where you should use interactive demos.",
+        "Start the Course"
+      ],
+      "screenshot": "reference/053-053-academy.jpg"
+    },
+    {
+      "index": 54,
+      "url": "https://supademo.com/blog/product-updates",
+      "title": "Product Updates | Supademo Blog",
+      "bodyH": 6360,
+      "buttonCount": 6,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources"
+      ],
+      "screenshot": "reference/054-054-blog-product-updates.jpg"
+    },
+    {
+      "index": 55,
+      "url": "https://supademo.com/showcase",
+      "title": "Demo Showcase | Supademo",
+      "bodyH": 9359,
+      "buttonCount": 13,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Demo Type",
+        "Use Case",
+        "Industry",
+        "Show more",
+        "Show more",
+        "Show more",
+        "Show more",
+        "Show more",
+        "Show more"
+      ],
+      "screenshot": "reference/055-055-showcase.jpg"
+    },
+    {
+      "index": 56,
+      "url": "https://supademo.com/tutorials",
+      "title": "Software Tutorials | Step-by-Step Interactive Guides | Supademo",
+      "bodyH": 4091,
+      "buttonCount": 77,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "All",
+        "Ahrefs",
+        "Airtable",
+        "Apollo",
+        "Asana",
+        "Attio",
+        "Brevo",
+        "Calendly",
+        "Canva",
+        "ChatGPT",
+        "Clearbit",
+        "ClickUp",
+        "Customer.io",
+        "DocuSign",
+        "Dover",
+        "Dripify",
+        "ElevenLabs",
+        "Fathom",
+        "Figma",
+        "Freshdesk",
+        "Gainsight",
+        "GitHub",
+        "Gmail",
+        "Google Analytics",
+        "Google Calendar",
+        "Google Chrome",
+        "Google Docs"
+      ],
+      "screenshot": "reference/056-056-tutorials.jpg"
+    },
+    {
+      "index": 57,
+      "url": "https://supademo.com/integrations",
+      "title": "Featured Integrations | Supademo",
+      "bodyH": 7704,
+      "buttonCount": 5,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Categories"
+      ],
+      "screenshot": "reference/057-057-integrations.jpg"
+    },
+    {
+      "index": 58,
+      "url": "https://supademo.com/compare",
+      "title": "Compare Supademo to Alternatives | Interactive Demo Platform Comparison",
+      "bodyH": 8261,
+      "buttonCount": 15,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "All",
+        "AI Demo Agents",
+        "Interactive Demos",
+        "Video",
+        "Documentation",
+        "Digital Adoption",
+        "Show more comparisons",
+        "Previous",
+        "Next"
+      ],
+      "screenshot": "reference/058-058-compare.jpg"
+    },
+    {
+      "index": 59,
+      "url": "https://supademo.com/help",
+      "title": "Get help from the Supademo team",
+      "bodyH": 761,
+      "buttonCount": 4,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources"
+      ],
+      "screenshot": "reference/059-059-help.jpg"
+    },
+    {
+      "index": 60,
+      "url": "https://supademo.com/accessibility",
+      "title": "Accessibility Statement | Supademo - WCAG 2.2 Compliant Interactive Demos",
+      "bodyH": 5139,
+      "buttonCount": 12,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Our Commitment",
+        "Standards & Guidelines",
+        "Testing & Evaluation",
+        "Current Status",
+        "VPAT Documentation",
+        "Feedback & Contact",
+        "Alternative Formats"
+      ],
+      "screenshot": "reference/060-060-accessibility.jpg"
+    },
+    {
+      "index": 61,
+      "url": "https://supademo.com/tools/interactive-demo-builder",
+      "title": "Free Interactive Demo Builder — No-Code Product Demos (2026) | Supademo",
+      "bodyH": 8070,
+      "buttonCount": 13,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "Sales & Enablement",
+        "Marketing & Growth",
+        "Customer Success",
+        "Support",
+        "Product",
+        "Training"
+      ],
+      "screenshot": "reference/061-061-tools-interactive-demo-builder.jpg"
+    },
+    {
+      "index": 62,
+      "url": "https://supademo.com/tools/interactive-walkthrough-builder",
+      "title": "Free Interactive Walkthrough Builder — AI Walkthrough Generator | Supademo",
+      "bodyH": 8191,
+      "buttonCount": 13,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "Sales & Enablement",
+        "Marketing & Growth",
+        "Customer Success",
+        "Support",
+        "Product",
+        "Training"
+      ],
+      "screenshot": "reference/062-062-tools-interactive-walkthrough-builder.jpg"
+    },
+    {
+      "index": 63,
+      "url": "https://supademo.com/tools/product-demo-video-maker",
+      "title": "Free SaaS Demo Video Maker — AI Product Demo Videos (2026) | Supademo",
+      "bodyH": 8139,
+      "buttonCount": 13,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "Sales",
+        "Marketing",
+        "Customer Success",
+        "Support",
+        "Product",
+        "Training"
+      ],
+      "screenshot": "reference/063-063-tools-product-demo-video-maker.jpg"
+    },
+    {
+      "index": 64,
+      "url": "https://supademo.com/tools/screen-recorder",
+      "title": "Free Online Screen Recorder, No Download | Supademo",
+      "bodyH": 7723,
+      "buttonCount": 13,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "Sales & Enablement",
+        "Marketing & Growth",
+        "Customer Success",
+        "Support",
+        "Product",
+        "Training"
+      ],
+      "screenshot": "reference/064-064-tools-screen-recorder.jpg"
+    },
+    {
+      "index": 65,
+      "url": "https://supademo.com/tools/sop-generator",
+      "title": "Free AI SOP Generator | Create Standard Operating Procedures | Supademo",
+      "bodyH": 7888,
+      "buttonCount": 13,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "Sales & Enablement",
+        "Marketing & Growth",
+        "Customer Success",
+        "Support",
+        "Product",
+        "Training"
+      ],
+      "screenshot": "reference/065-065-tools-sop-generator.jpg"
+    },
+    {
+      "index": 66,
+      "url": "https://supademo.com/tools/manual-maker",
+      "title": "Free AI Manual Maker: Create Interactive Manuals | Supademo",
+      "bodyH": 7581,
+      "buttonCount": 14,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "Sales & Enablement",
+        "Marketing & Growth",
+        "Customer Success",
+        "Onboarding",
+        "Support",
+        "Product",
+        "Training"
+      ],
+      "screenshot": "reference/066-066-tools-manual-maker.jpg"
+    },
+    {
+      "index": 67,
+      "url": "https://supademo.com/tools/free-screenshot-editor",
+      "title": "Free Screenshot Editor | Supademo",
+      "bodyH": 8281,
+      "buttonCount": 12,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "Sales & Enablement",
+        "Marketing & Growth",
+        "Customer Success",
+        "Support",
+        "Product",
+        "Training"
+      ],
+      "screenshot": "reference/067-067-tools-free-screenshot-editor.jpg"
+    },
+    {
+      "index": 68,
+      "url": "https://supademo.com/tools/screenshot-link-generator",
+      "title": "Free Screenshot Link Generator | Shareable Screenshot URLs | Supademo",
+      "bodyH": 7521,
+      "buttonCount": 13,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "Sales",
+        "Marketing",
+        "Customer Success",
+        "Support",
+        "Product",
+        "Training"
+      ],
+      "screenshot": "reference/068-068-tools-screenshot-link-generator.jpg"
+    },
+    {
+      "index": 69,
+      "url": "https://supademo.com/tools/annotation-generator",
+      "title": "Free AI Annotation Generator | Auto-Annotate Screenshots & Docs | Supademo",
+      "bodyH": 5496,
+      "buttonCount": 6,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured"
+      ],
+      "screenshot": "reference/069-069-tools-annotation-generator.jpg"
+    },
+    {
+      "index": 70,
+      "url": "https://supademo.com/tools",
+      "title": "Free Tools for Better Product Demos | Supademo",
+      "bodyH": 6801,
+      "buttonCount": 6,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Category",
+        "Clear all filters"
+      ],
+      "screenshot": "reference/070-070-tools.jpg"
+    },
+    {
+      "index": 71,
+      "url": "https://supademo.com/careers",
+      "title": "Grow Your Career Working at Supademo",
+      "bodyH": 5548,
+      "buttonCount": 8,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources"
+      ],
+      "screenshot": "reference/071-071-careers.jpg"
+    },
+    {
+      "index": 72,
+      "url": "https://supademo.com/enterprise",
+      "title": "Supademo for Enterprise: Demos every team can build, security every team can trust",
+      "bodyH": 7967,
+      "buttonCount": 11,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Multiple workspaces\n\nSeparate teams, brands, or business units into workspaces with their own settings.",
+        "Enterprise admin\n\nManage permissions, audit logs, and governance from a single admin panel.",
+        "AI Demo Agents\n\nDeploy AI agents with workspace governance and audit logs built in.",
+        "Enterprise",
+        "Enterprise"
+      ],
+      "screenshot": "reference/072-072-enterprise.jpg"
+    },
+    {
+      "index": 73,
+      "url": "https://supademo.com/blog",
+      "title": "Supademo Blog | Interactive Demo Insights & Product Updates",
+      "bodyH": 6853,
+      "buttonCount": 6,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources"
+      ],
+      "screenshot": "reference/073-073-blog.jpg"
+    },
+    {
+      "index": 74,
+      "url": "https://supademo.com/customers/orbitax",
+      "title": "How Orbitax Scales Global Sales with Supademo",
+      "bodyH": 8151,
+      "buttonCount": 4,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources"
+      ],
+      "screenshot": "reference/074-074-customers-orbitax.jpg"
+    },
+    {
+      "index": 75,
+      "url": "https://supademo.com/customers/spare",
+      "title": "Delivering massive impact for Spare's mobility platform",
+      "bodyH": 9719,
+      "buttonCount": 4,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources"
+      ],
+      "screenshot": "reference/075-075-customers-spare.jpg"
+    },
+    {
+      "index": 76,
+      "url": "https://supademo.com/customers/easy-software",
+      "title": "How Easy Uses Interactive Demos To Enhance Their Pre-Sales Workflow",
+      "bodyH": 7662,
+      "buttonCount": 4,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources"
+      ],
+      "screenshot": "reference/076-076-customers-easy-software.jpg"
+    },
+    {
+      "index": 77,
+      "url": "https://supademo.com/customers/beehiiv",
+      "title": "beehiiv increases paid conversions by 50% with Supademo",
+      "bodyH": 7843,
+      "buttonCount": 4,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources"
+      ],
+      "screenshot": "reference/077-077-customers-beehiiv.jpg"
+    },
+    {
+      "index": 78,
+      "url": "https://supademo.com/customers/greenpeace",
+      "title": "How Greenpeace CEE saved 40+ hours and scaled digitalization with Supademo",
+      "bodyH": 8008,
+      "buttonCount": 4,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources"
+      ],
+      "screenshot": "reference/078-078-customers-greenpeace.jpg"
+    },
+    {
+      "index": 79,
+      "url": "https://supademo.com/customers/revio",
+      "title": "How Rev.io creates training material in hours instead of weeks with a 50% smaller team using Supademo",
+      "bodyH": 8646,
+      "buttonCount": 4,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources"
+      ],
+      "screenshot": "reference/079-079-customers-revio.jpg"
+    },
+    {
+      "index": 80,
+      "url": "https://supademo.com/customers/bullhorn",
+      "title": "Bullhorn cuts course-creation time in half with Supademo",
+      "bodyH": 10142,
+      "buttonCount": 4,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources"
+      ],
+      "screenshot": "reference/080-080-customers-bullhorn.jpg"
+    },
+    {
+      "index": 81,
+      "url": "https://supademo.com/customers/vrify",
+      "title": "How VRIFY reduced enablement content production time by 75%",
+      "bodyH": 8134,
+      "buttonCount": 4,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources"
+      ],
+      "screenshot": "reference/081-081-customers-vrify.jpg"
+    },
+    {
+      "index": 82,
+      "url": "https://supademo.com/terms-of-service",
+      "title": "Supademo | Terms of Service",
+      "bodyH": 7264,
+      "buttonCount": 4,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources"
+      ],
+      "screenshot": "reference/082-082-terms-of-service.jpg"
+    },
+    {
+      "index": 83,
+      "url": "https://supademo.com/privacy-policy",
+      "title": "Privacy Policy and Data Security | Supademo",
+      "bodyH": 9928,
+      "buttonCount": 4,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources"
+      ],
+      "screenshot": "reference/083-083-privacy-policy.jpg"
+    },
+    {
+      "index": 84,
+      "url": "https://supademo.com/privacy-policy/ai",
+      "title": "AI Policy | Supademo",
+      "bodyH": 3760,
+      "buttonCount": 4,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources"
+      ],
+      "screenshot": "reference/084-084-privacy-policy-ai.jpg"
+    },
+    {
+      "index": 85,
+      "url": "https://supademo.com/dpa",
+      "title": "Data Processing Agreement | Supademo",
+      "bodyH": 7320,
+      "buttonCount": 4,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources"
+      ],
+      "screenshot": "reference/085-085-dpa.jpg"
+    },
+    {
+      "index": 86,
+      "url": "https://supademo.com/tools/mobile-app-demos",
+      "title": "Free Mobile App Demo Maker | Interactive Mobile Demos | Supademo",
+      "bodyH": 7568,
+      "buttonCount": 13,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "Sales",
+        "Marketing",
+        "Customer Success",
+        "Support",
+        "Product",
+        "Training"
+      ],
+      "screenshot": "reference/086-086-tools-mobile-app-demos.jpg"
+    },
+    {
+      "index": 87,
+      "url": "https://supademo.com/features/showcase-collection",
+      "title": "Multi-demo showcase collections",
+      "bodyH": 8176,
+      "buttonCount": 13,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Featured",
+        "Featured",
+        "Sales & Enablement",
+        "Marketing & Growth",
+        "Customer Success",
+        "Onboarding",
+        "Support",
+        "Product",
+        "Training"
+      ],
+      "screenshot": "reference/087-087-features-showcase-collection.jpg"
+    },
+    {
+      "index": 88,
+      "url": "https://supademo.com/content",
+      "title": "Free Growth Playbooks & Marketing Resources for Startups | Supademo",
+      "bodyH": 3111,
+      "buttonCount": 4,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources"
+      ],
+      "screenshot": "reference/088-088-content.jpg"
+    },
+    {
+      "index": 89,
+      "url": "https://supademo.com/content/state-of-interactive-demos-2026",
+      "title": "State of Interactive Demos 2026: Industry Research Report | Supademo",
+      "bodyH": 26723,
+      "buttonCount": 87,
+      "buttons": [
+        "Platform",
+        "Solutions",
+        "Resources",
+        "Read the report",
+        "TL;DR",
+        "2026 insights at a glance",
+        "Key findings",
+        "Why do interactive demos matter in 2026?",
+        "Introduction",
+        "Who uses interactive demos in 2026?",
+        "How are interactive demos used across teams?",
+        "Why do teams adopt interactive demos?",
+        "How do interactive demos shape the customer journey?",
+        "What is the impact of interactive demos?",
+        "How do AI & personalization multiply interactive demo impact?",
+        "What do high-performing interactive demos have in common?",
+        "How do teams use analytics to improve interactive demo performance?",
+        "What are the key takeaways of the State of Interactive Demos 2026?",
+        "Overall",
+        "Sales",
+        "CS",
+        "Support",
+        "Product",
+        "Marketing",
+        "HR/Ops",
+        "Table",
+        "Chart",
+        "Table",
+        "Chart",
+        "Table"
+      ],
+      "screenshot": "reference/089-089-content-state-of-interactive-demos-2026.jpg"
+    },
+    {
+      "index": 90,
+      "url": "https://app.supademo.com/login",
+      "title": "Supademo | Log in",
+      "bodyH": 720,
+      "buttonCount": 4,
+      "buttons": [
+        "Continue",
+        "Google",
+        "Microsoft",
+        "SSO"
+      ],
+      "screenshot": "reference/090-090-login.jpg"
+    },
+    {
+      "index": 91,
+      "url": "https://app.supademo.com/signup",
+      "title": "Supademo | Sign up",
+      "bodyH": 720,
+      "buttonCount": 4,
+      "buttons": [
+        "Continue",
+        "Google",
+        "Microsoft",
+        "SSO"
+      ],
+      "screenshot": "reference/091-091-signup.jpg"
+    }
+  ]
+}

@@ -584,6 +584,21 @@ test("API auth routes execute workflow success and failure paths without leaking
       body: JSON.stringify(body)
     });
 
+  const anonymousRefresh = await fetch(`${baseUrl}/api/v1/auth/refresh-session`, {
+    method: "POST"
+  });
+  assert.equal(anonymousRefresh.status, 401);
+
+  const staleCookieSignUp = await fetch(`${baseUrl}/api/v1/auth/sign-up`, {
+    method: "POST",
+    headers: {
+      cookie: "supademo_session=expired-session",
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({ email: "stale-cookie@example.com", password: "not-logged-123" })
+  });
+  assert.equal(staleCookieSignUp.status, 200);
+
   const signUp = await request("/api/v1/auth/sign-up", {
     email: "new@example.com",
     password: "not-logged-123"
@@ -604,6 +619,38 @@ test("API auth routes execute workflow success and failure paths without leaking
   assert.equal(signedInBody.message, "Signed in.");
   assert.match(signedInBody.csrfToken, /^[A-Za-z0-9-]{16,}$/u);
   assert.equal("identity" in signedInBody, false);
+  const sessionCookie = (signedIn.headers.get("set-cookie") ?? "").split(";", 1)[0];
+  // A new tab shares the HttpOnly session cookie but not sessionStorage. Public auth
+  // operations must still work without the prior tab's CSRF token.
+  const crossTabSignUp = await fetch(`${baseUrl}/api/v1/auth/sign-up`, {
+    method: "POST",
+    headers: { cookie: sessionCookie, "content-type": "application/json" },
+    body: JSON.stringify({ email: "cross-tab@example.com", password: "not-logged-123" })
+  });
+  assert.equal(crossTabSignUp.status, 200);
+  const crossTabSignIn = await fetch(`${baseUrl}/api/v1/auth/sign-in`, {
+    method: "POST",
+    headers: { cookie: sessionCookie, "content-type": "application/json" },
+    body: JSON.stringify({ email: "cross-tab@example.com", password: "not-logged-123" })
+  });
+  assert.equal(crossTabSignIn.status, 200);
+  const crossTabSignInBody = await crossTabSignIn.json();
+  const crossTabSessionCookie = (crossTabSignIn.headers.get("set-cookie") ?? "").split(";", 1)[0];
+  assert.match(crossTabSignInBody.csrfToken, /^[A-Za-z0-9-]{16,}$/u);
+  const refreshed = await fetch(`${baseUrl}/api/v1/auth/refresh-session`, {
+    method: "POST",
+    headers: { cookie: crossTabSessionCookie, "x-csrf-token": crossTabSignInBody.csrfToken }
+  });
+  assert.equal(refreshed.status, 200);
+  const refreshedBody = await refreshed.json();
+  assert.equal(refreshedBody.message, "Session refreshed.");
+  const refreshedCookie = (refreshed.headers.get("set-cookie") ?? "").split(";", 1)[0];
+  const signedOut = await fetch(`${baseUrl}/api/v1/auth/sign-out`, {
+    method: "POST",
+    headers: { cookie: refreshedCookie, "x-csrf-token": refreshedBody.csrfToken }
+  });
+  assert.equal(signedOut.status, 200);
+  assert.equal((await signedOut.json()).message, "Signed out.");
 
   const existing = await request("/api/v1/auth/sign-up", {
     email: "existing@example.com",

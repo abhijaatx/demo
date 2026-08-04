@@ -9,7 +9,8 @@ import {
 } from "../packages/domain/dist/index.js";
 import {
   InMemoryStorageAdapter,
-  S3CompatibleStorageAdapter
+  S3CompatibleStorageAdapter,
+  StorageAdapterError
 } from "../packages/storage/dist/index.js";
 
 const uploaderId = "018f0f7e-9b7d-7c4b-8c1b-1c0f2e6e0001";
@@ -76,27 +77,139 @@ test("asset input parsing and type inference", () => {
   );
 });
 
-test("S3CompatibleStorageAdapter and InMemoryStorageAdapter generate presigned URLs", async () => {
+test("S3CompatibleStorageAdapter signs bounded object and multipart operations", async () => {
+  const sent = [];
+  const client = {
+    async send(command) {
+      sent.push(command);
+      if (command.constructor.name === "CreateMultipartUploadCommand") {
+        return { UploadId: "provider-upload-1" };
+      }
+      if (command.constructor.name === "CompleteMultipartUploadCommand") {
+        return { ETag: '"completed-etag"', ChecksumSHA256: `${"A".repeat(43)}=-2` };
+      }
+      if (command.constructor.name === "HeadObjectCommand") {
+        return {
+          ContentLength: 5,
+          ContentType: "image/png",
+          ETag: '"object-etag"',
+          ChecksumSHA256: `${"A".repeat(43)}=`
+        };
+      }
+      if (command.constructor.name === "ListPartsCommand") {
+        return {
+          Parts: [
+            {
+              PartNumber: 1,
+              Size: 5,
+              ETag: '"part-etag"',
+              ChecksumSHA256: `${"A".repeat(43)}=`
+            }
+          ],
+          IsTruncated: false
+        };
+      }
+      if (command.constructor.name === "GetObjectCommand") {
+        return {
+          Body: {
+            async *[Symbol.asyncIterator]() {
+              yield Buffer.from("hello");
+            }
+          }
+        };
+      }
+      return {};
+    }
+  };
+  const presigned = [];
+  const presign = async (_client, command, options) => {
+    presigned.push({ command, options });
+    return `https://signed.example/${command.constructor.name}`;
+  };
   const s3 = new S3CompatibleStorageAdapter({
-    endpoint: "https://s3.us-east-1.amazonaws.com",
-    bucket: "supademo-assets"
+    endpoint: "http://127.0.0.1:9000",
+    bucket: "supademo-assets",
+    region: "us-east-1",
+    accessKeyId: "local-access",
+    secretAccessKey: "local-secret",
+    client,
+    presign
   });
 
   const upload = await s3.generateUploadUrl("test-key.png", "image/png", 900);
-  assert.match(
-    upload.uploadUrl,
-    /https:\/\/s3.us-east-1.amazonaws.com\/supademo-assets\/test-key.png/u
-  );
+  assert.equal(upload.uploadUrl, "https://signed.example/PutObjectCommand");
   assert.equal(upload.headers["Content-Type"], "image/png");
 
   const downloadUrl = await s3.generateDownloadUrl("test-key.png", 3600);
-  assert.match(downloadUrl, /https:\/\/s3.us-east-1.amazonaws.com\/supademo-assets\/test-key.png/u);
+  assert.equal(downloadUrl, "https://signed.example/GetObjectCommand");
 
+  const handle = await s3.createMultipartUpload("test-key.png", "image/png");
+  assert.equal(handle.uploadId, "provider-upload-1");
+  const checksumSha256Base64 = `${"A".repeat(43)}=`;
+  const partUrl = await s3.generateMultipartPartUploadUrl(
+    "test-key.png",
+    handle.uploadId,
+    1,
+    5,
+    checksumSha256Base64,
+    300
+  );
+  assert.equal(partUrl.uploadUrl, "https://signed.example/UploadPartCommand");
+  assert.equal(partUrl.headers["x-amz-checksum-sha256"], checksumSha256Base64);
+  assert.equal(presigned.at(-1).options.expiresIn, 300);
+  assert.ok(presigned.at(-1).options.unhoistableHeaders.has("x-amz-checksum-sha256"));
+  assert.deepEqual(await s3.listMultipartUploadParts("test-key.png", handle.uploadId), [
+    {
+      partNumber: 1,
+      etag: '"part-etag"',
+      checksumSha256Base64,
+      sizeInBytes: 5
+    }
+  ]);
+
+  const completed = await s3.completeMultipartUpload("test-key.png", handle.uploadId, [
+    {
+      partNumber: 1,
+      etag: '"part-etag"',
+      checksumSha256Base64,
+      sizeInBytes: 5
+    }
+  ]);
+  assert.equal(completed.etag, '"completed-etag"');
+  assert.equal((await s3.headObject("test-key.png"))?.sizeInBytes, 5);
+  const chunks = [];
+  for await (const chunk of await s3.getObjectStream("test-key.png")) chunks.push(chunk);
+  assert.equal(Buffer.concat(chunks).toString("utf8"), "hello");
+  await s3.abortMultipartUpload("test-key.png", handle.uploadId);
+  await s3.deleteObject("test-key.png");
+  assert.ok(sent.some((command) => command.constructor.name === "AbortMultipartUploadCommand"));
+  assert.ok(sent.some((command) => command.constructor.name === "DeleteObjectCommand"));
+
+  await assert.rejects(
+    () => s3.generateUploadUrl("../escape", "image/png", 900),
+    StorageAdapterError
+  );
+  await assert.rejects(() => s3.generateDownloadUrl("test-key.png", 86_400), StorageAdapterError);
+});
+
+test("InMemoryStorageAdapter assembles verified multipart uploads and streams the result", async () => {
   const mem = new InMemoryStorageAdapter();
-  mem.putMemoryObject("key.png", Buffer.from("hello"), "image/png", checksum);
+  const handle = await mem.createMultipartUpload("key.png", "image/png");
+  const first = mem.putMemoryMultipartPart("key.png", handle.uploadId, 1, Buffer.from("hello "));
+  const second = mem.putMemoryMultipartPart("key.png", handle.uploadId, 2, Buffer.from("world"));
+  assert.equal((await mem.listMultipartUploadParts("key.png", handle.uploadId)).length, 2);
+  await mem.completeMultipartUpload("key.png", handle.uploadId, [
+    { partNumber: 1, sizeInBytes: 6, ...first },
+    { partNumber: 2, sizeInBytes: 5, ...second }
+  ]);
+
   const head = await mem.headObject("key.png");
-  assert.equal(head?.size, 5);
-  assert.equal(head?.checksumSha256, checksum);
+  assert.equal(head?.sizeInBytes, 11);
+  assert.equal(head?.mimeType, "image/png");
+  assert.match(head?.checksumSha256Base64 ?? "", /^[A-Za-z0-9+/]{43}=$/u);
+  const chunks = [];
+  for await (const chunk of await mem.getObjectStream("key.png")) chunks.push(chunk);
+  assert.equal(Buffer.concat(chunks).toString("utf8"), "hello world");
 });
 
 test("DatabaseAssetRepository creates presigned uploads, completes upload, and deletes assets", async () => {
@@ -105,11 +218,26 @@ test("DatabaseAssetRepository creates presigned uploads, completes upload, and d
     query: async (text) => {
       if (text === "BEGIN" || text === "COMMIT" || text === "ROLLBACK") return { rows: [] };
       if (text.includes("SELECT role FROM memberships")) return { rows: [{ role: "editor" }] };
+      if (text.includes("workspace_asset_usage")) {
+        return {
+          rows: [
+            {
+              total_storage_used_bytes: 0,
+              asset_count: 0,
+              storage_limit_bytes: 5368709120,
+              asset_count_limit: 10000
+            }
+          ]
+        };
+      }
       if (text.includes("SELECT") && text.includes("FROM workspace_assets")) {
         return { rows: [assetRow()] };
       }
       if (text.includes("INSERT INTO workspace_assets")) {
         return { rows: [assetRow()] };
+      }
+      if (text.includes("status = 'validating'")) {
+        return { rows: [assetRow({ status: "validating" })] };
       }
       if (text.includes("status = 'ready'")) {
         return { rows: [assetRow({ status: "ready" })] };
@@ -137,7 +265,10 @@ test("DatabaseAssetRepository creates presigned uploads, completes upload, and d
   assert.match(presigned.uploadUrl, /test-bucket/u);
 
   const completed = await repository.completeUpload(uploaderId, workspaceId, assetId, checksum);
-  assert.equal(completed.status, "ready");
+  assert.equal(completed.status, "validating");
+
+  const ready = await repository.markReady(workspaceId, assetId, { width: 100, height: 100 });
+  assert.equal(ready.status, "ready");
 
   const downloadUrl = await repository.getPresignedDownloadUrl(uploaderId, workspaceId, assetId);
   assert.match(downloadUrl, /test-bucket/u);

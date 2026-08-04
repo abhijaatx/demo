@@ -1,0 +1,59 @@
+{
+  "source": "https://supademo.com/",
+  "tokens": {
+    "spacing": { "scale": [8, 16, 24, 40, 48, 80, 96], "base_unit": 8 },
+    "typography": {
+      "families": ["Inter", "degularFont"],
+      "scale": [
+        { "role": "hero", "size": "72px", "weight": "700", "family": "degularFont" },
+        { "role": "section", "size": "48px", "weight": "700", "family": "degularFont" },
+        { "role": "body", "size": "20px", "weight": "400", "family": "Inter" },
+        { "role": "action", "size": "12px", "weight": "600", "family": "Inter" }
+      ]
+    },
+    "colors": [
+      { "role": "dark-field", "value": "#011369" },
+      { "role": "surface", "value": "#FFFFFF" },
+      { "role": "ink", "value": "#000000" },
+      { "role": "supporting-text", "value": "#4B5563" },
+      { "role": "control-text", "value": "#374151" }
+    ],
+    "radius": ["6px", "8px", "12px", "16px", "24px", "9999px"],
+    "shadows": ["0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)"],
+    "image_ratios": [
+      { "usage": "product-preview", "ratio": "~16:9" },
+      { "usage": "feature-panel", "ratio": "~4:3" }
+    ],
+    "grid": { "max_width": "~1280px", "columns": 12, "gutter": "24px" }
+  },
+  "taste": [
+    {
+      "name": "Display-led decision points",
+      "trigger": "When a visitor needs to understand the product proposition",
+      "decision": "Uses a 72px/700 display headline over keeping all text in the body face",
+      "reason": "The decision is visible before the visitor enters the long product narrative.",
+      "evidence": ["h1: degularFont, 72px, 700, 72px line height", "body: Inter, 20px, 400, 28px line height"]
+    },
+    {
+      "name": "Blue fields, neutral reading surfaces",
+      "trigger": "When separating high-stakes product moments from supporting material",
+      "decision": "Uses #011369 as a full field while retaining #FFFFFF content surfaces instead of tinting every section blue",
+      "reason": "The blue field creates a page-scale change in attention without reducing reading contrast across the whole page.",
+      "evidence": ["page sections include rgb(1, 19, 105) and rgb(255, 255, 255)", "supporting text is rgb(75, 85, 99)"]
+    },
+    {
+      "name": "Rounded action vocabulary",
+      "trigger": "When a control must look immediately actionable",
+      "decision": "Uses 12–24px component rounding and 9999px on compact action links over square controls",
+      "reason": "The shape distinguishes things that can be acted on from editorial content without a heavy border system.",
+      "evidence": ["radii: 12px ×33, 16px ×13, 24px ×8, 9999px ×4", "action link: 12px/600 with 4px 10px padding"]
+    },
+    {
+      "name": "Whitespace over enclosing every statement",
+      "trigger": "When a long landing page must hold many product categories",
+      "decision": "Uses 40px, 48px, 80px, and 96px section padding instead of turning every block into a bordered card",
+      "reason": "The long scroll stays legible because each new concept gets a visible reset point.",
+      "evidence": ["observed section padding: 40px, 48px, 80px, 96px", "primary surface is white with transparent section backgrounds"]
+    }
+  ]
+}

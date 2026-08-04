@@ -1,0 +1,39 @@
+[
+  {
+    "index": 90,
+    "name": "090-login",
+    "url": "https://app.supademo.com/login",
+    "file": "reference/090-090-login.png",
+    "bodyH": 720,
+    "buttonCount": 4,
+    "buttons": [
+      "Continue",
+      "Google",
+      "Microsoft",
+      "SSO"
+    ],
+    "headings": [
+      "Welcome back!"
+    ],
+    "title": "Supademo | Log in"
+  },
+  {
+    "index": 91,
+    "name": "091-signup",
+    "url": "https://app.supademo.com/signup",
+    "file": "reference/091-091-signup.png",
+    "bodyH": 720,
+    "buttonCount": 4,
+    "buttons": [
+      "Continue",
+      "Google",
+      "Microsoft",
+      "SSO"
+    ],
+    "headings": [
+      "Exceptional product demos in minutes, not days",
+      "Modern teams scale with Supademo"
+    ],
+    "title": "Supademo | Sign up"
+  }
+]

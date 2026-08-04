@@ -1,0 +1,179 @@
+[
+  {
+    "index": 42,
+    "name": "042-download",
+    "url": "https://supademo.com/download",
+    "file": "reference/042-042-download.png",
+    "bodyH": 2528,
+    "buttonCount": 4,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources"
+    ],
+    "headings": [
+      "Choose your demo recorder",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "Download the Supademo Desktop App"
+  },
+  {
+    "index": 43,
+    "name": "043-features-figma",
+    "url": "https://supademo.com/features/figma",
+    "file": "reference/043-043-features-figma.png",
+    "bodyH": 8764,
+    "buttonCount": 6,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources",
+      "Featured",
+      "Featured"
+    ],
+    "headings": [
+      "Create guided walkthroughs to elevate Figma prototypes",
+      "The easiest way to make Figma walkthroughs",
+      "Overlay AI and manual voiceovers",
+      "Clickable, guided hotspots",
+      "Customizable chapters and forms",
+      "Share unique trackable links",
+      "Get session and viewer-specific insights",
+      "Explore More Features",
+      "Trusted by 200,000+ top operators and 3,000+ paying organizations",
+      "FAQs",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "Figma Prototype Walkthrough and Interactive Demo Tool | Supademo"
+  },
+  {
+    "index": 44,
+    "name": "044-use-cases-product-onboarding",
+    "url": "https://supademo.com/use-cases/product-onboarding",
+    "file": "reference/044-044-use-cases-product-onboarding.png",
+    "bodyH": 7230,
+    "buttonCount": 15,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources",
+      "Featured",
+      "Featured",
+      "Previous",
+      "Next",
+      "Sales & Enablement",
+      "Marketing & Growth",
+      "Customer Success",
+      "Onboarding",
+      "Support",
+      "Product",
+      "Training"
+    ],
+    "headings": [
+      "Scale product-led onboarding with interactive demos",
+      "Trusted by 200,000+ top operators and 3,000+ paying organizations",
+      "Scale how your team demonstrates products",
+      "FAQs",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "Interactive Demos & Videos for Product Onboarding"
+  },
+  {
+    "index": 45,
+    "name": "045-use-cases-product",
+    "url": "https://supademo.com/use-cases/product",
+    "file": "reference/045-045-use-cases-product.png",
+    "bodyH": 6885,
+    "buttonCount": 15,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources",
+      "Featured",
+      "Featured",
+      "Previous",
+      "Next",
+      "Sales & Enablement",
+      "Marketing & Growth",
+      "Customer Success",
+      "Onboarding",
+      "Support",
+      "Product",
+      "Training"
+    ],
+    "headings": [
+      "Test products and iterate faster with interactive demos",
+      "Trusted by 200,000+ top operators and 3,000+ paying organizations",
+      "Ship better products with Supademo",
+      "Scale how your team demonstrates products",
+      "FAQs",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "Interactive Demos & Videos for Product Managers"
+  },
+  {
+    "index": 46,
+    "name": "046-use-cases-education-training",
+    "url": "https://supademo.com/use-cases/education-training",
+    "file": "reference/046-046-use-cases-education-training.png",
+    "bodyH": 7492,
+    "buttonCount": 15,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources",
+      "Featured",
+      "Featured",
+      "Previous",
+      "Next",
+      "Sales & Enablement",
+      "Marketing & Growth",
+      "Customer Success",
+      "Onboarding",
+      "Support",
+      "Product",
+      "Training"
+    ],
+    "headings": [
+      "Accelerate employee training with interactive demos",
+      "Trusted by 200,000+ top operators and 3,000+ paying organizations",
+      "Transform training and education with Supademo",
+      "Scale how your team demonstrates products",
+      "FAQs",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "Interactive Product Demos & Videos for Employee Training"
+  },
+  {
+    "index": 47,
+    "name": "047-use-cases-customer-support",
+    "url": "https://supademo.com/use-cases/customer-support",
+    "file": "reference/047-047-use-cases-customer-support.png",
+    "bodyH": 6377,
+    "buttonCount": 15,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources",
+      "Featured",
+      "Featured",
+      "Previous",
+      "Next",
+      "Sales & Enablement",
+      "Marketing & Growth",
+      "Customer Success",
+      "Onboarding",
+      "Support",
+      "Product",
+      "Training"
+    ],
+    "headings": [
+      "Reduce support burden with interactive product demos",
+      "Trusted by 200,000+ top operators and 3,000+ paying organizations",
+      "Scale how your team demonstrates products",
+      "FAQs",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "Interactive Product Demos & Videos for Customer Support"
+  }
+]

@@ -34,21 +34,30 @@ export interface TagClient {
 
 export function createTagClient(fetcher: typeof fetch = fetch): TagClient {
   const request = async <T>(path: string, init: RequestInit = {}): Promise<T> => {
-    const response = await fetcher(`${apiBaseUrl}${path}`, {
-      ...init,
-      credentials: "include",
-      cache: "no-store",
-      headers: {
-        Accept: "application/json",
-        ...(init.body ? { "Content-Type": "application/json" } : {}),
-        ...(init.method && init.method !== "GET" && readCsrfToken()
-          ? { "X-CSRF-Token": readCsrfToken() }
-          : {}),
-        ...init.headers
-      }
-    });
+    let response: Response;
+    try {
+      response = await fetcher(`${apiBaseUrl}${path}`, {
+        ...init,
+        credentials: "include",
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+          ...(init.body ? { "Content-Type": "application/json" } : {}),
+          ...(init.method && init.method !== "GET" && readCsrfToken()
+            ? { "X-CSRF-Token": readCsrfToken() }
+            : {}),
+          ...init.headers
+        }
+      });
+    } catch {
+      throw new TagClientError(0);
+    }
     if (!response.ok) throw new TagClientError(response.status);
-    return (await response.json()) as T;
+    try {
+      return (await response.json()) as T;
+    } catch {
+      throw new TagClientError(502);
+    }
   };
 
   const pathFor = (workspaceId: string) => `/workspaces/${encodeURIComponent(workspaceId)}/tags`;

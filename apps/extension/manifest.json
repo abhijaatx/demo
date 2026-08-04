@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "SupaDemo Interactive Capture",
+  "version": "0.1.0",
+  "description": "Capture web workflows into interactive product demos.",
+  "permissions": ["activeTab", "storage"],
+  "action": {
+    "default_title": "SupaDemo Capture",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  }
+}

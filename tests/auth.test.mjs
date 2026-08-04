@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { createApiAuthenticationMiddleware } from "../apps/api/dist/auth-middleware.js";
+import { LocalAuthProvider } from "../apps/api/dist/local-auth-provider.js";
 import {
   AuthConfigurationError,
   AuthenticationError,
@@ -61,6 +62,30 @@ test("local identity is fixture-backed and cannot be constructed in production",
   assert.equal(identity.subject, "user-local-1");
   assert.equal(identity.provider, "local");
   await assert.rejects(localProvider().verifyAccessToken("wrong-token"), /Invalid access token/u);
+});
+
+test("local account provider supports account creation and login without exposing passwords", async () => {
+  const provider = new LocalAuthProvider();
+  const created = await provider.signUp({
+    email: "creator@example.com",
+    password: "local-password-123"
+  });
+  assert.deepEqual(created, { verificationRequired: false });
+
+  await assert.rejects(
+    provider.signIn({ email: "creator@example.com", password: "wrong-password" }),
+    (error) => error instanceof AuthProviderOperationError && error.code === "invalid_credentials"
+  );
+  const signedIn = await provider.signIn({
+    email: "creator@example.com",
+    password: "local-password-123"
+  });
+  assert.equal(signedIn.identity.email, "creator@example.com");
+  assert.equal("password" in signedIn.identity, false);
+  await assert.rejects(
+    provider.signUp({ email: "creator@example.com", password: "another-password" }),
+    (error) => error instanceof AuthProviderOperationError && error.code === "already_exists"
+  );
 });
 
 test("Cognito adapter delegates signature verification and validates issuer, audience, use, and expiry", async () => {

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SupaDemo Capture</title>
+    <style>
+      body { width: 280px; margin: 0; padding: 16px; color: #172033; font: 14px/1.45 system-ui, sans-serif; }
+      h1 { margin: 0 0 6px; font-size: 17px; } p { margin: 0 0 14px; color: #526077; }
+      button { width: 100%; border: 0; border-radius: 8px; padding: 10px 12px; background: #5146e5; color: #fff; font: inherit; font-weight: 650; cursor: pointer; }
+      button:disabled { cursor: wait; opacity: .7; } #status { min-height: 20px; margin-top: 12px; color: #526077; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <h1>Capture a page</h1>
+    <p>Save the title and clean URL of the current tab to your local extension storage.</p>
+    <button id="capture" type="button">Capture current tab</button>
+    <p id="status" role="status" aria-live="polite"></p>
+    <script src="popup.js"></script>
+  </body>
+</html>

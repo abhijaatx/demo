@@ -1,0 +1,302 @@
+[
+  {
+    "index": 11,
+    "name": "011-use-cases-sales-enablement",
+    "url": "https://supademo.com/use-cases/sales-enablement",
+    "file": "reference/011-011-use-cases-sales-enablement.png",
+    "bodyH": 7804,
+    "buttonCount": 15,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources",
+      "Featured",
+      "Featured",
+      "Previous",
+      "Next",
+      "Sales & Enablement",
+      "Marketing & Growth",
+      "Customer Success",
+      "Onboarding",
+      "Support",
+      "Product",
+      "Training"
+    ],
+    "headings": [
+      "Double your revenue with interactive demos",
+      "Trusted by 200,000+ top operators and 3,000+ paying organizations",
+      "Boost conversions with effective sales enablement",
+      "Scale how your team demonstrates products",
+      "FAQs",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "Interactive Product Demos & Videos for Sales"
+  },
+  {
+    "index": 12,
+    "name": "012-use-cases-product-marketing",
+    "url": "https://supademo.com/use-cases/product-marketing",
+    "file": "reference/012-012-use-cases-product-marketing.png",
+    "bodyH": 7821,
+    "buttonCount": 15,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources",
+      "Featured",
+      "Featured",
+      "Previous",
+      "Next",
+      "Sales & Enablement",
+      "Marketing & Growth",
+      "Customer Success",
+      "Onboarding",
+      "Support",
+      "Product",
+      "Training"
+    ],
+    "headings": [
+      "Supercharge your funnel with interactive product demos",
+      "Trusted by 200,000+ top operators and 3,000+ paying organizations",
+      "Drive productivity across the entire team",
+      "Scale how your team demonstrates products",
+      "FAQs",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "Interactive Product Demos & Videos for Marketing"
+  },
+  {
+    "index": 13,
+    "name": "013-use-cases-customer-success",
+    "url": "https://supademo.com/use-cases/customer-success",
+    "file": "reference/013-013-use-cases-customer-success.png",
+    "bodyH": 7203,
+    "buttonCount": 15,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources",
+      "Featured",
+      "Featured",
+      "Previous",
+      "Next",
+      "Sales & Enablement",
+      "Marketing & Growth",
+      "Customer Success",
+      "Onboarding",
+      "Support",
+      "Product",
+      "Training"
+    ],
+    "headings": [
+      "Drive customers to success with interactive demos",
+      "Trusted by 200,000+ top operators and 3,000+ paying organizations",
+      "Scale how your team demonstrates products",
+      "FAQs",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "Interactive Product Demos & Videos for Customer Success"
+  },
+  {
+    "index": 14,
+    "name": "014-features-analytics",
+    "url": "https://supademo.com/features/analytics",
+    "file": "reference/014-014-features-analytics.png",
+    "bodyH": 7192,
+    "buttonCount": 11,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources",
+      "Sales & Enablement",
+      "Marketing & Growth",
+      "Customer Success",
+      "Onboarding",
+      "Support",
+      "Product",
+      "Training"
+    ],
+    "headings": [
+      "Identify your most promising prospects",
+      "Track workspace analytics",
+      "Track individual Supademo performance",
+      "Get session and viewer-specific insights",
+      "Identify your hottest prospects",
+      "Connect to your sales and marketing stack",
+      "Explore More Features",
+      "FAQs",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "Analytics For Your Interactive Product Demos | Supademo"
+  },
+  {
+    "index": 15,
+    "name": "015-features-sharing",
+    "url": "https://supademo.com/features/sharing",
+    "file": "reference/015-015-features-sharing.png",
+    "bodyH": 8609,
+    "buttonCount": 6,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources",
+      "Featured",
+      "Featured"
+    ],
+    "headings": [
+      "Share your interactive demos anywhere",
+      "Share Supademo as a link",
+      "Share unique trackable links",
+      "Embed anywhere online",
+      "Share multiple demos as a single Showcase",
+      "Create personalized demos with variables",
+      "Convert to step-by-step SOP guide",
+      "Password-protect interactive demos",
+      "Convert to video or GIF",
+      "Explore More Features",
+      "FAQs",
+      "Trusted by 200,000+ top operators and 3,000+ paying organizations"
+    ],
+    "title": "Share, Embed, Export Your Product Demos | Supademo"
+  },
+  {
+    "index": 16,
+    "name": "016-features-demo-recorder",
+    "url": "https://supademo.com/features/demo-recorder",
+    "file": "reference/016-016-features-demo-recorder.png",
+    "bodyH": 8574,
+    "buttonCount": 13,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources",
+      "Sales & Enablement",
+      "Marketing & Growth",
+      "Customer Success",
+      "Onboarding",
+      "Support",
+      "Product",
+      "Training",
+      "Featured",
+      "Featured"
+    ],
+    "headings": [
+      "Record studio quality product demos",
+      "Chrome Extension Recording",
+      "Mac Desktop Recording",
+      "Windows Desktop Recording",
+      "Figma Plugin",
+      "Upload Video and Screenshots",
+      "Explore More Features",
+      "FAQs",
+      "Trusted by 200,000+ top operators and 3,000+ paying organizations",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "The Best Online Product Demo Recorder | Supademo"
+  },
+  {
+    "index": 17,
+    "name": "017-ai",
+    "url": "https://supademo.com/ai",
+    "file": "reference/017-017-ai.png",
+    "bodyH": 6651,
+    "buttonCount": 6,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources",
+      "Featured",
+      "Featured"
+    ],
+    "headings": [
+      "Build, qualify, and scale with AI demo agents",
+      "Trusted by 200,000+ top operators and 3,000+ paying organizations",
+      "One AI suite for demo creation, qualification, and growth",
+      "Run 24/7 demo agents that qualify and guide buyers",
+      "Create polished demos faster with AI",
+      "Personalize every demo without duplicate work",
+      "Audit and improve demos over time with AI",
+      "A complete AI toolkit for modern demo teams",
+      "Qualify, educate, and convert with agents that never go offline",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "Supademo AI — AI Demo Agents, Audits, Voice, and More"
+  },
+  {
+    "index": 18,
+    "name": "018-customers-vrify-case-study",
+    "url": "https://supademo.com/customers/vrify",
+    "file": "reference/018-018-customers-vrify-case-study.png",
+    "bodyH": 8134,
+    "buttonCount": 4,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources"
+    ],
+    "headings": [
+      "How VRIFY reduced enablement content production time by 75%",
+      "About VRIFY",
+      "What challenges did VRIFY face before Supademo?",
+      "Why did VRIFY choose Supademo as their interactive demo platform?",
+      "How does VRIFY use Supademo?",
+      "What Supademo features does VRIFY like the most?",
+      "What results has VRIFY achieved with Supademo?",
+      "What's next?",
+      "FAQs",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "How VRIFY reduced enablement content production time by 75%"
+  },
+  {
+    "index": 19,
+    "name": "019-customers-bullhorn-case-study",
+    "url": "https://supademo.com/customers/bullhorn",
+    "file": "reference/019-019-customers-bullhorn-case-study.png",
+    "bodyH": 10327,
+    "buttonCount": 4,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources"
+    ],
+    "headings": [
+      "How Bullhorn accelerates training and documentation with interactive demos",
+      "About Bullhorn",
+      "What is Bullhorn?",
+      "What challenges did Bullhorn face before Supademo?",
+      "Video-based learning bottlenecks",
+      "Why did Bullhorn choose Supademo as their demo automation solution?",
+      "eLearning and LMS training",
+      "Product documentation",
+      "HTML interactive demos and sandbox demo environments",
+      "What results has Bullhorn achieved with Supademo?",
+      "Time & workflow efficiency",
+      "Improved learning outcomes"
+    ],
+    "title": "Bullhorn cuts course-creation time in half with Supademo"
+  },
+  {
+    "index": 20,
+    "name": "020-customers-beehiiv-case-study",
+    "url": "https://supademo.com/customers/beehiiv",
+    "file": "reference/020-020-customers-beehiiv-case-study.png",
+    "bodyH": 7849,
+    "buttonCount": 4,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources"
+    ],
+    "headings": [
+      "beehiiv converts 50% better with Supademo",
+      "About beehiiv",
+      "The Challenges",
+      "The Solution",
+      "Results",
+      "FAQs",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "beehiiv increases paid conversions by 50% with Supademo"
+  }
+]

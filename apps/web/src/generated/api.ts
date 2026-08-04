@@ -3751,6 +3751,221 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/workspaces/{workspaceId}/upload-sessions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Initiate a multipart upload session */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          workspaceId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["InitiateUploadSessionInput"];
+        };
+      };
+      responses: {
+        /** @description Upload session created with presigned part URLs */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              session: components["schemas"]["UploadSession"];
+              parts: components["schemas"]["UploadPart"][];
+            };
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/workspaces/{workspaceId}/upload-sessions/{sessionId}/parts/{partNumber}/url": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get a presigned URL for a specific upload part */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          workspaceId: string;
+          sessionId: string;
+          partNumber: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Presigned part upload URL */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["UploadPart"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/workspaces/{workspaceId}/upload-sessions/{sessionId}/finalize": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Finalize a multipart upload session and create the asset */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          workspaceId: string;
+          sessionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": {
+            checksumSha256?: string;
+          };
+        };
+      };
+      responses: {
+        /** @description Upload session finalized and asset created */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              session: components["schemas"]["UploadSession"];
+              /** Format: uuid */
+              assetId: string;
+            };
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/workspaces/{workspaceId}/upload-sessions/{sessionId}/abort": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Abort an upload session */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          workspaceId: string;
+          sessionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Upload session aborted */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              /** @enum {boolean} */
+              aborted: true;
+            };
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/workspaces/{workspaceId}/upload-sessions/{sessionId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get upload session status */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          workspaceId: string;
+          sessionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Upload session details */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["UploadSession"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4077,6 +4292,50 @@ export interface components {
       width?: number;
       height?: number;
       durationSeconds?: number;
+    };
+    UploadSession: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      workspaceId: string;
+      /** Format: uuid */
+      uploaderUserId: string;
+      fileName: string;
+      mimeType: string;
+      totalSizeInBytes: number;
+      checksumSha256: string;
+      storageKey: string;
+      providerUploadId: string | null;
+      /** @enum {string} */
+      status: "pending" | "finalizing" | "complete" | "aborted";
+      partCount: number;
+      partSizeInBytes: number;
+      completedPartCount: number;
+      /** Format: uuid */
+      assetId: string | null;
+      idempotencyKey: string;
+      /** Format: date-time */
+      expiresAt: string;
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: date-time */
+      updatedAt: string;
+    };
+    UploadPart: {
+      partNumber: number;
+      /** Format: uri */
+      uploadUrl: string;
+      headers: {
+        [key: string]: string;
+      };
+      expiresInSeconds: number;
+    };
+    InitiateUploadSessionInput: {
+      fileName: string;
+      mimeType: string;
+      totalSizeInBytes: number;
+      checksumSha256: string;
+      idempotencyKey: string;
     };
     HealthResponse: {
       /** @enum {string} */
