@@ -1862,14 +1862,27 @@ function CaptureEntryPanel({
               <a className="editor-capture-link" href="/screen-recorder">
                 Record screen &amp; camera
               </a>
+              <a className="editor-capture-link" href="/video-editor">
+                Open video editor
+              </a>
               <a className="editor-capture-link" href="/video-hotspots">
                 Add video hotspots
               </a>
             </>
           ) : null}
           {captureMode === "upload" ? (
-            <a className="editor-capture-link" href="/upload">
-              Open upload workspace
+            <>
+              <a className="editor-capture-link" href="/upload">
+                Open upload workspace
+              </a>
+              <a className="editor-capture-link" href="/crop-media">
+                Crop imported media
+              </a>
+            </>
+          ) : null}
+          {captureMode !== "figma" ? (
+            <a className="editor-capture-link" href="/ai-audit">
+              Run AI audit
             </a>
           ) : null}
         </div>
