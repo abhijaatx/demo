@@ -1897,6 +1897,17 @@ function CaptureEntryPanel({
           <a className="editor-capture-link" href="/voiceovers">
             Voiceovers 2.0
           </a>
+          <a className="editor-capture-link" href="/ai-command">
+            AI Command
+          </a>
+          {captureMode === "html" || captureMode === "sandbox" ? (
+            <a className="editor-capture-link" href="/edit-html">
+              Edit HTML
+            </a>
+          ) : null}
+          <a className="editor-capture-link" href="/personalize">
+            Personalize variables
+          </a>
           {captureMode !== "video" && captureMode !== "figma" ? (
             <a className="editor-capture-link" href="/blur-annotate">
               Blur &amp; annotate
