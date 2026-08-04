@@ -1917,6 +1917,15 @@ function CaptureEntryPanel({
           <a className="editor-capture-link" href="/chapters">
             Add chapters &amp; CTAs
           </a>
+          <a className="editor-capture-link" href="/share-link">
+            Create share link
+          </a>
+          <a className="editor-capture-link" href="/embed">
+            Generate embed code
+          </a>
+          <a className="editor-capture-link" href="/session-metrics">
+            Inspect session metrics
+          </a>
           {captureMode !== "video" && captureMode !== "figma" ? (
             <a className="editor-capture-link" href="/blur-annotate">
               Blur &amp; annotate
