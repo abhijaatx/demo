@@ -4,7 +4,8 @@
 
 import { createHash } from "node:crypto";
 import { generateBranchingDiagnosticSummary } from "./branching-authoring.js";
-import type { DemoDocument } from "./demo-document.js";
+import { parseDemoAudioNarration, type DemoDocument } from "./demo-document.js";
+import { parseDemoFormSchema } from "./form-schemas.js";
 import { validateSafeUrl } from "./hotspot-schema.js";
 
 export interface PublishedDemoManifest {
@@ -30,6 +31,10 @@ export function publishDemoDocument(
 
   const publishableDocument: DemoDocument = {
     ...document,
+    steps: document.steps.map((step) => ({
+      ...step,
+      audioNarration: step.audioNarration ? parseDemoAudioNarration(step.audioNarration) : null
+    })),
     chapters: document.chapters.map((chapter) => ({
       ...chapter,
       // Presenter notes are private authoring metadata and must not enter a public manifest.
@@ -40,6 +45,7 @@ export function publishDemoDocument(
           validateSafeUrl(chapter.mediaUrl)?.startsWith("https:"))
           ? chapter.mediaUrl
           : null,
+      form: chapter.form ? parseDemoFormSchema(chapter.form) : null,
       buttons: chapter.buttons.map((button) => {
         const safeUrl = validateSafeUrl(button.url);
         const actionType =

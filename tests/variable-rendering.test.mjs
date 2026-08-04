@@ -21,3 +21,8 @@ test("renderTemplateTokens uses fallbacks for missing variables", () => {
   const output = renderTemplateTokens(template, {}, fallbacks);
   assert.equal(output, "Welcome Guest!");
 });
+
+test("renderTemplateTokens supports inline fallback syntax", () => {
+  assert.equal(renderTemplateTokens('Hi {{name | "there"}}'), "Hi there");
+  assert.equal(renderTemplateTokens("Hi {{name | there}}"), "Hi there");
+});

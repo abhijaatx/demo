@@ -15,6 +15,7 @@ test("createDefaultDemoDocument generates valid document structure", () => {
   assert.equal(doc.steps.length, 0);
   assert.deepEqual(doc.chapters, []);
   assert.equal(doc.settings.autoPlay, false);
+  assert.deepEqual(doc.settings.personalization.allowlist, ["name", "role", "company", "email"]);
   assert.equal(doc.layout.aspectRatio, "16:9");
 });
 
@@ -22,7 +23,11 @@ test("parseDemoDocument parses and normalizes raw JSON input", () => {
   const raw = {
     version: "1.0.0",
     demoId: "demo-456",
-    settings: { autoPlay: true, logoUrl: "http://example.com/logo.png" },
+    settings: {
+      autoPlay: true,
+      logoUrl: "http://example.com/logo.png",
+      personalization: { allowlist: ["name"], fallbacks: { name: "friend" } }
+    },
     layout: { deviceFrame: "macbook" },
     steps: [
       {
@@ -47,10 +52,28 @@ test("parseDemoDocument parses and normalizes raw JSON input", () => {
   assert.equal(parsed.demoId, "demo-456");
   assert.equal(parsed.settings.autoPlay, true);
   assert.equal(parsed.settings.logoUrl, "http://example.com/logo.png");
+  assert.deepEqual(parsed.settings.personalization.fallbacks, { name: "friend" });
   assert.equal(parsed.layout.deviceFrame, "macbook");
   assert.equal(parsed.steps.length, 1);
   assert.equal(parsed.steps[0].id, "step-1");
   assert.equal(parsed.steps[0].hotspots[0].tooltipText, "Click here");
+});
+
+test("parseDemoAudioNarration keeps safe audio metadata and rejects unsafe URLs", async () => {
+  const { parseDemoAudioNarration } = await import("@supademo/domain");
+  const parsed = parseDemoAudioNarration({
+    assetId: "voice-1",
+    audioUrl: "javascript:alert(1)",
+    transcriptText: "A bounded script",
+    speed: 9,
+    stability: -1,
+    source: "ai"
+  });
+
+  assert.equal(parsed.audioUrl, null);
+  assert.equal(parsed.speed, 2);
+  assert.equal(parsed.stability, 0);
+  assert.equal(parsed.source, "ai");
 });
 
 test("serializeDemoDocument and parseDemoDocument perform round-trip serialization", () => {

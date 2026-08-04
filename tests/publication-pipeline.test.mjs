@@ -45,7 +45,13 @@ test("publishDemoDocument strips private chapter notes and unsafe destinations",
         media: null,
         hotspots: [],
         callouts: [],
-        audioNarration: null
+        audioNarration: {
+          assetId: "audio-1",
+          durationSeconds: 1,
+          autoPlay: true,
+          audioUrl: "javascript:alert(1)",
+          transcriptText: "hello"
+        }
       }
     ],
     chapters: [
@@ -58,6 +64,16 @@ test("publishDemoDocument strips private chapter notes and unsafe destinations",
         mediaAssetId: null,
         mediaUrl: "javascript:alert(1)",
         presenterNotes: "private presenter context",
+        form: {
+          formId: "lead-form",
+          title: "Lead capture",
+          fields: [
+            { id: "email", label: "Email", fieldType: "email", isRequired: true, options: [] }
+          ],
+          allowSkip: false,
+          allowNonBusinessEmails: false,
+          backgroundImageUrl: "javascript:alert(1)"
+        },
         buttons: [
           {
             id: "button-1",
@@ -76,4 +92,6 @@ test("publishDemoDocument strips private chapter notes and unsafe destinations",
   assert.equal(manifest.document.chapters[0].mediaUrl, null);
   assert.equal(manifest.document.chapters[0].buttons[0].actionType, "next");
   assert.equal(manifest.document.chapters[0].buttons[0].url, null);
+  assert.equal(manifest.document.chapters[0].form?.backgroundImageUrl, null);
+  assert.equal(manifest.document.steps[0].audioNarration?.audioUrl, null);
 });

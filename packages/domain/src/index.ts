@@ -245,6 +245,7 @@ export {
   DEFAULT_DEMO_SETTINGS,
   DEFAULT_DEMO_THEME,
   InvalidDemoDocumentError,
+  parseDemoAudioNarration,
   parseDemoDocument,
   serializeDemoDocument,
   type AspectRatio,
@@ -631,9 +632,14 @@ export {
 export {
   createDemoFormSchema,
   createFormField,
+  parseDemoFormSchema,
   type DemoFormSchema,
+  type DemoFormSchemaOptions,
   type FormField,
-  type FormFieldType
+  type FormFieldType,
+  type FormLayout,
+  type FormTheme,
+  FORM_FIELD_LIMIT
 } from "./form-schemas.js";
 
 export { addFormField, removeFormField, reorderFormFields } from "./form-editor.js";
@@ -683,11 +689,18 @@ export {
   formatSalesforceLeadPayload
 } from "./salesforce-marketo-adapters.js";
 
-export { escapeHtml, renderTemplateTokens } from "./variable-rendering.js";
+export { escapeHtml, renderTemplateTokens, resolveTemplateTokens } from "./variable-rendering.js";
 
 export {
+  DEFAULT_DEMO_PERSONALIZATION,
   extractPersonalizedVariablesFromUrl,
+  extractTemplateVariableNames,
   generatePersonalizedEmbedUrl,
+  parseDemoPersonalization,
+  PERSONALIZATION_VALUE_LIMIT,
+  PERSONALIZATION_VARIABLE_LIMIT,
+  PERSONALIZATION_VARIABLE_NAME_LIMIT,
+  type DemoPersonalization,
   type PersonalizedLinkConfig
 } from "./personalized-links.js";
 

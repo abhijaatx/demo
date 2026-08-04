@@ -1,13 +1,17 @@
 "use client";
 
 import {
+  extractPersonalizedVariablesFromUrl,
   parseDemoDocument,
+  resolveTemplateTokens,
+  validateFormSubmission,
   type DemoDocument,
   type DemoChapter,
+  type DemoFormSchema,
   type DemoHotspot,
   validateSafeUrl
 } from "@supademo/domain";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 function safeMediaUrl(value: string): string | null {
   if (value.startsWith("blob:")) return value;
@@ -58,6 +62,30 @@ function recordViewerEvent(demoId: string, stepId: string): void {
   }
 }
 
+function recordFormSubmission(
+  demoId: string,
+  form: DemoFormSchema,
+  answers: Readonly<Record<string, string>>
+): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    const key = `supademo_form_submissions_${demoId}`;
+    const current = JSON.parse(localStorage.getItem(key) ?? "[]");
+    const submissions = Array.isArray(current) ? current.slice(-49) : [];
+    const boundedAnswers = Object.fromEntries(
+      form.fields.map((field) => [field.id, (answers[field.id] ?? "").slice(0, 2_000)])
+    );
+    submissions.push({
+      formId: form.formId,
+      answers: boundedAnswers,
+      submittedAtIso: new Date().toISOString()
+    });
+    localStorage.setItem(key, JSON.stringify(submissions));
+  } catch {
+    // Form playback must remain usable when local storage is unavailable or full.
+  }
+}
+
 export function DemoViewer({
   demoId,
   initialDocument
@@ -71,6 +99,9 @@ export function DemoViewer({
     chapterAtPosition(initialDocument, 0)?.id ?? null
   );
   const [loadedFromStorage, setLoadedFromStorage] = useState(false);
+  const [formAnswers, setFormAnswers] = useState<Record<string, string>>({});
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [formSubmitted, setFormSubmitted] = useState(false);
 
   useEffect(() => {
     const stored = readStoredDocument(demoId);
@@ -85,8 +116,32 @@ export function DemoViewer({
   const step = demoDocument.steps[currentIndex] ?? null;
   const currentChapter =
     demoDocument.chapters.find((chapter) => chapter.id === activeChapterId) ?? null;
+  const currentForm = currentChapter?.type === "form" ? currentChapter.form : null;
+  const viewerVariables = useMemo(() => {
+    const personalization = demoDocument.settings.personalization;
+    if (!personalization.enabled) return Object.freeze({});
+    return extractPersonalizedVariablesFromUrl(
+      typeof globalThis.location?.search === "string" ? globalThis.location.search : "",
+      personalization.allowlist
+    );
+  }, [demoDocument.settings.personalization]);
+  const renderText = (value: string | null | undefined): string =>
+    resolveTemplateTokens(
+      value ?? "",
+      viewerVariables,
+      demoDocument.settings.personalization.fallbacks
+    );
   const chapterMediaUrl = currentChapter?.mediaUrl ? safeMediaUrl(currentChapter.mediaUrl) : null;
   const mediaUrl = step?.media ? safeMediaUrl(step.media.storagePath) : null;
+  const narrationUrl = step?.audioNarration?.audioUrl
+    ? safeMediaUrl(step.audioNarration.audioUrl)
+    : null;
+
+  useEffect(() => {
+    setFormAnswers({});
+    setFormErrors({});
+    setFormSubmitted(false);
+  }, [activeChapterId]);
   const progress = useMemo(
     () =>
       demoDocument.steps.length === 0
@@ -146,6 +201,22 @@ export function DemoViewer({
       }
     }
     continueFromChapter();
+  };
+
+  const handleFormSubmit = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+    if (!currentForm) return;
+    const result = validateFormSubmission(currentForm, {
+      formId: currentForm.formId,
+      answers: formAnswers
+    });
+    const nextErrors = Object.fromEntries(
+      result.errors.map((error) => [error.fieldId, error.message])
+    );
+    setFormErrors(nextErrors);
+    if (!result.isValid) return;
+    recordFormSubmission(demoId, currentForm, formAnswers);
+    setFormSubmitted(true);
   };
 
   const goHotspot = (hotspot: DemoHotspot): void => {
@@ -210,42 +281,233 @@ export function DemoViewer({
                     onClick={() => goToStep(index)}
                   >
                     <span>{String(index + 1).padStart(2, "0")}</span>
-                    <strong>{candidate.title}</strong>
+                    <strong>{renderText(candidate.title)}</strong>
                   </button>
                 ))
               : null}
           </aside>
           <section className="demo-viewer-stage" aria-label="Demo viewer">
             {currentChapter ? (
-              <div className="demo-viewer-chapter" aria-label={`${currentChapter.type} chapter`}>
+              <div
+                className={`demo-viewer-chapter${currentForm ? " demo-viewer-form-chapter" : ""}`}
+                aria-label={`${currentChapter.type} chapter`}
+                data-form-layout={currentForm?.layout}
+                data-form-theme={currentForm?.theme}
+                style={
+                  currentForm
+                    ? {
+                        backgroundColor: currentForm.backgroundColor ?? undefined,
+                        opacity: currentForm.opacity,
+                        backgroundImage: currentForm.backgroundImageUrl
+                          ? `url(${safeMediaUrl(currentForm.backgroundImageUrl) ?? ""})`
+                          : undefined
+                      }
+                    : undefined
+                }
+              >
                 {chapterMediaUrl ? (
                   <img className="demo-viewer-chapter-media" src={chapterMediaUrl} alt="" />
                 ) : null}
                 <span className="demo-viewer-chapter-badge">{currentChapter.type}</span>
-                <h1>{currentChapter.title}</h1>
-                {currentChapter.bodyText ? <p>{currentChapter.bodyText}</p> : null}
-                <div className="demo-viewer-chapter-actions">
-                  {currentChapter.buttons.length > 0 ? (
-                    currentChapter.buttons.map((button) => (
+                <h1>{renderText(currentForm?.title || currentChapter.title)}</h1>
+                {currentChapter.bodyText ? <p>{renderText(currentChapter.bodyText)}</p> : null}
+                {currentForm ? (
+                  formSubmitted ? (
+                    <div className="demo-viewer-form-success" role="status">
+                      <strong>Thanks — you're all set.</strong>
+                      <p>Your response was saved with this demo.</p>
+                      <div className="demo-viewer-chapter-actions">
+                        {currentChapter.buttons.length > 0 ? (
+                          currentChapter.buttons.map((button) => (
+                            <button
+                              key={button.id}
+                              type="button"
+                              className="editor-button editor-button-primary"
+                              onClick={() => handleChapterButton(button)}
+                            >
+                              {renderText(button.label)}
+                            </button>
+                          ))
+                        ) : (
+                          <button
+                            type="button"
+                            className="editor-button editor-button-primary"
+                            onClick={continueFromChapter}
+                          >
+                            Continue
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <form className="demo-viewer-form" onSubmit={handleFormSubmit} noValidate>
+                      {formErrors._form ? (
+                        <p className="demo-viewer-form-error" role="alert">
+                          {formErrors._form}
+                        </p>
+                      ) : null}
+                      {currentForm.fields.map((field) => {
+                        const inputId = `viewer-form-${currentForm.formId}-${field.id}`;
+                        const errorId = `${inputId}-error`;
+                        const fieldError = formErrors[field.id];
+                        const describedBy = fieldError ? errorId : undefined;
+                        if (["select", "radio"].includes(field.fieldType)) {
+                          return field.fieldType === "select" ? (
+                            <label className="demo-viewer-form-field" key={field.id}>
+                              <span>
+                                {renderText(field.label)}
+                                {field.isRequired ? " *" : ""}
+                              </span>
+                              <select
+                                id={inputId}
+                                name={field.id}
+                                value={formAnswers[field.id] ?? ""}
+                                required={field.isRequired}
+                                aria-invalid={Boolean(fieldError)}
+                                aria-describedby={describedBy}
+                                onChange={(event) => {
+                                  const value = event.currentTarget.value;
+                                  setFormAnswers((current) => ({ ...current, [field.id]: value }));
+                                }}
+                              >
+                                <option value="">Choose an option</option>
+                                {field.options.map((option) => (
+                                  <option key={option} value={option}>
+                                    {option}
+                                  </option>
+                                ))}
+                              </select>
+                              {fieldError ? (
+                                <small id={errorId} className="demo-viewer-form-error">
+                                  {fieldError}
+                                </small>
+                              ) : null}
+                            </label>
+                          ) : (
+                            <fieldset className="demo-viewer-form-field" key={field.id}>
+                              <legend>
+                                {renderText(field.label)}
+                                {field.isRequired ? " *" : ""}
+                              </legend>
+                              {field.options.map((option) => (
+                                <label className="demo-viewer-form-option" key={option}>
+                                  <input
+                                    type="radio"
+                                    name={field.id}
+                                    value={option}
+                                    checked={formAnswers[field.id] === option}
+                                    onChange={(event) => {
+                                      const value = event.currentTarget.value;
+                                      setFormAnswers((current) => ({
+                                        ...current,
+                                        [field.id]: value
+                                      }));
+                                    }}
+                                  />
+                                  <span>{option}</span>
+                                </label>
+                              ))}
+                              {fieldError ? (
+                                <small id={errorId} className="demo-viewer-form-error">
+                                  {fieldError}
+                                </small>
+                              ) : null}
+                            </fieldset>
+                          );
+                        }
+                        if (field.fieldType === "checkbox") {
+                          return (
+                            <label className="demo-viewer-form-option" key={field.id}>
+                              <input
+                                id={inputId}
+                                type="checkbox"
+                                name={field.id}
+                                checked={formAnswers[field.id] === "true"}
+                                onChange={(event) => {
+                                  const value = event.currentTarget.checked ? "true" : "false";
+                                  setFormAnswers((current) => ({ ...current, [field.id]: value }));
+                                }}
+                              />
+                              <span>
+                                {renderText(field.label)}
+                                {field.isRequired ? " *" : ""}
+                              </span>
+                              {fieldError ? (
+                                <small id={errorId} className="demo-viewer-form-error">
+                                  {fieldError}
+                                </small>
+                              ) : null}
+                            </label>
+                          );
+                        }
+                        return (
+                          <label className="demo-viewer-form-field" key={field.id}>
+                            <span>
+                              {renderText(field.label)}
+                              {field.isRequired ? " *" : ""}
+                            </span>
+                            <input
+                              id={inputId}
+                              type={field.fieldType === "email" ? "email" : "text"}
+                              name={field.id}
+                              value={formAnswers[field.id] ?? ""}
+                              maxLength={2_000}
+                              required={field.isRequired}
+                              aria-invalid={Boolean(fieldError)}
+                              aria-describedby={describedBy}
+                              onChange={(event) => {
+                                const value = event.currentTarget.value.slice(0, 2_000);
+                                setFormAnswers((current) => ({ ...current, [field.id]: value }));
+                              }}
+                            />
+                            {fieldError ? (
+                              <small id={errorId} className="demo-viewer-form-error">
+                                {fieldError}
+                              </small>
+                            ) : null}
+                          </label>
+                        );
+                      })}
+                      <div className="demo-viewer-chapter-actions">
+                        <button type="submit" className="editor-button editor-button-primary">
+                          Submit
+                        </button>
+                        {currentForm.allowSkip ? (
+                          <button
+                            type="button"
+                            className="editor-button editor-button-secondary"
+                            onClick={continueFromChapter}
+                          >
+                            Skip for now
+                          </button>
+                        ) : null}
+                      </div>
+                    </form>
+                  )
+                ) : (
+                  <div className="demo-viewer-chapter-actions">
+                    {currentChapter.buttons.length > 0 ? (
+                      currentChapter.buttons.map((button) => (
+                        <button
+                          key={button.id}
+                          type="button"
+                          className="editor-button editor-button-primary"
+                          onClick={() => handleChapterButton(button)}
+                        >
+                          {renderText(button.label)}
+                        </button>
+                      ))
+                    ) : (
                       <button
-                        key={button.id}
                         type="button"
                         className="editor-button editor-button-primary"
-                        onClick={() => handleChapterButton(button)}
+                        onClick={continueFromChapter}
                       >
-                        {button.label}
+                        Continue
                       </button>
-                    ))
-                  ) : (
-                    <button
-                      type="button"
-                      className="editor-button editor-button-primary"
-                      onClick={continueFromChapter}
-                    >
-                      Continue
-                    </button>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
                 <small>
                   {currentIndex >= demoDocument.steps.length
                     ? "End of demo"
@@ -253,38 +515,67 @@ export function DemoViewer({
                 </small>
               </div>
             ) : step ? (
-              <div className="demo-viewer-frame">
-                {mediaUrl && step.media?.assetType === "video" ? (
-                  <video src={mediaUrl} controls playsInline aria-label={step.title} />
-                ) : mediaUrl ? (
-                  <img src={mediaUrl} alt={step.title} />
-                ) : (
-                  <div className="demo-viewer-placeholder">
-                    <span aria-hidden="true">▦</span>
-                    <strong>{step.title}</strong>
-                    <small>Media is available after the capture is uploaded.</small>
-                  </div>
-                )}
-                {step.hotspots.map((hotspot) => (
-                  <button
-                    key={hotspot.id}
-                    type="button"
-                    className="demo-viewer-hotspot"
-                    style={{
-                      left: `${hotspot.x}%`,
-                      top: `${hotspot.y}%`,
-                      width: `${hotspot.width}%`,
-                      height: `${hotspot.height}%`,
-                      backgroundColor: hotspot.style.color,
-                      opacity: Math.max(0.2, Math.min(1, hotspot.style.opacity))
-                    }}
-                    onClick={() => goHotspot(hotspot)}
-                    aria-label={hotspot.tooltipText ?? "Continue"}
-                  >
-                    {hotspot.tooltipText ?? "Continue"}
-                  </button>
-                ))}
-              </div>
+              <>
+                {step.audioNarration ? (
+                  <section className="demo-viewer-voiceover" aria-label="Step voiceover">
+                    <div>
+                      <span className="editor-kicker">Voiceover</span>
+                      <strong>
+                        {step.audioNarration.source === "ai" ? "AI narration" : "Manual narration"}
+                      </strong>
+                    </div>
+                    {narrationUrl ? (
+                      <audio
+                        src={narrationUrl}
+                        controls
+                        autoPlay={Boolean(step.audioNarration.autoPlay)}
+                        preload="metadata"
+                        aria-label={`Voiceover for ${renderText(step.title)}`}
+                      />
+                    ) : null}
+                    {step.audioNarration.transcriptText ? (
+                      <p>{step.audioNarration.transcriptText}</p>
+                    ) : null}
+                  </section>
+                ) : null}
+                <div className="demo-viewer-frame">
+                  {mediaUrl && step.media?.assetType === "video" ? (
+                    <video
+                      src={mediaUrl}
+                      controls
+                      playsInline
+                      aria-label={renderText(step.title)}
+                    />
+                  ) : mediaUrl ? (
+                    <img src={mediaUrl} alt={renderText(step.title)} />
+                  ) : (
+                    <div className="demo-viewer-placeholder">
+                      <span aria-hidden="true">▦</span>
+                      <strong>{renderText(step.title)}</strong>
+                      <small>Media is available after the capture is uploaded.</small>
+                    </div>
+                  )}
+                  {step.hotspots.map((hotspot) => (
+                    <button
+                      key={hotspot.id}
+                      type="button"
+                      className="demo-viewer-hotspot"
+                      style={{
+                        left: `${hotspot.x}%`,
+                        top: `${hotspot.y}%`,
+                        width: `${hotspot.width}%`,
+                        height: `${hotspot.height}%`,
+                        backgroundColor: hotspot.style.color,
+                        opacity: Math.max(0.2, Math.min(1, hotspot.style.opacity))
+                      }}
+                      onClick={() => goHotspot(hotspot)}
+                      aria-label={renderText(hotspot.tooltipText ?? "Continue")}
+                    >
+                      {renderText(hotspot.tooltipText ?? "Continue")}
+                    </button>
+                  ))}
+                </div>
+              </>
             ) : null}
             <div className="demo-viewer-controls">
               <button

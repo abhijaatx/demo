@@ -3,16 +3,25 @@
 import {
   deleteSteps,
   duplicateStep,
+  extractTemplateVariableNames,
+  generateAiVoiceover,
   generateBranchingDiagnosticSummary,
   generateIframeSnippet,
   generateSopMarkdownExport,
+  generatePersonalizedEmbedUrl,
+  getAvailableTtsVoices,
   nudgeHotspot,
+  parseDemoAudioNarration,
+  parseDemoFormSchema,
+  parseDemoPersonalization,
   publishDemoDocument,
   parseDemoDocument,
   reorderSteps,
   resizeHotspot,
   validateSafeUrl,
   type DemoDocument,
+  type DemoAudioNarration,
+  type DemoPersonalization,
   type DemoStep,
   type DemoHotspot,
   type PublishedDemoManifest
@@ -81,6 +90,7 @@ function safeExportDocument(document: DemoDocument): DemoDocument {
       // Presenter notes are authoring-only and must never be published or exported.
       presenterNotes: null,
       mediaUrl: chapter.mediaUrl && isSafeMediaUrl(chapter.mediaUrl) ? chapter.mediaUrl : null,
+      form: chapter.form ? parseDemoFormSchema(chapter.form) : null,
       buttons: chapter.buttons.map((button) => {
         const safeUrl = validateSafeUrl(button.url);
         return {
@@ -98,6 +108,7 @@ function safeExportDocument(document: DemoDocument): DemoDocument {
     })),
     steps: document.steps.map((step) => ({
       ...step,
+      audioNarration: step.audioNarration ? parseDemoAudioNarration(step.audioNarration) : null,
       hotspots: step.hotspots.map((hotspot) => {
         if (hotspot.actionType !== "open_url") return hotspot;
         const safeUrl = validateSafeUrl(hotspot.url);
@@ -131,6 +142,357 @@ function isSafeMediaUrl(value: string): boolean {
 
 function sanitizeTrackingKey(value: string): string {
   return value.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 64);
+}
+
+function collectDocumentText(document: DemoDocument): readonly string[] {
+  const texts: string[] = [];
+  for (const step of document.steps) {
+    texts.push(step.title, step.description ?? "");
+    for (const hotspot of step.hotspots) texts.push(hotspot.tooltipText ?? "");
+    for (const callout of step.callouts) texts.push(callout.title, callout.body);
+  }
+  for (const chapter of document.chapters) {
+    texts.push(chapter.title, chapter.bodyText ?? "");
+    for (const button of chapter.buttons) texts.push(button.label);
+    if (chapter.form)
+      texts.push(chapter.form.title, ...chapter.form.fields.map((field) => field.label));
+  }
+  return texts;
+}
+
+function PersonalizationSettings({
+  personalization,
+  readOnly,
+  onChange
+}: {
+  personalization: DemoPersonalization;
+  readOnly: boolean;
+  onChange: (next: DemoPersonalization) => void;
+}) {
+  const [allowlistDraft, setAllowlistDraft] = useState(personalization.allowlist.join(", "));
+
+  useEffect(() => {
+    setAllowlistDraft(personalization.allowlist.join(", "));
+  }, [personalization.allowlist]);
+
+  const commitAllowlist = (): void => {
+    const allowlist = allowlistDraft
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .slice(0, 12);
+    onChange(parseDemoPersonalization({ ...personalization, allowlist }));
+  };
+
+  const updateFallback = (name: string, value: string): void => {
+    onChange(
+      parseDemoPersonalization({
+        ...personalization,
+        fallbacks: { ...personalization.fallbacks, [name]: value.slice(0, 160) }
+      })
+    );
+  };
+
+  return (
+    <section
+      className="editor-personalization-panel"
+      aria-labelledby="editor-personalization-title"
+    >
+      <div className="editor-panel-heading">
+        <div>
+          <span className="editor-kicker">Personalize</span>
+          <strong id="editor-personalization-title">Variables &amp; tokens</strong>
+        </div>
+      </div>
+      <p className="editor-inspector-note">
+        Write tokens such as <code>{"{{name}}"}</code> in titles, chapters, hotspots, or buttons.
+        Values arrive through <code>v_*</code> share-link parameters.
+      </p>
+      <label className="editor-checkbox-field">
+        <input
+          type="checkbox"
+          checked={personalization.enabled}
+          disabled={readOnly}
+          onChange={(event) =>
+            onChange(
+              parseDemoPersonalization({ ...personalization, enabled: event.currentTarget.checked })
+            )
+          }
+        />
+        <span>Enable dynamic variables</span>
+      </label>
+      <label className="editor-field">
+        <span>Allowed variable names</span>
+        <input
+          type="text"
+          value={allowlistDraft}
+          disabled={readOnly}
+          maxLength={400}
+          placeholder="name, company, role"
+          onChange={(event) => setAllowlistDraft(event.currentTarget.value.slice(0, 400))}
+          onBlur={commitAllowlist}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              commitAllowlist();
+            }
+          }}
+        />
+      </label>
+      <div className="editor-personalization-fallbacks">
+        <span className="editor-kicker">Fallback text</span>
+        {personalization.allowlist.map((name) => (
+          <label className="editor-field" key={name}>
+            <span>{`{{${name}}}`} fallback</span>
+            <input
+              type="text"
+              value={personalization.fallbacks[name] ?? ""}
+              disabled={readOnly}
+              maxLength={160}
+              placeholder="Shown when the link has no value"
+              onChange={(event) => updateFallback(name, event.currentTarget.value)}
+            />
+          </label>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function VoiceoverSettings({
+  step,
+  readOnly,
+  onChange
+}: {
+  step: DemoStep;
+  readOnly: boolean;
+  onChange: (step: DemoStep) => void;
+}) {
+  const narration = step.audioNarration;
+  const [script, setScript] = useState(narration?.transcriptText ?? "");
+  const [voiceId, setVoiceId] = useState(narration?.voiceId ?? "en-US-1");
+  const [status, setStatus] = useState("");
+
+  useEffect(() => {
+    setScript(step.audioNarration?.transcriptText ?? "");
+    setVoiceId(step.audioNarration?.voiceId ?? "en-US-1");
+    setStatus("");
+  }, [step.id]);
+
+  const baseNarration = (): DemoAudioNarration =>
+    narration ?? {
+      assetId: `${step.id}-voiceover`,
+      durationSeconds: 0,
+      autoPlay: true,
+      source: "ai",
+      voiceId,
+      audioUrl: null,
+      transcriptText: script,
+      expressive: false,
+      speed: 1,
+      stability: 0.5
+    };
+
+  const updateNarration = (patch: Partial<DemoAudioNarration>): void => {
+    onChange({
+      ...step,
+      audioNarration: parseDemoAudioNarration({ ...baseNarration(), ...patch })
+    });
+  };
+
+  const syncScript = (): void => {
+    const synced = [step.title, ...step.hotspots.map((hotspot) => hotspot.tooltipText ?? "")]
+      .filter(Boolean)
+      .join(". ")
+      .slice(0, 4_000);
+    setScript(synced);
+    updateNarration({ transcriptText: synced });
+    setStatus("Script synced from this step.");
+  };
+
+  const handleGenerate = async (): Promise<void> => {
+    if (readOnly) return;
+    const boundedScript = script.trim().slice(0, 4_000);
+    if (!boundedScript) {
+      setStatus("Add narration text before generating audio.");
+      return;
+    }
+    setStatus("Generating AI voiceover…");
+    try {
+      const job = await generateAiVoiceover(boundedScript, voiceId);
+      updateNarration({
+        assetId: job.jobId,
+        audioUrl: job.audioAssetUrl,
+        transcriptText: job.text,
+        voiceId: job.voiceId,
+        source: "ai",
+        autoPlay: true
+      });
+      setStatus("AI voiceover ready. Save the demo to keep it.");
+    } catch (error: unknown) {
+      setStatus(error instanceof Error ? error.message : "Voiceover generation failed.");
+    }
+  };
+
+  const handleUpload = (event: ChangeEvent<HTMLInputElement>): void => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("audio/") || file.size > 25 * 1024 * 1024) {
+      setStatus("Choose an audio file up to 25 MB.");
+      return;
+    }
+    const audioUrl = URL.createObjectURL(file);
+    updateNarration({
+      assetId: `upload-${Date.now()}`,
+      audioUrl,
+      source: "upload",
+      transcriptText: script
+    });
+    setStatus("Audio uploaded locally. Publish after reviewing the preview.");
+  };
+
+  return (
+    <section className="editor-voiceover-panel" aria-labelledby="editor-voiceover-title">
+      <div className="editor-branch-heading">
+        <div>
+          <span className="editor-kicker">Voiceovers 2.0</span>
+          <strong id="editor-voiceover-title">Narrate this step</strong>
+        </div>
+        {narration ? (
+          <button
+            type="button"
+            className="editor-text-button editor-button-danger-text"
+            disabled={readOnly}
+            onClick={() => onChange({ ...step, audioNarration: null })}
+          >
+            Remove
+          </button>
+        ) : null}
+      </div>
+      <label className="editor-field">
+        <span>Narration script</span>
+        <textarea
+          rows={4}
+          maxLength={4_000}
+          value={script}
+          disabled={readOnly}
+          placeholder="Describe what the viewer should notice on this step."
+          onChange={(event) => {
+            const value = event.currentTarget.value.slice(0, 4_000);
+            setScript(value);
+            updateNarration({ transcriptText: value });
+          }}
+        />
+      </label>
+      <div className="editor-voiceover-actions">
+        <button
+          type="button"
+          className="editor-small-button"
+          disabled={readOnly}
+          onClick={syncScript}
+        >
+          Sync from hotspots
+        </button>
+        <label className="editor-small-button editor-file-button">
+          Upload voice
+          <input
+            type="file"
+            accept="audio/*"
+            disabled={readOnly}
+            onChange={handleUpload}
+            aria-label="Upload voice audio"
+          />
+        </label>
+      </div>
+      <label className="editor-field">
+        <span>AI voice</span>
+        <select
+          value={voiceId}
+          disabled={readOnly}
+          onChange={(event) => {
+            const value = event.currentTarget.value;
+            setVoiceId(value);
+            updateNarration({ voiceId: value, source: "ai" });
+          }}
+        >
+          {getAvailableTtsVoices().map((voice) => (
+            <option key={voice.voiceId} value={voice.voiceId}>
+              {voice.name} · {voice.locale}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="editor-voiceover-actions">
+        <button
+          type="button"
+          className="editor-button editor-button-primary"
+          disabled={readOnly}
+          onClick={() => void handleGenerate()}
+        >
+          Generate AI voiceover
+        </button>
+      </div>
+      {narration ? (
+        <>
+          <label className="editor-checkbox-field">
+            <input
+              type="checkbox"
+              checked={Boolean(narration.autoPlay)}
+              disabled={readOnly}
+              onChange={(event) => updateNarration({ autoPlay: event.currentTarget.checked })}
+            />
+            <span>Play automatically</span>
+          </label>
+          <label className="editor-checkbox-field">
+            <input
+              type="checkbox"
+              checked={Boolean(narration.expressive)}
+              disabled={readOnly}
+              onChange={(event) => updateNarration({ expressive: event.currentTarget.checked })}
+            />
+            <span>Expressive mode</span>
+          </label>
+          <div className="editor-field-grid">
+            <label className="editor-field">
+              <span>Speed</span>
+              <input
+                type="range"
+                min={0.5}
+                max={2}
+                step={0.1}
+                value={narration.speed ?? 1}
+                disabled={readOnly}
+                onChange={(event) => updateNarration({ speed: Number(event.currentTarget.value) })}
+              />
+            </label>
+            <label className="editor-field">
+              <span>Stability</span>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.1}
+                value={narration.stability ?? 0.5}
+                disabled={readOnly}
+                onChange={(event) =>
+                  updateNarration({ stability: Number(event.currentTarget.value) })
+                }
+              />
+            </label>
+          </div>
+          {narration.audioUrl && isSafeMediaUrl(narration.audioUrl) ? (
+            <audio className="editor-voiceover-preview" controls src={narration.audioUrl} />
+          ) : null}
+        </>
+      ) : null}
+      {status ? (
+        <p className="editor-inspector-note" role="status">
+          {status}
+        </p>
+      ) : null}
+    </section>
+  );
 }
 
 function persistLocalDocument(demoId: string, demoDocument: DemoDocument): void {
@@ -175,12 +537,14 @@ function SharePanel({
   const [publishedManifest, setPublishedManifest] = useState<PublishedDemoManifest | null>(null);
   const [publishError, setPublishError] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
+  const [personalizedValues, setPersonalizedValues] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!open) return;
     setTab(initialTab);
     setCopyStatus("");
     setPublishError("");
+    setPersonalizedValues({});
     try {
       const raw = localStorage.getItem(`supademo_published_${demoId}`);
       if (!raw) {
@@ -224,6 +588,21 @@ function SharePanel({
   const shareUrl = `${baseUrl}${viewerPath}${
     trackingKey.trim() ? `?ref=${encodeURIComponent(sanitizeTrackingKey(trackingKey))}` : ""
   }`;
+  const configuredVariables = demoDocument.settings.personalization.allowlist;
+  const detectedVariables = extractTemplateVariableNames(collectDocumentText(demoDocument));
+  const personalizedVariables = detectedVariables.filter((name) =>
+    configuredVariables.includes(name)
+  );
+  const personalizedShareUrl = generatePersonalizedEmbedUrl(
+    shareUrl,
+    personalizedValues,
+    configuredVariables
+  );
+  const dynamicShareUrl = generatePersonalizedEmbedUrl(
+    shareUrl,
+    Object.fromEntries(personalizedVariables.map((name) => [name, name.toUpperCase()])),
+    configuredVariables
+  );
   const embedSnippet = generateIframeSnippet({
     demoId,
     baseUrl: baseUrl || undefined
@@ -298,13 +677,13 @@ function SharePanel({
                   : "Publish only after the viewer path is ready."}
               </small>
             </span>
-            {!readOnly && !publishedManifest ? (
+            {!readOnly ? (
               <button
                 type="button"
                 className="editor-button editor-button-primary"
                 onClick={handlePublish}
               >
-                Publish
+                {publishedManifest ? "Publish update" : "Publish"}
               </button>
             ) : null}
           </div>
@@ -336,6 +715,60 @@ function SharePanel({
           <p className="editor-share-note">
             Viewer events from the link can be attributed by its `ref` label.
           </p>
+          {personalizedVariables.length > 0 ? (
+            <section
+              className="editor-share-personalization"
+              aria-labelledby="share-personalization-title"
+            >
+              <div className="editor-share-section-heading">
+                <span className="editor-kicker">Personalize link</span>
+                <strong id="share-personalization-title">Fill in this viewer’s details</strong>
+              </div>
+              <p className="editor-share-note">
+                These values are bounded and added as <code>v_*</code> parameters. The viewer uses
+                them in your <code>{"{{tokens}}"}</code>.
+              </p>
+              {personalizedVariables.map((name) => (
+                <label className="editor-field" key={name}>
+                  <span>{name}</span>
+                  <input
+                    type="text"
+                    value={personalizedValues[name] ?? ""}
+                    maxLength={160}
+                    placeholder={`Value for {{${name}}}`}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value.slice(0, 160);
+                      setPersonalizedValues((current) => ({ ...current, [name]: value }));
+                    }}
+                  />
+                </label>
+              ))}
+              <div className="editor-share-copy-row">
+                <input
+                  type="text"
+                  readOnly
+                  value={personalizedShareUrl}
+                  aria-label="Personalized share link"
+                />
+                <button
+                  type="button"
+                  className="editor-button editor-button-secondary"
+                  onClick={() => void copyText(personalizedShareUrl)}
+                >
+                  Copy personalized link
+                </button>
+              </div>
+              <div className="editor-share-actions">
+                <button
+                  type="button"
+                  className="editor-button editor-button-secondary"
+                  onClick={() => void copyText(dynamicShareUrl)}
+                >
+                  Copy dynamic link template
+                </button>
+              </div>
+            </section>
+          ) : null}
         </div>
       ) : null}
 
@@ -670,6 +1103,7 @@ export function EditorShell({
       mediaAssetId: null,
       mediaUrl: null,
       presenterNotes: null,
+      form: null,
       buttons: [
         {
           id: makeLocalId("chapter-button"),
@@ -700,7 +1134,8 @@ export function EditorShell({
       title: updatedChapter.title.slice(0, 160),
       bodyText: updatedChapter.bodyText?.slice(0, 4_000) ?? null,
       mediaUrl: updatedChapter.mediaUrl?.slice(0, 2_048) ?? null,
-      presenterNotes: updatedChapter.presenterNotes?.slice(0, 4_000) ?? null
+      presenterNotes: updatedChapter.presenterNotes?.slice(0, 4_000) ?? null,
+      form: updatedChapter.form ? parseDemoFormSchema(updatedChapter.form) : null
     };
     commitDocument({
       ...document,
@@ -915,6 +1350,14 @@ export function EditorShell({
       };
     });
     commitDocument({ ...document, steps: updatedSteps });
+  };
+
+  const updateSelectedStep = (updatedStep: DemoStep): void => {
+    if (readOnly || !selectedStep) return;
+    commitDocument({
+      ...document,
+      steps: document.steps.map((step) => (step.id === selectedStep.id ? updatedStep : step))
+    });
   };
 
   const handleNudgeHotspot = (direction: "up" | "down" | "left" | "right"): void => {
@@ -1480,6 +1923,11 @@ export function EditorShell({
                 <span className="editor-note-dot" aria-hidden="true" />
                 Keep the step focused on one viewer action.
               </div>
+              <VoiceoverSettings
+                step={selectedStep}
+                readOnly={readOnly}
+                onChange={updateSelectedStep}
+              />
               <section className="editor-branch-panel" aria-labelledby="editor-branch-title">
                 <div className="editor-branch-heading">
                   <div>
@@ -1587,7 +2035,21 @@ export function EditorShell({
               ) : null}
             </div>
           ) : (
-            <p className="editor-empty-state">Select a step or hotspot to edit its properties.</p>
+            <div className="editor-inspector-stack">
+              <PersonalizationSettings
+                personalization={document.settings.personalization}
+                readOnly={readOnly}
+                onChange={(personalization) =>
+                  commitDocument({
+                    ...document,
+                    settings: { ...document.settings, personalization }
+                  })
+                }
+              />
+              <p className="editor-empty-state">
+                Select a step, chapter, or hotspot to edit its properties.
+              </p>
+            </div>
           )}
         </aside>
       </div>

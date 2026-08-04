@@ -68,5 +68,6 @@ test("EditorShell keeps the reference authoring surfaces and accessible mutation
   assert.match(source, /\+ Chapter/u);
   assert.match(source, /ChapterEditor/u);
   assert.match(source, /mediaUrl/u);
+  assert.match(source, /parseDemoFormSchema/u);
   assert.doesNotMatch(source, /dangerouslySetInnerHTML|innerHTML|eval\(/u);
 });

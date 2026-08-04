@@ -1,11 +1,19 @@
 "use client";
 
 import {
+  createDemoFormSchema,
+  createFormField,
+  FORM_FIELD_LIMIT,
   validateSafeUrl,
   type ChapterButton,
   type ChapterType,
   type DemoChapter,
-  type DemoStep
+  type DemoFormSchema,
+  type DemoStep,
+  type FormField,
+  type FormFieldType,
+  type FormLayout,
+  type FormTheme
 } from "@supademo/domain";
 import { useEffect, useState } from "react";
 
@@ -24,8 +32,302 @@ const chapterTypes: readonly { value: ChapterType; label: string }[] = [
   { value: "gate", label: "Gate" },
   { value: "survey", label: "Survey" },
   { value: "quiz", label: "Quiz" },
+  { value: "form", label: "Forms" },
   { value: "outro", label: "Outro" }
 ];
+
+function createDefaultForm(chapterId: string): DemoFormSchema {
+  return createDemoFormSchema(
+    `${chapterId}-form`,
+    "Tell us about yourself",
+    [
+      createFormField("email", "Work email", "email", true),
+      createFormField("name", "Name", "text", true),
+      createFormField("company", "Company", "text")
+    ],
+    { allowSkip: false, allowNonBusinessEmails: false, layout: "center", theme: "light" }
+  );
+}
+
+function updateFormField(
+  form: DemoFormSchema,
+  fieldId: string,
+  patch: Partial<FormField>
+): DemoFormSchema {
+  return {
+    ...form,
+    fields: form.fields.map((field) => (field.id === fieldId ? { ...field, ...patch } : field))
+  };
+}
+
+function FormChapterSettings({
+  form,
+  readOnly,
+  onChange
+}: {
+  form: DemoFormSchema;
+  readOnly: boolean;
+  onChange: (form: DemoFormSchema) => void;
+}) {
+  const [backgroundImageDraft, setBackgroundImageDraft] = useState(form.backgroundImageUrl ?? "");
+
+  useEffect(() => {
+    setBackgroundImageDraft(form.backgroundImageUrl ?? "");
+  }, [form.formId]);
+
+  const addField = (): void => {
+    if (readOnly || form.fields.length >= FORM_FIELD_LIMIT) return;
+    const fieldNumber = form.fields.length + 1;
+    const field = createFormField(`field-${fieldNumber}`, `New field ${fieldNumber}`);
+    onChange({ ...form, fields: [...form.fields, field] });
+  };
+
+  const removeField = (fieldId: string): void => {
+    if (readOnly) return;
+    onChange({ ...form, fields: form.fields.filter((field) => field.id !== fieldId) });
+  };
+
+  return (
+    <section className="chapter-form-editor" aria-labelledby="chapter-form-settings-title">
+      <div className="chapter-editor-section-heading">
+        <div>
+          <span className="editor-kicker">Native lead capture</span>
+          <strong id="chapter-form-settings-title">Form fields</strong>
+        </div>
+        {!readOnly ? (
+          <button
+            type="button"
+            className="editor-small-button"
+            onClick={addField}
+            disabled={form.fields.length >= FORM_FIELD_LIMIT}
+          >
+            + Add field
+          </button>
+        ) : null}
+      </div>
+
+      <label className="editor-field">
+        <span>Form title</span>
+        <input
+          type="text"
+          value={form.title}
+          maxLength={160}
+          disabled={readOnly}
+          onChange={(event) =>
+            onChange({ ...form, title: event.currentTarget.value.slice(0, 160) })
+          }
+        />
+      </label>
+
+      <div className="chapter-form-field-list">
+        {form.fields.map((field, index) => (
+          <div className="chapter-form-field-card" key={field.id}>
+            <div className="chapter-editor-button-card-heading">
+              <span>Field {index + 1}</span>
+              {!readOnly ? (
+                <button
+                  type="button"
+                  className="editor-text-button editor-button-danger-text"
+                  onClick={() => removeField(field.id)}
+                >
+                  Remove
+                </button>
+              ) : null}
+            </div>
+            <label className="editor-field">
+              <span>Label</span>
+              <input
+                type="text"
+                value={field.label}
+                maxLength={160}
+                disabled={readOnly}
+                onChange={(event) =>
+                  onChange(
+                    updateFormField(form, field.id, {
+                      label: event.currentTarget.value.slice(0, 160)
+                    })
+                  )
+                }
+              />
+            </label>
+            <label className="editor-field">
+              <span>Field type</span>
+              <select
+                value={field.fieldType}
+                disabled={readOnly}
+                onChange={(event) => {
+                  const fieldType = event.currentTarget.value as FormFieldType;
+                  onChange(
+                    updateFormField(form, field.id, {
+                      fieldType,
+                      options: ["select", "radio"].includes(fieldType)
+                        ? field.options.length > 0
+                          ? field.options
+                          : ["Option 1", "Option 2"]
+                        : []
+                    })
+                  );
+                }}
+              >
+                <option value="text">Text</option>
+                <option value="email">Email</option>
+                <option value="select">Dropdown</option>
+                <option value="radio">Radio options</option>
+                <option value="checkbox">Checkbox</option>
+              </select>
+            </label>
+            <label className="chapter-form-checkbox">
+              <input
+                type="checkbox"
+                checked={field.isRequired}
+                disabled={readOnly}
+                onChange={(event) =>
+                  onChange(
+                    updateFormField(form, field.id, { isRequired: event.currentTarget.checked })
+                  )
+                }
+              />
+              <span>Required</span>
+            </label>
+            {["select", "radio"].includes(field.fieldType) ? (
+              <label className="editor-field">
+                <span>Options (one per line)</span>
+                <textarea
+                  rows={3}
+                  maxLength={2_400}
+                  value={field.options.join("\n")}
+                  disabled={readOnly}
+                  onChange={(event) =>
+                    onChange(
+                      updateFormField(form, field.id, {
+                        options: event.currentTarget.value
+                          .split("\n")
+                          .map((value) => value.trim().slice(0, 120))
+                          .filter(Boolean)
+                          .slice(0, 20)
+                      })
+                    )
+                  }
+                />
+              </label>
+            ) : null}
+          </div>
+        ))}
+      </div>
+      <small className="editor-url-help">Up to {FORM_FIELD_LIMIT} fields per form.</small>
+
+      <div className="chapter-form-options">
+        <label className="chapter-form-checkbox">
+          <input
+            type="checkbox"
+            checked={form.allowSkip}
+            disabled={readOnly}
+            onChange={(event) => onChange({ ...form, allowSkip: event.currentTarget.checked })}
+          />
+          <span>Let viewers skip the form</span>
+        </label>
+        <label className="chapter-form-checkbox">
+          <input
+            type="checkbox"
+            checked={form.allowNonBusinessEmails}
+            disabled={readOnly}
+            onChange={(event) =>
+              onChange({ ...form, allowNonBusinessEmails: event.currentTarget.checked })
+            }
+          />
+          <span>Allow non-business emails</span>
+        </label>
+      </div>
+
+      <details className="chapter-form-appearance">
+        <summary>Appearance</summary>
+        <label className="editor-field">
+          <span>Layout</span>
+          <select
+            value={form.layout}
+            disabled={readOnly}
+            onChange={(event) =>
+              onChange({ ...form, layout: event.currentTarget.value as FormLayout })
+            }
+          >
+            <option value="left">Left aligned</option>
+            <option value="center">Center aligned</option>
+            <option value="right">Right aligned</option>
+          </select>
+        </label>
+        <label className="editor-field">
+          <span>Theme</span>
+          <select
+            value={form.theme}
+            disabled={readOnly}
+            onChange={(event) =>
+              onChange({ ...form, theme: event.currentTarget.value as FormTheme })
+            }
+          >
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+        <label className="editor-field">
+          <span>Background color</span>
+          <input
+            type="color"
+            value={form.backgroundColor ?? "#ffffff"}
+            disabled={readOnly}
+            onChange={(event) => onChange({ ...form, backgroundColor: event.currentTarget.value })}
+          />
+        </label>
+        <label className="editor-field">
+          <span>
+            Background image URL <small>(optional)</small>
+          </span>
+          <input
+            type="url"
+            inputMode="url"
+            value={backgroundImageDraft}
+            maxLength={2_048}
+            disabled={readOnly}
+            aria-invalid={Boolean(backgroundImageDraft && !validateSafeUrl(backgroundImageDraft))}
+            placeholder="https://cdn.example.com/form-background.png"
+            onChange={(event) => {
+              const value = event.currentTarget.value.slice(0, 2_048);
+              setBackgroundImageDraft(value);
+              onChange({
+                ...form,
+                backgroundImageUrl: value.startsWith("blob:") ? value : validateSafeUrl(value)
+              });
+            }}
+          />
+        </label>
+        <label className="editor-field">
+          <span>Background opacity: {Math.round(form.opacity * 100)}%</span>
+          <input
+            type="range"
+            min={0.2}
+            max={1}
+            step={0.05}
+            value={form.opacity}
+            disabled={readOnly}
+            onChange={(event) => onChange({ ...form, opacity: Number(event.currentTarget.value) })}
+          />
+        </label>
+        <label className="editor-field">
+          <span>Background blur: {form.blurPx}px</span>
+          <input
+            type="range"
+            min={0}
+            max={24}
+            step={1}
+            value={form.blurPx}
+            disabled={readOnly}
+            onChange={(event) => onChange({ ...form, blurPx: Number(event.currentTarget.value) })}
+          />
+        </label>
+      </details>
+    </section>
+  );
+}
 
 function updateButton(
   chapter: DemoChapter,
@@ -63,6 +365,16 @@ export function ChapterEditor({
   useEffect(() => {
     setMediaUrlDraft(chapter.mediaUrl ?? "");
   }, [chapter.id]);
+
+  const form = chapter.form ?? createDefaultForm(chapter.id);
+
+  const handleChapterTypeChange = (type: ChapterType): void => {
+    onChangeChapter({
+      ...chapter,
+      type,
+      form: type === "form" ? (chapter.form ?? createDefaultForm(chapter.id)) : chapter.form
+    });
+  };
 
   const addButton = (): void => {
     if (readOnly || chapter.buttons.length >= 12) return;
@@ -115,9 +427,7 @@ export function ChapterEditor({
         <select
           value={chapter.type}
           disabled={readOnly}
-          onChange={(event) =>
-            onChangeChapter({ ...chapter, type: event.currentTarget.value as ChapterType })
-          }
+          onChange={(event) => handleChapterTypeChange(event.currentTarget.value as ChapterType)}
         >
           {chapterTypes.map((type) => (
             <option key={type.value} value={type.value}>
@@ -126,6 +436,14 @@ export function ChapterEditor({
           ))}
         </select>
       </label>
+
+      {chapter.type === "form" ? (
+        <FormChapterSettings
+          form={form}
+          readOnly={readOnly}
+          onChange={(nextForm) => onChangeChapter({ ...chapter, form: nextForm })}
+        />
+      ) : null}
 
       <label className="editor-field">
         <span>Title</span>

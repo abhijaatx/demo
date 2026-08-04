@@ -41,3 +41,25 @@ test("parseDemoChapter bounds untrusted content and accepts safe chapter media",
   assert.equal(chapter.buttons.length, 12);
   assert.equal(chapter.buttons[0].label.length, 96);
 });
+
+test("parseDemoChapter supports bounded native Forms chapters", () => {
+  const chapter = parseDemoChapter({
+    id: "form-chapter",
+    type: "form",
+    title: "Tell us about your team",
+    form: {
+      formId: "lead-form",
+      title: "Lead capture",
+      fields: [
+        { id: "email", label: "Work email", fieldType: "email", isRequired: true },
+        { id: "role", label: "Role", fieldType: "select", options: ["Product", "Sales"] }
+      ],
+      allowSkip: false,
+      allowNonBusinessEmails: false,
+      backgroundImageUrl: "javascript:alert(1)"
+    }
+  });
+  assert.equal(chapter.type, "form");
+  assert.equal(chapter.form?.fields.length, 2);
+  assert.equal(chapter.form?.backgroundImageUrl, null);
+});

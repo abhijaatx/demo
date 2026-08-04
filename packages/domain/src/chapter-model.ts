@@ -2,10 +2,11 @@
  * Chapter Domain Model & Discriminated Types — TASK-071
  */
 
+import { parseDemoFormSchema, type DemoFormSchema } from "./form-schemas.js";
 import { validateSafeUrl } from "./hotspot-schema.js";
 
 export type ChapterType =
-  "intro" | "context" | "instruction" | "cta" | "gate" | "survey" | "quiz" | "outro";
+  "intro" | "context" | "instruction" | "cta" | "gate" | "survey" | "quiz" | "form" | "outro";
 
 export interface ChapterButton {
   readonly id: string;
@@ -24,6 +25,7 @@ export interface DemoChapter {
   readonly mediaAssetId: string | null;
   readonly mediaUrl: string | null;
   readonly presenterNotes: string | null;
+  readonly form: DemoFormSchema | null;
   readonly buttons: readonly ChapterButton[];
 }
 
@@ -56,6 +58,7 @@ export function parseDemoChapter(input: unknown): DemoChapter {
     "gate",
     "survey",
     "quiz",
+    "form",
     "outro"
   ];
   const type: ChapterType = validTypes.includes(raw["type"] as ChapterType)
@@ -73,6 +76,7 @@ export function parseDemoChapter(input: unknown): DemoChapter {
   const rawMediaUrl = boundedString(raw["mediaUrl"], MAX_MEDIA_URL_LENGTH);
   const mediaUrl = rawMediaUrl?.startsWith("blob:") ? rawMediaUrl : validateSafeUrl(rawMediaUrl);
   const presenterNotes = boundedString(raw["presenterNotes"], MAX_PRESENTER_NOTES_LENGTH);
+  const form = parseDemoFormSchema(raw["form"]);
 
   const rawButtons = Array.isArray(raw["buttons"])
     ? raw["buttons"].slice(0, MAX_CHAPTER_BUTTONS)
@@ -111,6 +115,7 @@ export function parseDemoChapter(input: unknown): DemoChapter {
     mediaAssetId,
     mediaUrl,
     presenterNotes,
+    form,
     buttons: Object.freeze(buttons)
   });
 }

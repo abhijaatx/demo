@@ -47,6 +47,12 @@ export function generateSopMarkdownExport(document: DemoDocument): string {
   for (const [idx, chapter] of (document.chapters ?? []).entries()) {
     lines.push(`## Chapter ${idx + 1}: ${chapter.title}`);
     if (chapter.bodyText) lines.push(chapter.bodyText);
+    if (chapter.form) {
+      lines.push(`- Form: ${chapter.form.title}`);
+      lines.push(
+        `- Form fields: ${chapter.form.fields.map((field) => `${field.label}${field.isRequired ? " (required)" : ""}`).join(", ") || "none"}`
+      );
+    }
     chapter.buttons.forEach((button, buttonIndex) => {
       const destination =
         button.actionType === "url"

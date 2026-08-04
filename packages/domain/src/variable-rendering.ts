@@ -16,8 +16,34 @@ export function renderTemplateTokens(
   variables: Record<string, string> = {},
   fallbacks: Record<string, string> = {}
 ): string {
-  return templateText.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, tokenKey) => {
-    const rawVal = variables[tokenKey] ?? fallbacks[tokenKey] ?? "";
-    return escapeHtml(rawVal);
-  });
+  return templateText.replace(
+    /\{\{\s*([a-zA-Z0-9_]+)(?:\s*\|\s*(?:"([^"]*)"|([^}]*?)))?\s*\}\}/g,
+    (_match, tokenKey, quotedFallback, plainFallback) => {
+      const fallbackText = quotedFallback ?? plainFallback?.trim() ?? "";
+      const rawVal = variables[tokenKey] ?? fallbacks[tokenKey] ?? "";
+      return escapeHtml(rawVal || fallbackText);
+    }
+  );
+}
+
+/**
+ * Resolve tokens for React text nodes. React escapes the returned string for
+ * its destination context, so this helper deliberately returns plain text;
+ * callers must never place the result in an HTML sink.
+ */
+export function resolveTemplateTokens(
+  templateText: string,
+  variables: Record<string, string> = {},
+  fallbacks: Record<string, string> = {}
+): string {
+  return templateText
+    .slice(0, 10_000)
+    .replace(
+      /\{\{\s*([a-zA-Z0-9_]+)(?:\s*\|\s*(?:"([^"]*)"|([^}]*?)))?\s*\}\}/g,
+      (_match, tokenKey, quotedFallback, plainFallback) => {
+        const fallbackText = quotedFallback ?? plainFallback?.trim() ?? "";
+        const rawVal = variables[tokenKey] ?? fallbacks[tokenKey] ?? "";
+        return rawVal || fallbackText;
+      }
+    );
 }
