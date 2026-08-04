@@ -4,14 +4,14 @@ import test from "node:test";
 
 const readWebFile = (path) => readFile(new URL(`../apps/web/${path}`, import.meta.url), "utf8");
 
-test("editor sharing exposes link, embed, export, and present flows with bounded output", async () => {
+test("editor sharing exposes link, embed, offline download, export, and present flows with bounded output", async () => {
   const [editor, viewer, route] = await Promise.all([
     readWebFile("components/editor-shell.tsx"),
     readWebFile("components/demo-viewer.tsx"),
     readWebFile("app/demos/[demoId]/view/page.tsx")
   ]);
 
-  assert.match(editor, /type ShareTab = "Link" \| "Embed" \| "Export" \| "Present"/u);
+  assert.match(editor, /type ShareTab = "Link" \| "Embed" \| "Download" \| "Export" \| "Present"/u);
   assert.match(editor, /publishDemoDocument\(exportDocument/u);
   assert.match(editor, /generateIframeSnippet/u);
   assert.match(editor, /generateSopMarkdownExport/u);
@@ -27,6 +27,8 @@ test("editor sharing exposes link, embed, export, and present flows with bounded
   assert.match(editor, /value="mp4"/u);
   assert.match(editor, /value="gif"/u);
   assert.match(editor, /Download SOP \(Markdown\)/u);
+  assert.match(editor, /Download an Offline Demo/u);
+  assert.match(editor, /createOfflineZip/u);
   assert.match(editor, /Open viewer preview/u);
   assert.match(editor, /sanitizeTrackingKey/u);
   assert.match(editor, /isSafeMediaUrl/u);

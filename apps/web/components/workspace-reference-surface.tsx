@@ -21,6 +21,7 @@ import {
 } from "@supademo/ui";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { ShowcaseEditorDialog } from "./showcase-editor";
 
 export type WorkspaceReferenceKind =
   "demos" | "screenshots" | "videos" | "showcases" | "hubs" | "routes" | "analytics";
@@ -637,6 +638,7 @@ function ShowcaseSurface({ kind }: { kind: "showcases" | "hubs" }) {
   const showcase = kind === "showcases";
   const [welcomeVisible, setWelcomeVisible] = useState(true);
   const [status, setStatus] = useState("");
+  const [editorOpen, setEditorOpen] = useState(false);
   const [tab, setTab] = useState("Shared with Team");
   const choose = (message: string) => {
     setStatus(message);
@@ -669,7 +671,7 @@ function ShowcaseSurface({ kind }: { kind: "showcases" | "hubs" }) {
           <button
             type="button"
             className="workspace-ref-primary"
-            onClick={() => choose(`Create ${showcase ? "showcase" : "hub"} started`)}
+            onClick={() => (showcase ? setEditorOpen(true) : choose("Create hub started"))}
           >
             Create
           </button>
@@ -749,7 +751,7 @@ function ShowcaseSurface({ kind }: { kind: "showcases" | "hubs" }) {
               <button
                 type="button"
                 className="workspace-ref-primary"
-                onClick={() => choose("Showcase creator opened")}
+                onClick={() => setEditorOpen(true)}
               >
                 Create
               </button>
@@ -821,6 +823,15 @@ function ShowcaseSurface({ kind }: { kind: "showcases" | "hubs" }) {
           </div>
         </section>
       )}
+      {showcase ? (
+        <ShowcaseEditorDialog
+          open={editorOpen}
+          onClose={() => setEditorOpen(false)}
+          onSaved={(message) => {
+            choose(message);
+          }}
+        />
+      ) : null}
     </Frame>
   );
 }

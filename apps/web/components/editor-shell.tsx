@@ -53,6 +53,11 @@ import {
   type ExportResolution,
   type VideoExportFormat
 } from "../src/lib/export-client";
+import {
+  createOfflineZip,
+  readOfflineDownloads,
+  saveOfflineDownload
+} from "../src/lib/offline-export";
 import { ChapterEditor } from "./editor/chapter-editor";
 
 export type CaptureMode = "guided" | "html" | "sandbox" | "screenshot" | "video" | "upload";
@@ -984,7 +989,7 @@ function persistLocalDocument(demoId: string, demoDocument: DemoDocument): void 
   }
 }
 
-type ShareTab = "Link" | "Embed" | "Export" | "Present";
+type ShareTab = "Link" | "Embed" | "Download" | "Export" | "Present";
 
 function downloadTextFile(filename: string, content: string, mimeType: string): void {
   if (typeof document === "undefined") return;
@@ -1047,6 +1052,8 @@ function SharePanel({
   const [videoResolution, setVideoResolution] = useState<ExportResolution>("1080p");
   const [videoFrameRate, setVideoFrameRate] = useState("30");
   const [videoSlideDuration, setVideoSlideDuration] = useState("2");
+  const [offlineStatus, setOfflineStatus] = useState("");
+  const [offlineReady, setOfflineReady] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -1065,6 +1072,8 @@ function SharePanel({
     setVideoResolution("1080p");
     setVideoFrameRate("30");
     setVideoSlideDuration("2");
+    setOfflineStatus("");
+    setOfflineReady(readOfflineDownloads().some((entry) => entry.demoId === demoId));
     try {
       const raw = localStorage.getItem(`supademo_published_${demoId}`);
       if (!raw) {
@@ -1135,7 +1144,7 @@ function SharePanel({
   const exportDocument = safeExportDocument(demoDocument);
   const sopMarkdown = generateSopMarkdownExport(exportDocument);
   const exportName = safeDownloadName(demoId);
-  const tabs: readonly ShareTab[] = ["Link", "Embed", "Export", "Present"];
+  const tabs: readonly ShareTab[] = ["Link", "Embed", "Download", "Export", "Present"];
 
   const copyText = async (value: string): Promise<void> => {
     try {
@@ -1215,6 +1224,29 @@ function SharePanel({
       setExportStatus(error instanceof Error ? error.message : "Video export failed.");
     } finally {
       setExportBusy(false);
+    }
+  };
+
+  const handleOfflineDownload = (): void => {
+    setOfflineStatus("");
+    try {
+      const zip = createOfflineZip(demoId, exportDocument);
+      const record = saveOfflineDownload(demoId, exportDocument);
+      if (!record) {
+        setOfflineStatus(
+          "This browser could not save the offline demo. Check available storage and try again."
+        );
+        return;
+      }
+      const buffer = new ArrayBuffer(zip.byteLength);
+      new Uint8Array(buffer).set(zip);
+      downloadBlob(`${exportName}-offline.zip`, new Blob([buffer], { type: "application/zip" }));
+      setOfflineReady(true);
+      setOfflineStatus(
+        "Offline demo downloaded. Open the Offline Demos player to present it without a network connection."
+      );
+    } catch (error: unknown) {
+      setOfflineStatus(error instanceof Error ? error.message : "Offline download failed.");
     }
   };
 
@@ -1664,6 +1696,49 @@ function SharePanel({
           ) : null}
           <p className="editor-share-note">
             Media paths are included only when they use a safe HTTPS or local blob URL.
+          </p>
+        </div>
+      ) : null}
+
+      {tab === "Download" ? (
+        <div className="editor-share-section editor-share-download">
+          <span className="editor-kicker">Offline access</span>
+          <h3>Download an Offline Demo</h3>
+          <p className="editor-share-lede">
+            Save this demo to the browser and download a portable ZIP. Present it later from the
+            Offline Demos player even when your network is unavailable.
+          </p>
+          <div className="editor-share-status-card">
+            <span className={`editor-share-dot${offlineReady ? " is-published" : ""}`} />
+            <span>
+              <strong>{offlineReady ? "Offline download ready" : "Not downloaded"}</strong>
+              <small>
+                {offlineReady
+                  ? "This demo is available in this browser."
+                  : "Create a local offline copy from the latest saved document."}
+              </small>
+            </span>
+          </div>
+          <div className="editor-share-actions">
+            <button
+              type="button"
+              className="editor-button editor-button-primary"
+              onClick={handleOfflineDownload}
+            >
+              {offlineReady ? "Download update" : "Download"}
+            </button>
+            <a className="editor-button editor-button-secondary" href="/offline">
+              Open Offline Demos
+            </a>
+          </div>
+          {offlineStatus ? (
+            <p className="editor-share-feedback" role="status">
+              {offlineStatus}
+            </p>
+          ) : null}
+          <p className="editor-share-note">
+            The ZIP contains a local launch page, the validated demo document, and a static offline
+            player. Remote media is included only when its URL remains safe and reachable.
           </p>
         </div>
       ) : null}

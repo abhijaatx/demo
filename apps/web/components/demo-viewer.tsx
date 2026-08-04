@@ -72,12 +72,13 @@ function chapterAtPosition(document: DemoDocument, position: number): DemoChapte
   return document.chapters.find((chapter) => chapter.orderIndex === position) ?? null;
 }
 
-function readStoredDocument(demoId: string): DemoDocument | null {
+function readStoredDocument(demoId: string, offlineOnly = false): DemoDocument | null {
   if (typeof localStorage === "undefined") return null;
   try {
-    const raw =
-      localStorage.getItem(`supademo_published_${demoId}`) ??
-      localStorage.getItem(`supademo_draft_${demoId}`);
+    const raw = offlineOnly
+      ? localStorage.getItem(`supademo_offline_${demoId}`)
+      : (localStorage.getItem(`supademo_published_${demoId}`) ??
+        localStorage.getItem(`supademo_draft_${demoId}`));
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed === "object" && parsed !== null && "document" in parsed) {
@@ -185,11 +186,13 @@ function recordFormSubmission(
 export function DemoViewer({
   demoId,
   initialDocument,
-  embedded = false
+  embedded = false,
+  offlineOnly = false
 }: {
   demoId: string;
   initialDocument: DemoDocument;
   embedded?: boolean;
+  offlineOnly?: boolean;
 }) {
   const [demoDocument, setDemoDocument] = useState<DemoDocument>(initialDocument);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -212,7 +215,7 @@ export function DemoViewer({
   };
 
   useEffect(() => {
-    const stored = readStoredDocument(demoId);
+    const stored = readStoredDocument(demoId, offlineOnly);
     const nextDocument = stored ?? initialDocument;
     const nextIndex = requestedStepIndex(
       globalThis.location?.search ?? "",
@@ -243,7 +246,7 @@ export function DemoViewer({
       title: demoId,
       totalSlides: nextDocument.steps.length
     });
-  }, [demoId, embedded, initialDocument]);
+  }, [demoId, embedded, initialDocument, offlineOnly]);
 
   useEffect(() => {
     if (!embedded) return;

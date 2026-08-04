@@ -1,4 +1,5 @@
 import { MarketingFooter, MarketingHeader } from "./marketing-chrome";
+import { ScormGeneratorWorkbench } from "./scorm-generator-workbench";
 import { ToolDetailInteractions } from "./tool-detail-interactions";
 import { ScreenshotEditorWorkbench } from "./tool-detail-workbench";
 
@@ -225,6 +226,31 @@ const toolDetails: Record<string, ToolDetail> = {
       "Is Supademo's annotation tool secure for business use?"
     ]
   },
+  "iframe-to-scorm": {
+    name: "Iframe to SCORM Generator",
+    title: "Free Iframe to SCORM Generator",
+    description:
+      "Paste any iframe, URL, HTML embed, or Supademo link to generate a SCORM 1.2 package for your LMS in seconds.",
+    cta: "Generate SCORM package",
+    introTitle: "How to convert an iframe to SCORM",
+    storyTitle: "Keep hosted content editable while your LMS tracks completion",
+    storyDescription:
+      "The package is a thin launch shell. Your Supademo or hosted experience stays at its original URL, while the wrapper reports progress and completion to the LMS.",
+    featureItems: [
+      [
+        "Works with any HTTPS URL or iframe",
+        "Wrap Supademo links, videos, forms, help center pages, and more."
+      ],
+      [
+        "Four completion rules",
+        "Complete on Supademo finish, active viewing time, learner confirmation, or launch."
+      ],
+      [
+        "Runs locally in your browser",
+        "Your URL and generated ZIP never travel to Supademo servers."
+      ]
+    ]
+  },
   "mobile-app-demos": {
     name: "Mobile App Demos",
     title: "Free AI Mobile App Demo Maker",
@@ -293,6 +319,15 @@ export function MarketingToolDetail({ slug }: { slug: string }) {
   const detail = getToolDetail(slug) ?? toolDetails["interactive-demo-builder"];
   const isAnnotation = slug === "annotation-generator";
   const isScreenshotEditor = slug === "free-screenshot-editor";
+  if (slug === "iframe-to-scorm") {
+    return (
+      <main className="tool-detail-page tool-detail-iframe-to-scorm" id="main">
+        <MarketingHeader />
+        <ScormGeneratorWorkbench />
+        <MarketingFooter variant="showcase" />
+      </main>
+    );
+  }
   return (
     <main className={`tool-detail-page tool-detail-${slug}`} id="main">
       <MarketingHeader />

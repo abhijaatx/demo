@@ -468,6 +468,32 @@ export {
 } from "./offline-package.js";
 
 export {
+  buildScormFiles,
+  createStoredZip,
+  normalizeScormSource,
+  type NormalizedScormSource,
+  type ScormCompletionRule,
+  type ScormPackageConfig,
+  type ScormPackageFiles
+} from "./scorm-package.js";
+
+export {
+  addShowcaseItem,
+  addShowcaseSection,
+  createShowcaseDocument,
+  parseShowcaseDocument,
+  publishShowcase,
+  removeShowcaseItem,
+  sanitizeShowcaseUrl,
+  updateShowcaseDocument,
+  type ShowcaseContentType,
+  type ShowcaseDocument,
+  type ShowcaseItem,
+  type ShowcaseLayout,
+  type ShowcaseSection
+} from "./showcase-authoring.js";
+
+export {
   createExtensionMessage,
   type ExtensionMessage,
   type ExtensionMessageKind
