@@ -5,6 +5,8 @@ import {
   duplicateStep,
   executeAiTranslationJob,
   extractTemplateVariableNames,
+  buildShareLinkUrl,
+  calculateShareLinkExpiry,
   generateAiVoiceover,
   generateBranchingDiagnosticSummary,
   generateIframeSnippet,
@@ -20,6 +22,8 @@ import {
   proposeTextRewrite,
   reorderSteps,
   resizeHotspot,
+  SHARE_LINK_EXPIRY_OPTIONS,
+  sanitizeShareLabel,
   SUPPORTED_TRANSLATION_LOCALES,
   translationContentKey,
   translationLabelForLocale,
@@ -33,7 +37,8 @@ import {
   type TextRewriteProposal,
   type DemoStep,
   type DemoHotspot,
-  type PublishedDemoManifest
+  type PublishedDemoManifest,
+  type ShareLinkExpiryPreset
 } from "@supademo/domain";
 import { Modal } from "@supademo/ui";
 import type { ChangeEvent, KeyboardEvent, RefObject } from "react";
@@ -150,7 +155,35 @@ function isSafeMediaUrl(value: string): boolean {
 }
 
 function sanitizeTrackingKey(value: string): string {
-  return value.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 64);
+  return sanitizeShareLabel(value);
+}
+
+type LocalExpiringShareLink = Readonly<{
+  token: string;
+  expiresAtMs: number;
+  trackingLabel: string;
+}>;
+
+function createShareToken(): string | null {
+  try {
+    const uuid = globalThis.crypto?.randomUUID?.();
+    return uuid ? `sl_${uuid.replace(/[^a-zA-Z0-9_-]/g, "")}` : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistExpiringShareLink(demoId: string, link: LocalExpiringShareLink): boolean {
+  try {
+    const key = `supademo_share_links_${demoId}`;
+    const current = JSON.parse(localStorage.getItem(key) ?? "[]");
+    const links = Array.isArray(current) ? current.slice(-49) : [];
+    links.push(link);
+    localStorage.setItem(key, JSON.stringify(links));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function collectDocumentText(document: DemoDocument): readonly string[] {
@@ -975,6 +1008,10 @@ function SharePanel({
   const [publishError, setPublishError] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
   const [personalizedValues, setPersonalizedValues] = useState<Record<string, string>>({});
+  const [startingStep, setStartingStep] = useState("0");
+  const [expiryPreset, setExpiryPreset] = useState<ShareLinkExpiryPreset>("none");
+  const [expiringShareUrl, setExpiringShareUrl] = useState("");
+  const [expiryStatus, setExpiryStatus] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -982,6 +1019,10 @@ function SharePanel({
     setCopyStatus("");
     setPublishError("");
     setPersonalizedValues({});
+    setStartingStep("0");
+    setExpiryPreset("none");
+    setExpiringShareUrl("");
+    setExpiryStatus("");
     try {
       const raw = localStorage.getItem(`supademo_published_${demoId}`);
       if (!raw) {
@@ -1022,21 +1063,25 @@ function SharePanel({
 
   const baseUrl = typeof globalThis.location?.origin === "string" ? globalThis.location.origin : "";
   const viewerPath = `/demos/${encodeURIComponent(demoId)}/view`;
-  const shareUrl = `${baseUrl}${viewerPath}${
-    trackingKey.trim() ? `?ref=${encodeURIComponent(sanitizeTrackingKey(trackingKey))}` : ""
-  }`;
+  const viewerUrl = `${baseUrl}${viewerPath}`;
+  const shareUrl = buildShareLinkUrl(viewerUrl, {
+    trackingLabel: sanitizeTrackingKey(trackingKey)
+  });
+  const stepShareUrl = buildShareLinkUrl(shareUrl, {
+    step: startingStep === "0" ? null : Number(startingStep)
+  });
   const configuredVariables = demoDocument.settings.personalization.allowlist;
   const detectedVariables = extractTemplateVariableNames(collectDocumentText(demoDocument));
   const personalizedVariables = detectedVariables.filter((name) =>
     configuredVariables.includes(name)
   );
   const personalizedShareUrl = generatePersonalizedEmbedUrl(
-    shareUrl,
+    stepShareUrl,
     personalizedValues,
     configuredVariables
   );
   const dynamicShareUrl = generatePersonalizedEmbedUrl(
-    shareUrl,
+    stepShareUrl,
     Object.fromEntries(personalizedVariables.map((name) => [name, name.toUpperCase()])),
     configuredVariables
   );
@@ -1077,6 +1122,44 @@ function SharePanel({
         error instanceof Error ? error.message : "This demo cannot be published yet."
       );
     }
+  };
+
+  const handleCreateExpiringLink = (): void => {
+    if (readOnly) return;
+    if (!publishedManifest) {
+      setExpiryStatus("Publish this demo before creating an expiring link.");
+      return;
+    }
+    const expiresAtMs = calculateShareLinkExpiry(expiryPreset);
+    if (!expiresAtMs) {
+      setExpiryStatus("Choose an expiration window first.");
+      setExpiringShareUrl("");
+      return;
+    }
+    const token = createShareToken();
+    if (!token) {
+      setExpiryStatus("Secure link generation is unavailable in this browser.");
+      setExpiringShareUrl("");
+      return;
+    }
+    const record: LocalExpiringShareLink = {
+      token,
+      expiresAtMs,
+      trackingLabel: sanitizeTrackingKey(trackingKey)
+    };
+    if (!persistExpiringShareLink(demoId, record)) {
+      setExpiryStatus("This browser could not save the expiring link. Try again.");
+      setExpiringShareUrl("");
+      return;
+    }
+    setExpiringShareUrl(
+      buildShareLinkUrl(shareUrl, {
+        step: startingStep === "0" ? null : Number(startingStep),
+        token,
+        expiresAtMs
+      })
+    );
+    setExpiryStatus(`Expires ${new Date(expiresAtMs).toLocaleString()}`);
   };
 
   return (
@@ -1139,19 +1222,94 @@ function SharePanel({
               onChange={(event) => setTrackingKey(event.currentTarget.value)}
             />
           </label>
+          <p className="editor-share-note">
+            Use a unique label for each viewer, campaign, or recipient to attribute engagement.
+          </p>
+          <label className="editor-field">
+            <span>Open at step</span>
+            <select
+              value={startingStep}
+              aria-label="Share link starting step"
+              onChange={(event) => setStartingStep(event.currentTarget.value)}
+            >
+              <option value="0">Start of demo</option>
+              {demoDocument.steps.map((step, index) => (
+                <option key={step.id} value={String(index + 1)}>
+                  Step {index + 1}: {step.title}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="editor-share-copy-row">
-            <input type="text" readOnly value={shareUrl} aria-label="Share link" />
+            <input type="text" readOnly value={stepShareUrl} aria-label="Share link" />
             <button
               type="button"
               className="editor-button editor-button-secondary"
-              onClick={() => void copyText(shareUrl)}
+              onClick={() => void copyText(stepShareUrl)}
             >
               Copy link
             </button>
           </div>
           <p className="editor-share-note">
-            Viewer events from the link can be attributed by its `ref` label.
+            Viewer events from the link can be attributed by its <code>ref</code> label. The
+            <code>step</code> parameter opens a specific slide.
           </p>
+          <section className="editor-share-expiry" aria-labelledby="share-expiry-title">
+            <div className="editor-share-section-heading">
+              <span className="editor-kicker">Access control</span>
+              <strong id="share-expiry-title">Expiring share link</strong>
+            </div>
+            <p className="editor-share-note">
+              Create a unique link that stops working after the selected window.
+            </p>
+            <label className="editor-field">
+              <span>Expire after</span>
+              <select
+                value={expiryPreset}
+                onChange={(event) => {
+                  setExpiryPreset(event.currentTarget.value as ShareLinkExpiryPreset);
+                  setExpiringShareUrl("");
+                  setExpiryStatus("");
+                }}
+              >
+                {SHARE_LINK_EXPIRY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className="editor-button editor-button-secondary"
+              disabled={readOnly || expiryPreset === "none"}
+              onClick={handleCreateExpiringLink}
+            >
+              Create expiring link
+            </button>
+            {expiringShareUrl ? (
+              <div className="editor-share-copy-row">
+                <input
+                  type="text"
+                  readOnly
+                  value={expiringShareUrl}
+                  aria-label="Expiring share link"
+                />
+                <button
+                  type="button"
+                  className="editor-button editor-button-secondary"
+                  onClick={() => void copyText(expiringShareUrl)}
+                >
+                  Copy expiring link
+                </button>
+              </div>
+            ) : null}
+            {expiryStatus ? (
+              <p className="editor-share-feedback" role="status">
+                {expiryStatus}
+              </p>
+            ) : null}
+          </section>
           {personalizedVariables.length > 0 ? (
             <section
               className="editor-share-personalization"

@@ -1,8 +1,11 @@
 "use client";
 
 import {
+  isShareLinkExpired,
+  isValidShareToken,
   extractPersonalizedVariablesFromUrl,
   parseDemoDocument,
+  parseShareLinkExpiry,
   resolveLocalizedText,
   resolveTemplateTokens,
   translationContentKey,
@@ -61,6 +64,41 @@ function requestedTranslationLocale(
         translationLabelForLocale(dictionary.locale).toLowerCase() === normalized
     )?.locale ?? "en-US"
   );
+}
+
+function requestedStepIndex(search: string, stepCount: number): number {
+  if (stepCount <= 0) return 0;
+  const raw = new URLSearchParams(search).get("step");
+  const requested = Number(raw);
+  return Number.isSafeInteger(requested) && requested >= 1 && requested <= stepCount
+    ? requested - 1
+    : 0;
+}
+
+function readExpiringShareLinkError(demoId: string): string | null {
+  const params = new URLSearchParams(globalThis.location?.search ?? "");
+  const token = params.get("share");
+  const expiresAtMs = parseShareLinkExpiry(params.get("expires"));
+  if (!token && !params.get("expires")) return null;
+  if (!isValidShareToken(token) || expiresAtMs === null) {
+    return "This share link is invalid.";
+  }
+  if (isShareLinkExpired(expiresAtMs)) return "This share link has expired.";
+  try {
+    const current = JSON.parse(localStorage.getItem(`supademo_share_links_${demoId}`) ?? "[]");
+    const records = Array.isArray(current) ? current : [];
+    const matchingRecord = records.find(
+      (record) =>
+        typeof record === "object" &&
+        record !== null &&
+        (record as Record<string, unknown>)["token"] === token &&
+        Number((record as Record<string, unknown>)["expiresAtMs"]) === expiresAtMs
+    );
+    if (!matchingRecord) return "This expiring share link is unavailable in this browser.";
+  } catch {
+    return "This expiring share link is unavailable.";
+  }
+  return null;
 }
 
 function recordViewerEvent(demoId: string, stepId: string): void {
@@ -124,13 +162,20 @@ export function DemoViewer({
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [selectedLocale, setSelectedLocale] = useState("en-US");
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
+  const [shareAccessError, setShareAccessError] = useState<string | null>(null);
 
   useEffect(() => {
     const stored = readStoredDocument(demoId);
+    const nextDocument = stored ?? initialDocument;
+    const nextIndex = requestedStepIndex(
+      globalThis.location?.search ?? "",
+      nextDocument.steps.length
+    );
+    setCurrentIndex(nextIndex);
+    setActiveChapterId(chapterAtPosition(nextDocument, nextIndex)?.id ?? null);
+    setShareAccessError(readExpiringShareLinkError(demoId));
     if (stored) {
       setDemoDocument(stored);
-      setCurrentIndex(0);
-      setActiveChapterId(chapterAtPosition(stored, 0)?.id ?? null);
       setSelectedLocale(
         requestedTranslationLocale(
           new URLSearchParams(globalThis.location?.search ?? "").get("lang"),
@@ -228,6 +273,13 @@ export function DemoViewer({
     if (!nextStep) return;
     setCurrentIndex(bounded);
     setActiveChapterId(chapterAtPosition(demoDocument, bounded)?.id ?? null);
+    try {
+      const nextUrl = new URL(globalThis.location.href);
+      nextUrl.searchParams.set("step", String(bounded + 1));
+      globalThis.history.replaceState({}, "", nextUrl.toString());
+    } catch {
+      // Deep-link URL state is best effort and never blocks playback.
+    }
     recordViewerEvent(demoId, nextStep.id);
   };
 
@@ -368,6 +420,11 @@ export function DemoViewer({
       {!loadedFromStorage ? (
         <div className="demo-viewer-empty" role="status">
           Loading demo…
+        </div>
+      ) : shareAccessError ? (
+        <div className="demo-viewer-empty" role="alert">
+          <strong>{shareAccessError}</strong>
+          <p>Ask the sender for a new share link.</p>
         </div>
       ) : !step && !currentChapter ? (
         <div className="demo-viewer-empty">

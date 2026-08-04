@@ -418,6 +418,17 @@ export {
   type ShareLinkKind
 } from "./share-access-gates.js";
 
+export {
+  buildShareLinkUrl,
+  calculateShareLinkExpiry,
+  isShareLinkExpired,
+  isValidShareToken,
+  parseShareLinkExpiry,
+  sanitizeShareLabel,
+  SHARE_LINK_EXPIRY_OPTIONS,
+  type ShareLinkExpiryPreset
+} from "./share-link.js";
+
 export { generateIframeSnippet, type EmbedSnippetOptions } from "./iframe-embeds.js";
 
 export {
