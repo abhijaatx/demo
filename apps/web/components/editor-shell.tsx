@@ -1885,6 +1885,17 @@ function CaptureEntryPanel({
               Run AI audit
             </a>
           ) : null}
+          <a className="editor-capture-link" href="/step-manager">
+            Manage steps
+          </a>
+          {captureMode !== "video" && captureMode !== "figma" ? (
+            <a className="editor-capture-link" href="/blur-annotate">
+              Blur &amp; annotate
+            </a>
+          ) : null}
+          <a className="editor-capture-link" href="/comments">
+            Review comments
+          </a>
         </div>
       ) : null}
       {captureError ? (

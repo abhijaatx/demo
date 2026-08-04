@@ -24,6 +24,9 @@ test("capture entry exposes bounded media imports and preserves the browser trus
   assert.match(editor, /href="\/video-editor"/u);
   assert.match(editor, /href="\/crop-media"/u);
   assert.match(editor, /href="\/ai-audit"/u);
+  assert.match(editor, /href="\/step-manager"/u);
+  assert.match(editor, /href="\/blur-annotate"/u);
+  assert.match(editor, /href="\/comments"/u);
   assert.doesNotMatch(editor, /dangerouslySetInnerHTML|innerHTML|eval\(|new Function\(/u);
 
   assert.match(route, /searchParams\?/u);
