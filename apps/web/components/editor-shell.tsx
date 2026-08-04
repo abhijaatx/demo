@@ -1908,6 +1908,15 @@ function CaptureEntryPanel({
           <a className="editor-capture-link" href="/personalize">
             Personalize variables
           </a>
+          <a className="editor-capture-link" href="/mcp-server">
+            Connect MCP Server
+          </a>
+          <a className="editor-capture-link" href="/find-replace">
+            Find &amp; Replace content
+          </a>
+          <a className="editor-capture-link" href="/chapters">
+            Add chapters &amp; CTAs
+          </a>
           {captureMode !== "video" && captureMode !== "figma" ? (
             <a className="editor-capture-link" href="/blur-annotate">
               Blur &amp; annotate
