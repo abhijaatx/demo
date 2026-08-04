@@ -14,6 +14,10 @@
 import { parseDemoChapter, type DemoChapter } from "./chapter-model.js";
 import { validateSafeUrl } from "./hotspot-schema.js";
 import {
+  parseDemoTranslation,
+  type DemoTranslationDictionary
+} from "./localization-infrastructure.js";
+import {
   DEFAULT_DEMO_PERSONALIZATION,
   parseDemoPersonalization,
   type DemoPersonalization
@@ -28,6 +32,8 @@ export type CalloutPosition = "top" | "bottom" | "left" | "right" | "center";
 export type DemoTheme = Readonly<{
   primaryColor: string;
   backgroundColor: string;
+  backgroundPreset: "solid" | "aurora" | "sunset" | "mint";
+  backgroundImageUrl: string | null;
   textColor: string;
   borderRadiusPx: number;
   fontFamily: string;
@@ -122,6 +128,8 @@ export type DemoDocument = Readonly<{
   steps: readonly DemoStep[];
   /** Contextual sections rendered before the matching step index. */
   chapters: readonly DemoChapter[];
+  /** Saved AI/localized text dictionaries keyed by locale. */
+  translations: readonly DemoTranslationDictionary[];
   updatedAtIso: string;
 }>;
 
@@ -130,6 +138,8 @@ export type DemoDocument = Readonly<{
 export const DEFAULT_DEMO_THEME: DemoTheme = Object.freeze({
   primaryColor: "#4f46e5", // Indigo 600
   backgroundColor: "#0f172a", // Slate 900
+  backgroundPreset: "solid",
+  backgroundImageUrl: null,
   textColor: "#f8fafc", // Slate 50
   borderRadiusPx: 8,
   fontFamily: "Inter, sans-serif"
@@ -147,6 +157,35 @@ export const DEFAULT_DEMO_SETTINGS: DemoSettings = Object.freeze({
   personalization: DEFAULT_DEMO_PERSONALIZATION
 });
 
+const SAFE_THEME_COLOR_PATTERN = /^#[0-9a-fA-F]{3,8}$/u;
+const SAFE_THEME_FONT_PATTERN = /^[A-Za-z0-9 ,"'._-]{1,120}$/u;
+
+function parseThemeColor(value: unknown, fallback: string): string {
+  const candidate = typeof value === "string" ? value.trim() : "";
+  return SAFE_THEME_COLOR_PATTERN.test(candidate) ? candidate : fallback;
+}
+
+function parseThemeFont(value: unknown, fallback: string): string {
+  const candidate = typeof value === "string" ? value.trim() : "";
+  return SAFE_THEME_FONT_PATTERN.test(candidate) ? candidate : fallback;
+}
+
+function parseThemeImageUrl(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const candidate = value.trim();
+  if (!candidate) return null;
+  try {
+    const parsed = new URL(candidate);
+    if (parsed.protocol === "blob:" && parsed.origin !== "null") {
+      return parsed.toString().slice(0, 2_048);
+    }
+    if (parsed.protocol === "https:") return parsed.toString().slice(0, 2_048);
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 export const DEFAULT_DEMO_LAYOUT: DemoLayout = Object.freeze({
   aspectRatio: "16:9",
   deviceFrame: "browser",
@@ -161,6 +200,7 @@ export function createDefaultDemoDocument(demoId: string): DemoDocument {
     layout: DEFAULT_DEMO_LAYOUT,
     steps: [],
     chapters: [],
+    translations: [],
     updatedAtIso: new Date().toISOString()
   });
 }
@@ -201,6 +241,13 @@ export function parseDemoDocument(input: unknown): DemoDocument {
     .map((chapterRaw) => parseDemoChapter(chapterRaw))
     .sort((a, b) => a.orderIndex - b.orderIndex);
 
+  const translationsRaw = Array.isArray(raw["translations"])
+    ? raw["translations"].slice(0, 15)
+    : [];
+  const translations = translationsRaw
+    .map(parseDemoTranslation)
+    .filter((translation): translation is DemoTranslationDictionary => translation !== null);
+
   const settingsRaw =
     typeof raw["settings"] === "object" && raw["settings"] !== null
       ? (raw["settings"] as Record<string, unknown>)
@@ -217,6 +264,7 @@ export function parseDemoDocument(input: unknown): DemoDocument {
     layout: parseDemoLayout(layoutRaw),
     steps: Object.freeze(steps),
     chapters: Object.freeze(chapters),
+    translations: Object.freeze(translations),
     updatedAtIso:
       typeof raw["updatedAtIso"] === "string" ? raw["updatedAtIso"] : new Date().toISOString()
   });
@@ -240,16 +288,38 @@ function parseDemoSettings(raw: Record<string, unknown>): DemoSettings {
     showControls: Boolean(raw["showControls"] ?? DEFAULT_DEMO_SETTINGS.showControls),
     showStepList: Boolean(raw["showStepList"] ?? DEFAULT_DEMO_SETTINGS.showStepList),
     allowFullscreen: Boolean(raw["allowFullscreen"] ?? DEFAULT_DEMO_SETTINGS.allowFullscreen),
-    theme: Object.freeze({
-      primaryColor: String(themeRaw["primaryColor"] ?? DEFAULT_DEMO_THEME.primaryColor),
-      backgroundColor: String(themeRaw["backgroundColor"] ?? DEFAULT_DEMO_THEME.backgroundColor),
-      textColor: String(themeRaw["textColor"] ?? DEFAULT_DEMO_THEME.textColor),
-      borderRadiusPx: Number(themeRaw["borderRadiusPx"] ?? DEFAULT_DEMO_THEME.borderRadiusPx),
-      fontFamily: String(themeRaw["fontFamily"] ?? DEFAULT_DEMO_THEME.fontFamily)
-    }),
+    theme: parseDemoTheme(themeRaw),
     logoUrl: typeof raw["logoUrl"] === "string" ? raw["logoUrl"] : null,
     customDomain: typeof raw["customDomain"] === "string" ? raw["customDomain"] : null,
     personalization: parseDemoPersonalization(raw["personalization"])
+  });
+}
+
+export function parseDemoTheme(input: unknown): DemoTheme {
+  const raw = typeof input === "object" && input !== null ? (input as Record<string, unknown>) : {};
+  const primaryColor = parseThemeColor(raw["primaryColor"], DEFAULT_DEMO_THEME.primaryColor);
+  const backgroundColor = parseThemeColor(
+    raw["backgroundColor"],
+    DEFAULT_DEMO_THEME.backgroundColor
+  );
+  const backgroundPreset = ["solid", "aurora", "sunset", "mint"].includes(
+    String(raw["backgroundPreset"])
+  )
+    ? (String(raw["backgroundPreset"]) as DemoTheme["backgroundPreset"])
+    : DEFAULT_DEMO_THEME.backgroundPreset;
+  const backgroundImageUrl = parseThemeImageUrl(raw["backgroundImageUrl"]);
+  const rawRadius = Number(raw["borderRadiusPx"] ?? DEFAULT_DEMO_THEME.borderRadiusPx);
+  return Object.freeze({
+    primaryColor,
+    backgroundColor,
+    backgroundPreset,
+    backgroundImageUrl,
+    textColor: parseThemeColor(raw["textColor"], DEFAULT_DEMO_THEME.textColor),
+    borderRadiusPx:
+      Number.isFinite(rawRadius) && rawRadius >= 0 && rawRadius <= 64
+        ? rawRadius
+        : DEFAULT_DEMO_THEME.borderRadiusPx,
+    fontFamily: parseThemeFont(raw["fontFamily"], DEFAULT_DEMO_THEME.fontFamily)
   });
 }
 

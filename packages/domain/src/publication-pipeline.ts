@@ -4,7 +4,7 @@
 
 import { createHash } from "node:crypto";
 import { generateBranchingDiagnosticSummary } from "./branching-authoring.js";
-import { parseDemoAudioNarration, type DemoDocument } from "./demo-document.js";
+import { parseDemoAudioNarration, parseDemoTheme, type DemoDocument } from "./demo-document.js";
 import { parseDemoFormSchema } from "./form-schemas.js";
 import { validateSafeUrl } from "./hotspot-schema.js";
 
@@ -31,6 +31,10 @@ export function publishDemoDocument(
 
   const publishableDocument: DemoDocument = {
     ...document,
+    settings: {
+      ...document.settings,
+      theme: parseDemoTheme(document.settings.theme)
+    },
     steps: document.steps.map((step) => ({
       ...step,
       audioNarration: step.audioNarration ? parseDemoAudioNarration(step.audioNarration) : null

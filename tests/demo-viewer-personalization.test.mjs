@@ -11,6 +11,7 @@ test("viewer resolves allowlisted v_ variables through React text nodes", async 
   assert.match(source, /extractPersonalizedVariablesFromUrl/u);
   assert.match(source, /resolveTemplateTokens/u);
   assert.match(source, /settings\.personalization/u);
-  assert.match(source, /renderText\(hotspot\.tooltipText/u);
+  assert.match(source, /hotspot\.tooltipText \?\? "Continue"/u);
+  assert.match(source, /translationContentKey\("step", step\.id, "hotspot", hotspot\.id\)/u);
   assert.doesNotMatch(source, /dangerouslySetInnerHTML/u);
 });

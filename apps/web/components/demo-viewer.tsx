@@ -3,20 +3,25 @@
 import {
   extractPersonalizedVariablesFromUrl,
   parseDemoDocument,
+  resolveLocalizedText,
   resolveTemplateTokens,
+  translationContentKey,
+  translationLabelForLocale,
   validateFormSubmission,
   type DemoDocument,
   type DemoChapter,
   type DemoFormSchema,
   type DemoHotspot,
+  type DemoTranslationDictionary,
   validateSafeUrl
 } from "@supademo/domain";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 function safeMediaUrl(value: string): string | null {
-  if (value.startsWith("blob:")) return value;
   try {
-    return new URL(value).protocol === "https:" ? value : null;
+    const parsed = new URL(value);
+    if (parsed.protocol === "blob:" && parsed.origin !== "null") return parsed.toString();
+    return parsed.protocol === "https:" ? parsed.toString() : null;
   } catch {
     return null;
   }
@@ -41,6 +46,21 @@ function readStoredDocument(demoId: string): DemoDocument | null {
   } catch {
     return null;
   }
+}
+
+function requestedTranslationLocale(
+  value: string | null,
+  dictionaries: readonly DemoTranslationDictionary[]
+): string {
+  if (!value) return "en-US";
+  const normalized = value.trim().toLowerCase();
+  return (
+    dictionaries.find(
+      (dictionary) =>
+        dictionary.locale.toLowerCase() === normalized ||
+        translationLabelForLocale(dictionary.locale).toLowerCase() === normalized
+    )?.locale ?? "en-US"
+  );
 }
 
 function recordViewerEvent(demoId: string, stepId: string): void {
@@ -102,6 +122,8 @@ export function DemoViewer({
   const [formAnswers, setFormAnswers] = useState<Record<string, string>>({});
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [formSubmitted, setFormSubmitted] = useState(false);
+  const [selectedLocale, setSelectedLocale] = useState("en-US");
+  const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
 
   useEffect(() => {
     const stored = readStoredDocument(demoId);
@@ -109,6 +131,19 @@ export function DemoViewer({
       setDemoDocument(stored);
       setCurrentIndex(0);
       setActiveChapterId(chapterAtPosition(stored, 0)?.id ?? null);
+      setSelectedLocale(
+        requestedTranslationLocale(
+          new URLSearchParams(globalThis.location?.search ?? "").get("lang"),
+          stored.translations
+        )
+      );
+    } else {
+      setSelectedLocale(
+        requestedTranslationLocale(
+          new URLSearchParams(globalThis.location?.search ?? "").get("lang"),
+          initialDocument.translations
+        )
+      );
     }
     setLoadedFromStorage(true);
   }, [demoId]);
@@ -125,12 +160,48 @@ export function DemoViewer({
       personalization.allowlist
     );
   }, [demoDocument.settings.personalization]);
-  const renderText = (value: string | null | undefined): string =>
+  const localizedText = (value: string | null | undefined, contentId?: string): string => {
+    const fallback = value ?? "";
+    if (!contentId || selectedLocale === "en-US") return fallback;
+    return resolveLocalizedText(
+      contentId,
+      selectedLocale,
+      demoDocument.translations,
+      "en-US",
+      fallback
+    );
+  };
+  const renderText = (value: string | null | undefined, contentId?: string): string =>
     resolveTemplateTokens(
-      value ?? "",
+      localizedText(value, contentId),
       viewerVariables,
       demoDocument.settings.personalization.fallbacks
     );
+  const selectLocale = (locale: string): void => {
+    setSelectedLocale(locale);
+    setLanguageMenuOpen(false);
+    try {
+      const nextUrl = new URL(globalThis.location.href);
+      if (locale === "en-US") nextUrl.searchParams.delete("lang");
+      else nextUrl.searchParams.set("lang", translationLabelForLocale(locale));
+      globalThis.history.replaceState({}, "", nextUrl.toString());
+    } catch {
+      // URL state is best effort; the selected locale still applies in this viewer.
+    }
+  };
+  const viewerTheme = demoDocument.settings.theme;
+  const presetBackgrounds: Record<DemoDocument["settings"]["theme"]["backgroundPreset"], string> = {
+    solid: "none",
+    aurora: "linear-gradient(145deg, rgb(24 36 72 / 96%), rgb(76 53 130 / 90%))",
+    sunset: "linear-gradient(145deg, rgb(77 36 70 / 96%), rgb(170 82 69 / 90%))",
+    mint: "linear-gradient(145deg, rgb(20 53 55 / 96%), rgb(40 112 104 / 90%))"
+  };
+  const customBackgroundImage = viewerTheme.backgroundImageUrl
+    ? safeMediaUrl(viewerTheme.backgroundImageUrl)
+    : null;
+  const viewerBackgroundImage = customBackgroundImage
+    ? `url(${customBackgroundImage})`
+    : presetBackgrounds[viewerTheme.backgroundPreset];
   const chapterMediaUrl = currentChapter?.mediaUrl ? safeMediaUrl(currentChapter.mediaUrl) : null;
   const mediaUrl = step?.media ? safeMediaUrl(step.media.storagePath) : null;
   const narrationUrl = step?.audioNarration?.audioUrl
@@ -238,12 +309,57 @@ export function DemoViewer({
   };
 
   return (
-    <main className="demo-viewer-shell">
+    <main
+      className="demo-viewer-shell"
+      style={{
+        backgroundColor: viewerTheme.backgroundColor,
+        backgroundImage: viewerBackgroundImage === "none" ? undefined : viewerBackgroundImage,
+        backgroundSize: customBackgroundImage ? "cover" : undefined,
+        backgroundPosition: customBackgroundImage ? "center" : undefined
+      }}
+    >
       <header className="demo-viewer-topbar">
         <a className="demo-viewer-brand" href="/demos">
           <span aria-hidden="true">S</span> Supademo
         </a>
         <span className="demo-viewer-mode">Viewer preview</span>
+        {demoDocument.translations.length > 0 ? (
+          <div className="demo-viewer-language">
+            <button
+              type="button"
+              className="demo-viewer-language-trigger"
+              aria-expanded={languageMenuOpen}
+              aria-haspopup="listbox"
+              onClick={() => setLanguageMenuOpen((open) => !open)}
+            >
+              Translate
+              {selectedLocale !== "en-US" ? ` · ${translationLabelForLocale(selectedLocale)}` : ""}
+            </button>
+            {languageMenuOpen ? (
+              <div className="demo-viewer-language-menu" role="listbox" aria-label="Languages">
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={selectedLocale === "en-US"}
+                  onClick={() => selectLocale("en-US")}
+                >
+                  Original (English)
+                </button>
+                {demoDocument.translations.map((translation) => (
+                  <button
+                    key={translation.locale}
+                    type="button"
+                    role="option"
+                    aria-selected={selectedLocale === translation.locale}
+                    onClick={() => selectLocale(translation.locale)}
+                  >
+                    {translationLabelForLocale(translation.locale)}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         <a className="demo-viewer-exit" href={`/demos/${encodeURIComponent(demoId)}/edit`}>
           Back to editor
         </a>
@@ -281,7 +397,12 @@ export function DemoViewer({
                     onClick={() => goToStep(index)}
                   >
                     <span>{String(index + 1).padStart(2, "0")}</span>
-                    <strong>{renderText(candidate.title)}</strong>
+                    <strong>
+                      {renderText(
+                        candidate.title,
+                        translationContentKey("step", candidate.id, "title")
+                      )}
+                    </strong>
                   </button>
                 ))
               : null}
@@ -309,8 +430,24 @@ export function DemoViewer({
                   <img className="demo-viewer-chapter-media" src={chapterMediaUrl} alt="" />
                 ) : null}
                 <span className="demo-viewer-chapter-badge">{currentChapter.type}</span>
-                <h1>{renderText(currentForm?.title || currentChapter.title)}</h1>
-                {currentChapter.bodyText ? <p>{renderText(currentChapter.bodyText)}</p> : null}
+                <h1>
+                  {renderText(
+                    currentForm?.title || currentChapter.title,
+                    translationContentKey(
+                      "chapter",
+                      currentChapter.id,
+                      currentForm ? "form-title" : "title"
+                    )
+                  )}
+                </h1>
+                {currentChapter.bodyText ? (
+                  <p>
+                    {renderText(
+                      currentChapter.bodyText,
+                      translationContentKey("chapter", currentChapter.id, "body")
+                    )}
+                  </p>
+                ) : null}
                 {currentForm ? (
                   formSubmitted ? (
                     <div className="demo-viewer-form-success" role="status">
@@ -325,7 +462,15 @@ export function DemoViewer({
                               className="editor-button editor-button-primary"
                               onClick={() => handleChapterButton(button)}
                             >
-                              {renderText(button.label)}
+                              {renderText(
+                                button.label,
+                                translationContentKey(
+                                  "chapter",
+                                  currentChapter.id,
+                                  "button",
+                                  button.id
+                                )
+                              )}
                             </button>
                           ))
                         ) : (
@@ -355,7 +500,15 @@ export function DemoViewer({
                           return field.fieldType === "select" ? (
                             <label className="demo-viewer-form-field" key={field.id}>
                               <span>
-                                {renderText(field.label)}
+                                {renderText(
+                                  field.label,
+                                  translationContentKey(
+                                    "chapter",
+                                    currentChapter.id,
+                                    "field",
+                                    field.id
+                                  )
+                                )}
                                 {field.isRequired ? " *" : ""}
                               </span>
                               <select
@@ -373,7 +526,15 @@ export function DemoViewer({
                                 <option value="">Choose an option</option>
                                 {field.options.map((option) => (
                                   <option key={option} value={option}>
-                                    {option}
+                                    {renderText(
+                                      option,
+                                      translationContentKey(
+                                        "chapter",
+                                        currentChapter.id,
+                                        `option-${field.id}`,
+                                        option
+                                      )
+                                    )}
                                   </option>
                                 ))}
                               </select>
@@ -386,7 +547,15 @@ export function DemoViewer({
                           ) : (
                             <fieldset className="demo-viewer-form-field" key={field.id}>
                               <legend>
-                                {renderText(field.label)}
+                                {renderText(
+                                  field.label,
+                                  translationContentKey(
+                                    "chapter",
+                                    currentChapter.id,
+                                    "field",
+                                    field.id
+                                  )
+                                )}
                                 {field.isRequired ? " *" : ""}
                               </legend>
                               {field.options.map((option) => (
@@ -404,7 +573,17 @@ export function DemoViewer({
                                       }));
                                     }}
                                   />
-                                  <span>{option}</span>
+                                  <span>
+                                    {renderText(
+                                      option,
+                                      translationContentKey(
+                                        "chapter",
+                                        currentChapter.id,
+                                        `option-${field.id}`,
+                                        option
+                                      )
+                                    )}
+                                  </span>
                                 </label>
                               ))}
                               {fieldError ? (
@@ -429,7 +608,15 @@ export function DemoViewer({
                                 }}
                               />
                               <span>
-                                {renderText(field.label)}
+                                {renderText(
+                                  field.label,
+                                  translationContentKey(
+                                    "chapter",
+                                    currentChapter.id,
+                                    "field",
+                                    field.id
+                                  )
+                                )}
                                 {field.isRequired ? " *" : ""}
                               </span>
                               {fieldError ? (
@@ -443,7 +630,15 @@ export function DemoViewer({
                         return (
                           <label className="demo-viewer-form-field" key={field.id}>
                             <span>
-                              {renderText(field.label)}
+                              {renderText(
+                                field.label,
+                                translationContentKey(
+                                  "chapter",
+                                  currentChapter.id,
+                                  "field",
+                                  field.id
+                                )
+                              )}
                               {field.isRequired ? " *" : ""}
                             </span>
                             <input
@@ -494,7 +689,10 @@ export function DemoViewer({
                           className="editor-button editor-button-primary"
                           onClick={() => handleChapterButton(button)}
                         >
-                          {renderText(button.label)}
+                          {renderText(
+                            button.label,
+                            translationContentKey("chapter", currentChapter.id, "button", button.id)
+                          )}
                         </button>
                       ))
                     ) : (
@@ -530,11 +728,16 @@ export function DemoViewer({
                         controls
                         autoPlay={Boolean(step.audioNarration.autoPlay)}
                         preload="metadata"
-                        aria-label={`Voiceover for ${renderText(step.title)}`}
+                        aria-label={`Voiceover for ${renderText(step.title, translationContentKey("step", step.id, "title"))}`}
                       />
                     ) : null}
                     {step.audioNarration.transcriptText ? (
-                      <p>{step.audioNarration.transcriptText}</p>
+                      <p>
+                        {renderText(
+                          step.audioNarration.transcriptText,
+                          translationContentKey("step", step.id, "voice")
+                        )}
+                      </p>
                     ) : null}
                   </section>
                 ) : null}
@@ -544,14 +747,22 @@ export function DemoViewer({
                       src={mediaUrl}
                       controls
                       playsInline
-                      aria-label={renderText(step.title)}
+                      aria-label={renderText(
+                        step.title,
+                        translationContentKey("step", step.id, "title")
+                      )}
                     />
                   ) : mediaUrl ? (
-                    <img src={mediaUrl} alt={renderText(step.title)} />
+                    <img
+                      src={mediaUrl}
+                      alt={renderText(step.title, translationContentKey("step", step.id, "title"))}
+                    />
                   ) : (
                     <div className="demo-viewer-placeholder">
                       <span aria-hidden="true">▦</span>
-                      <strong>{renderText(step.title)}</strong>
+                      <strong>
+                        {renderText(step.title, translationContentKey("step", step.id, "title"))}
+                      </strong>
                       <small>Media is available after the capture is uploaded.</small>
                     </div>
                   )}
@@ -569,9 +780,15 @@ export function DemoViewer({
                         opacity: Math.max(0.2, Math.min(1, hotspot.style.opacity))
                       }}
                       onClick={() => goHotspot(hotspot)}
-                      aria-label={renderText(hotspot.tooltipText ?? "Continue")}
+                      aria-label={renderText(
+                        hotspot.tooltipText ?? "Continue",
+                        translationContentKey("step", step.id, "hotspot", hotspot.id)
+                      )}
                     >
-                      {renderText(hotspot.tooltipText ?? "Continue")}
+                      {renderText(
+                        hotspot.tooltipText ?? "Continue",
+                        translationContentKey("step", step.id, "hotspot", hotspot.id)
+                      )}
                     </button>
                   ))}
                 </div>

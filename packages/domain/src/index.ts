@@ -247,6 +247,7 @@ export {
   InvalidDemoDocumentError,
   parseDemoAudioNarration,
   parseDemoDocument,
+  parseDemoTheme,
   serializeDemoDocument,
   type AspectRatio,
   type CalloutPosition,
@@ -706,7 +707,11 @@ export {
 
 export {
   isRtlLocale,
+  parseDemoTranslation,
   resolveLocalizedText,
+  SUPPORTED_TRANSLATION_LOCALES,
+  translationContentKey,
+  translationLabelForLocale,
   type DemoTranslationDictionary
 } from "./localization-infrastructure.js";
 

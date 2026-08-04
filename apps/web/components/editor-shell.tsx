@@ -3,6 +3,7 @@
 import {
   deleteSteps,
   duplicateStep,
+  executeAiTranslationJob,
   extractTemplateVariableNames,
   generateAiVoiceover,
   generateBranchingDiagnosticSummary,
@@ -16,12 +17,20 @@ import {
   parseDemoPersonalization,
   publishDemoDocument,
   parseDemoDocument,
+  proposeTextRewrite,
   reorderSteps,
   resizeHotspot,
+  SUPPORTED_TRANSLATION_LOCALES,
+  translationContentKey,
+  translationLabelForLocale,
   validateSafeUrl,
   type DemoDocument,
   type DemoAudioNarration,
   type DemoPersonalization,
+  type DemoTheme,
+  type DemoTranslationDictionary,
+  type RewriteTone,
+  type TextRewriteProposal,
   type DemoStep,
   type DemoHotspot,
   type PublishedDemoManifest
@@ -160,6 +169,44 @@ function collectDocumentText(document: DemoDocument): readonly string[] {
   return texts;
 }
 
+function collectTranslationSourceMap(document: DemoDocument): Readonly<Record<string, string>> {
+  const source: Record<string, string> = {};
+  const add = (key: string, value: string | null | undefined): void => {
+    const bounded = typeof value === "string" ? value.slice(0, 4_000).trim() : "";
+    if (bounded) source[key] = bounded;
+  };
+
+  for (const step of document.steps) {
+    add(translationContentKey("step", step.id, "title"), step.title);
+    add(translationContentKey("step", step.id, "description"), step.description);
+    add(translationContentKey("step", step.id, "voice"), step.audioNarration?.transcriptText);
+    for (const hotspot of step.hotspots) {
+      add(translationContentKey("step", step.id, "hotspot", hotspot.id), hotspot.tooltipText);
+    }
+    for (const callout of step.callouts) {
+      add(translationContentKey("step", step.id, "callout-title", callout.id), callout.title);
+      add(translationContentKey("step", step.id, "callout-body", callout.id), callout.body);
+    }
+  }
+  for (const chapter of document.chapters) {
+    add(translationContentKey("chapter", chapter.id, "title"), chapter.title);
+    add(translationContentKey("chapter", chapter.id, "body"), chapter.bodyText);
+    if (chapter.form) {
+      add(translationContentKey("chapter", chapter.id, "form-title"), chapter.form.title);
+      for (const field of chapter.form.fields) {
+        add(translationContentKey("chapter", chapter.id, "field", field.id), field.label);
+        for (const option of field.options) {
+          add(translationContentKey("chapter", chapter.id, `option-${field.id}`, option), option);
+        }
+      }
+    }
+    for (const button of chapter.buttons) {
+      add(translationContentKey("chapter", chapter.id, "button", button.id), button.label);
+    }
+  }
+  return Object.freeze(source);
+}
+
 function PersonalizationSettings({
   personalization,
   readOnly,
@@ -255,6 +302,120 @@ function PersonalizationSettings({
           </label>
         ))}
       </div>
+    </section>
+  );
+}
+
+function BackgroundSettings({
+  theme,
+  readOnly,
+  onChange
+}: {
+  theme: DemoTheme;
+  readOnly: boolean;
+  onChange: (theme: DemoTheme) => void;
+}) {
+  const updateTheme = (patch: Partial<DemoTheme>): void => {
+    onChange({ ...theme, ...patch });
+  };
+
+  const handleImageUpload = (event: ChangeEvent<HTMLInputElement>): void => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+    if (!["image/png", "image/jpeg", "image/webp", "image/gif"].includes(file.type)) return;
+    if (file.size > 10 * 1024 * 1024) return;
+    updateTheme({ backgroundImageUrl: URL.createObjectURL(file) });
+  };
+
+  return (
+    <section className="editor-background-panel" aria-labelledby="editor-background-title">
+      <div className="editor-panel-heading">
+        <div>
+          <span className="editor-kicker">Personalize</span>
+          <strong id="editor-background-title">Backgrounds &amp; frames</strong>
+        </div>
+      </div>
+      <p className="editor-inspector-note">
+        Frame the published viewer with a preset, custom color, or an uploaded image.
+      </p>
+      <label className="editor-field">
+        <span>Background style</span>
+        <select
+          value={theme.backgroundPreset}
+          disabled={readOnly}
+          onChange={(event) =>
+            updateTheme({
+              backgroundPreset: event.currentTarget.value as DemoTheme["backgroundPreset"]
+            })
+          }
+        >
+          <option value="solid">Solid color</option>
+          <option value="aurora">Aurora gradient</option>
+          <option value="sunset">Sunset gradient</option>
+          <option value="mint">Mint gradient</option>
+        </select>
+      </label>
+      <div className="editor-background-presets" aria-label="Background presets">
+        {[
+          ["solid", "Solid color"],
+          ["aurora", "Aurora gradient"],
+          ["sunset", "Sunset gradient"],
+          ["mint", "Mint gradient"]
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            className={`editor-background-preset editor-background-preset-${value}${theme.backgroundPreset === value ? " is-active" : ""}`}
+            aria-pressed={theme.backgroundPreset === value}
+            disabled={readOnly}
+            onClick={() =>
+              updateTheme({ backgroundPreset: value as DemoTheme["backgroundPreset"] })
+            }
+          >
+            <span aria-hidden="true" />
+            {label}
+          </button>
+        ))}
+      </div>
+      <label className="editor-field editor-color-field">
+        <span>Custom color</span>
+        <input
+          type="color"
+          value={
+            /^#[0-9a-fA-F]{6}$/u.test(theme.backgroundColor) ? theme.backgroundColor : "#0f172a"
+          }
+          disabled={readOnly}
+          onChange={(event) => updateTheme({ backgroundColor: event.currentTarget.value })}
+        />
+      </label>
+      <div className="editor-voiceover-actions">
+        <label className="editor-small-button editor-file-button">
+          Upload custom image
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            disabled={readOnly}
+            onChange={handleImageUpload}
+            aria-label="Upload custom background image"
+          />
+        </label>
+        {theme.backgroundImageUrl ? (
+          <button
+            type="button"
+            className="editor-text-button editor-button-danger-text"
+            disabled={readOnly}
+            onClick={() => updateTheme({ backgroundImageUrl: null })}
+          >
+            Remove image
+          </button>
+        ) : null}
+      </div>
+      {theme.backgroundImageUrl ? (
+        <p className="editor-inspector-note" role="status">
+          Custom image applied. Publish to update links and embeds.
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -485,6 +646,282 @@ function VoiceoverSettings({
             <audio className="editor-voiceover-preview" controls src={narration.audioUrl} />
           ) : null}
         </>
+      ) : null}
+      {status ? (
+        <p className="editor-inspector-note" role="status">
+          {status}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function AiTextSettings({
+  step,
+  readOnly,
+  onChange
+}: {
+  step: DemoStep;
+  readOnly: boolean;
+  onChange: (step: DemoStep) => void;
+}) {
+  const [tone, setTone] = useState<RewriteTone>("professional");
+  const [proposal, setProposal] = useState<TextRewriteProposal | null>(null);
+  const [status, setStatus] = useState("");
+
+  useEffect(() => {
+    setProposal(null);
+    setStatus("");
+  }, [step.id]);
+
+  const contextText = [
+    step.title,
+    step.description ?? "",
+    ...step.hotspots.map((hotspot) => hotspot.tooltipText ?? "")
+  ]
+    .filter(Boolean)
+    .join(". ")
+    .slice(0, 4_000);
+
+  const generateProposal = async (): Promise<void> => {
+    if (readOnly) return;
+    if (!contextText.trim()) {
+      setStatus("Add step context before asking for a suggestion.");
+      return;
+    }
+    setStatus("Writing a suggestion…");
+    try {
+      const nextProposal = await proposeTextRewrite(contextText, tone);
+      setProposal(nextProposal);
+      setStatus("Suggestion ready. Review it before applying.");
+    } catch (error: unknown) {
+      setStatus(error instanceof Error ? error.message : "AI text generation failed.");
+    }
+  };
+
+  return (
+    <section className="editor-ai-text-panel" aria-labelledby="editor-ai-text-title">
+      <div className="editor-branch-heading">
+        <div>
+          <span className="editor-kicker">Supademo AI</span>
+          <strong id="editor-ai-text-title">Generate step copy</strong>
+        </div>
+      </div>
+      <p>Use the current step and hotspot context to draft cleaner viewer-facing copy.</p>
+      <label className="editor-field">
+        <span>Tone</span>
+        <select
+          value={tone}
+          disabled={readOnly}
+          onChange={(event) => setTone(event.currentTarget.value as RewriteTone)}
+        >
+          <option value="professional">Professional</option>
+          <option value="concise">Concise</option>
+          <option value="casual">Casual</option>
+          <option value="persuasive">Persuasive</option>
+        </select>
+      </label>
+      <button
+        type="button"
+        className="editor-button editor-button-secondary"
+        disabled={readOnly}
+        onClick={() => void generateProposal()}
+      >
+        Generate suggestion
+      </button>
+      {proposal ? (
+        <div className="editor-ai-text-proposal">
+          <span className="editor-kicker">Preview</span>
+          <p>{proposal.proposedText}</p>
+          <div className="editor-voiceover-actions">
+            <button
+              type="button"
+              className="editor-button editor-button-primary"
+              disabled={readOnly}
+              onClick={() => {
+                onChange({ ...step, title: proposal.proposedText });
+                setStatus("Suggestion applied to the step title.");
+                setProposal({ ...proposal, isApplied: true });
+              }}
+            >
+              Apply to title
+            </button>
+            <button type="button" className="editor-small-button" onClick={() => setProposal(null)}>
+              Dismiss
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {status ? (
+        <p className="editor-inspector-note" role="status">
+          {status}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function AiTranslationsSettings({
+  document,
+  readOnly,
+  onChange
+}: {
+  document: DemoDocument;
+  readOnly: boolean;
+  onChange: (document: DemoDocument) => void;
+}) {
+  const [targetLocale, setTargetLocale] = useState<string>(SUPPORTED_TRANSLATION_LOCALES[0].locale);
+  const [preview, setPreview] = useState<DemoTranslationDictionary | null>(null);
+  const [editedTranslations, setEditedTranslations] = useState<Record<string, string>>({});
+  const [status, setStatus] = useState("");
+  const sourceMap = collectTranslationSourceMap(document);
+
+  const translate = async (): Promise<void> => {
+    if (readOnly) return;
+    if (Object.keys(sourceMap).length === 0) {
+      setStatus("Add viewer-facing text before creating a translation.");
+      return;
+    }
+    setStatus("Translating this demo…");
+    try {
+      const job = await executeAiTranslationJob({ ...sourceMap }, "en-US", targetLocale);
+      setEditedTranslations({ ...job.translatedTexts });
+      setPreview({
+        locale: job.targetLocale,
+        sourceLocale: job.sourceLocale,
+        createdAtIso: new Date().toISOString(),
+        translations: job.translatedTexts
+      });
+      setStatus("Translation ready. Review each field before saving.");
+    } catch (error: unknown) {
+      setStatus(error instanceof Error ? error.message : "Translation failed.");
+    }
+  };
+
+  const saveTranslation = (): void => {
+    if (readOnly || !preview) return;
+    const nextTranslation: DemoTranslationDictionary = {
+      ...preview,
+      translations: Object.fromEntries(
+        Object.entries(editedTranslations)
+          .map(([key, value]) => [key, value.slice(0, 4_000).trim()])
+          .filter(([, value]) => Boolean(value))
+      )
+    };
+    onChange({
+      ...document,
+      translations: [
+        ...document.translations.filter(
+          (translation) => translation.locale.toLowerCase() !== preview.locale.toLowerCase()
+        ),
+        nextTranslation
+      ]
+    });
+    setPreview(null);
+    setStatus(`${translationLabelForLocale(preview.locale)} translation saved.`);
+  };
+
+  return (
+    <section className="editor-translation-panel" aria-labelledby="editor-translation-title">
+      <div className="editor-branch-heading">
+        <div>
+          <span className="editor-kicker">Personalize</span>
+          <strong id="editor-translation-title">Translate with AI</strong>
+        </div>
+        <span className="editor-branch-count">{document.translations.length} saved</span>
+      </div>
+      <p>
+        Localize text and voiceover transcripts, then let viewers switch languages from the
+        Translate menu.
+      </p>
+      <label className="editor-field">
+        <span>Translate to</span>
+        <select
+          value={targetLocale}
+          disabled={readOnly}
+          onChange={(event) => setTargetLocale(event.currentTarget.value)}
+        >
+          {SUPPORTED_TRANSLATION_LOCALES.map((option) => (
+            <option key={option.locale} value={option.locale}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        type="button"
+        className="editor-button editor-button-secondary"
+        disabled={readOnly}
+        onClick={() => void translate()}
+      >
+        Translate
+      </button>
+      {document.translations.length > 0 ? (
+        <div className="editor-translation-list" aria-label="Saved translations">
+          {document.translations.map((translation) => (
+            <div className="editor-translation-list-row" key={translation.locale}>
+              <span>{translationLabelForLocale(translation.locale)}</span>
+              <button
+                type="button"
+                className="editor-text-button editor-button-danger-text"
+                disabled={readOnly}
+                onClick={() =>
+                  onChange({
+                    ...document,
+                    translations: document.translations.filter(
+                      (candidate) => candidate.locale !== translation.locale
+                    )
+                  })
+                }
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {preview ? (
+        <div className="editor-translation-preview" aria-label="Translation preview">
+          <div className="editor-translation-preview-heading">
+            <span className="editor-kicker">Review translation</span>
+            <strong>{translationLabelForLocale(preview.locale)}</strong>
+          </div>
+          <div className="editor-translation-rows">
+            {Object.entries(sourceMap).map(([key, original]) => (
+              <label className="editor-translation-row" key={key}>
+                <span>
+                  <small>Original</small>
+                  {original}
+                </span>
+                <textarea
+                  rows={2}
+                  maxLength={4_000}
+                  value={editedTranslations[key] ?? ""}
+                  onChange={(event) =>
+                    setEditedTranslations((current) => ({
+                      ...current,
+                      [key]: event.currentTarget.value.slice(0, 4_000)
+                    }))
+                  }
+                  aria-label={`Translation for ${original}`}
+                />
+              </label>
+            ))}
+          </div>
+          <div className="editor-voiceover-actions">
+            <button
+              type="button"
+              className="editor-button editor-button-primary"
+              disabled={readOnly}
+              onClick={saveTranslation}
+            >
+              Save Translation
+            </button>
+            <button type="button" className="editor-small-button" onClick={() => setPreview(null)}>
+              Close
+            </button>
+          </div>
+        </div>
       ) : null}
       {status ? (
         <p className="editor-inspector-note" role="status">
@@ -1923,10 +2360,30 @@ export function EditorShell({
                 <span className="editor-note-dot" aria-hidden="true" />
                 Keep the step focused on one viewer action.
               </div>
+              <BackgroundSettings
+                theme={document.settings.theme}
+                readOnly={readOnly}
+                onChange={(theme) =>
+                  commitDocument({
+                    ...document,
+                    settings: { ...document.settings, theme }
+                  })
+                }
+              />
               <VoiceoverSettings
                 step={selectedStep}
                 readOnly={readOnly}
                 onChange={updateSelectedStep}
+              />
+              <AiTextSettings
+                step={selectedStep}
+                readOnly={readOnly}
+                onChange={updateSelectedStep}
+              />
+              <AiTranslationsSettings
+                document={document}
+                readOnly={readOnly}
+                onChange={commitDocument}
               />
               <section className="editor-branch-panel" aria-labelledby="editor-branch-title">
                 <div className="editor-branch-heading">
@@ -2036,6 +2493,16 @@ export function EditorShell({
             </div>
           ) : (
             <div className="editor-inspector-stack">
+              <BackgroundSettings
+                theme={document.settings.theme}
+                readOnly={readOnly}
+                onChange={(theme) =>
+                  commitDocument({
+                    ...document,
+                    settings: { ...document.settings, theme }
+                  })
+                }
+              />
               <PersonalizationSettings
                 personalization={document.settings.personalization}
                 readOnly={readOnly}

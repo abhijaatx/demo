@@ -15,6 +15,8 @@ test("createDefaultDemoDocument generates valid document structure", () => {
   assert.equal(doc.steps.length, 0);
   assert.deepEqual(doc.chapters, []);
   assert.equal(doc.settings.autoPlay, false);
+  assert.equal(doc.settings.theme.backgroundPreset, "solid");
+  assert.equal(doc.settings.theme.backgroundImageUrl, null);
   assert.deepEqual(doc.settings.personalization.allowlist, ["name", "role", "company", "email"]);
   assert.equal(doc.layout.aspectRatio, "16:9");
 });
@@ -74,6 +76,42 @@ test("parseDemoAudioNarration keeps safe audio metadata and rejects unsafe URLs"
   assert.equal(parsed.speed, 2);
   assert.equal(parsed.stability, 0);
   assert.equal(parsed.source, "ai");
+});
+
+test("parseDemoDocument keeps supported backgrounds and rejects unsafe image URLs", () => {
+  const parsed = parseDemoDocument({
+    version: "1.0.0",
+    demoId: "demo-backgrounds",
+    settings: {
+      theme: {
+        backgroundPreset: "aurora",
+        backgroundColor: "#102030",
+        backgroundImageUrl: "javascript:alert(1)"
+      }
+    }
+  });
+
+  assert.equal(parsed.settings.theme.backgroundPreset, "aurora");
+  assert.equal(parsed.settings.theme.backgroundColor, "#102030");
+  assert.equal(parsed.settings.theme.backgroundImageUrl, null);
+});
+
+test("parseDemoTheme rejects CSS injection in theme values", () => {
+  const parsed = parseDemoDocument({
+    version: "1.0.0",
+    demoId: "demo-theme-safety",
+    settings: {
+      theme: {
+        backgroundColor: "#fff; background-image:url(javascript:alert(1))",
+        textColor: "red!important",
+        fontFamily: "Inter; background:url(https://evil.example)"
+      }
+    }
+  });
+
+  assert.equal(parsed.settings.theme.backgroundColor, "#0f172a");
+  assert.equal(parsed.settings.theme.textColor, "#f8fafc");
+  assert.equal(parsed.settings.theme.fontFamily, "Inter, sans-serif");
 });
 
 test("serializeDemoDocument and parseDemoDocument perform round-trip serialization", () => {
