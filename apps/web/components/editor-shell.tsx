@@ -3,6 +3,7 @@
 import {
   deleteSteps,
   duplicateStep,
+  generateBranchingDiagnosticSummary,
   generateIframeSnippet,
   generateSopMarkdownExport,
   nudgeHotspot,
@@ -490,6 +491,7 @@ export function EditorShell({
 
   const selectedStep = document.steps.find((s) => s.id === selectedStepId) ?? null;
   const selectedHotspot = selectedStep?.hotspots.find((h) => h.id === selectedHotspotId) ?? null;
+  const branchSummary = generateBranchingDiagnosticSummary(document);
 
   const makeLocalId = (prefix: string): string => {
     if (typeof globalThis.crypto?.randomUUID === "function") {
@@ -684,6 +686,63 @@ export function EditorShell({
     const updated = { ...document, steps: updatedSteps };
     commitDocument(updated);
     setSelectedHotspotId(newHotspotId);
+  };
+
+  const handleAddBranchChoice = (): void => {
+    if (readOnly || !selectedStep) return;
+    const selectedIndex = document.steps.findIndex((step) => step.id === selectedStep.id);
+    if (selectedIndex < 0) return;
+
+    const nextStep = document.steps[selectedIndex + 1] ?? null;
+    const branchStepId = makeLocalId("branch");
+    const branchStep: DemoStep = {
+      id: branchStepId,
+      orderIndex: document.steps.length,
+      title: `Branch ${document.steps.length + 1}`,
+      description: "A viewer-selected branch destination.",
+      media: null,
+      hotspots: [],
+      callouts: [],
+      audioNarration: null
+    };
+
+    const branchChoice: DemoHotspot = {
+      id: makeLocalId("hotspot"),
+      x: 18 + (selectedStep.hotspots.length % 3) * 24,
+      y: 68,
+      width: 20,
+      height: 12,
+      targetStepId: branchStepId,
+      tooltipText: `Explore ${branchStep.title}`,
+      style: { pulse: true, color: "#7c5cff", opacity: 0.86 }
+    };
+
+    const seededChoices: readonly DemoHotspot[] =
+      selectedStep.hotspots.length === 0 && nextStep
+        ? [
+            {
+              id: makeLocalId("hotspot"),
+              x: 18,
+              y: 52,
+              width: 20,
+              height: 12,
+              targetStepId: nextStep.id,
+              tooltipText: "Continue to next step",
+              style: { pulse: true, color: "#4d56e8", opacity: 0.8 }
+            },
+            branchChoice
+          ]
+        : [...selectedStep.hotspots, branchChoice];
+
+    const updatedSteps = normalizeStepOrder([
+      ...document.steps.slice(0, selectedIndex),
+      { ...selectedStep, hotspots: seededChoices },
+      ...document.steps.slice(selectedIndex + 1),
+      branchStep
+    ]);
+    commitDocument({ ...document, steps: updatedSteps });
+    setSelectedStepId(selectedStep.id);
+    setSelectedHotspotId(branchChoice.id);
   };
 
   const updateSelectedHotspot = (patch: Partial<DemoHotspot>): void => {
@@ -1120,6 +1179,59 @@ export function EditorShell({
                 <span className="editor-note-dot" aria-hidden="true" />
                 Keep the step focused on one viewer action.
               </div>
+              <section className="editor-branch-panel" aria-labelledby="editor-branch-title">
+                <div className="editor-branch-heading">
+                  <div>
+                    <span className="editor-kicker">Chapter paths</span>
+                    <strong id="editor-branch-title">Conditional branching</strong>
+                  </div>
+                  <span className="editor-branch-count">
+                    {selectedStep.hotspots.length} path
+                    {selectedStep.hotspots.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <p>Give viewers multiple buttons to choose a relevant path inside this demo.</p>
+                {selectedStep.hotspots.length > 0 ? (
+                  <div className="editor-branch-list" aria-label="Branch choices">
+                    {selectedStep.hotspots.map((hotspot, index) => {
+                      const target = document.steps.find(
+                        (step) => step.id === hotspot.targetStepId
+                      );
+                      return (
+                        <button
+                          key={hotspot.id}
+                          type="button"
+                          className="editor-branch-choice"
+                          onClick={() => setSelectedHotspotId(hotspot.id)}
+                        >
+                          <span>{String(index + 1).padStart(2, "0")}</span>
+                          <strong>{hotspot.tooltipText || "Untitled path"}</strong>
+                          <small>{target?.title ?? "Next step (linear)"}</small>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <small className="editor-branch-empty">
+                    No choices yet. The viewer will follow the linear path.
+                  </small>
+                )}
+                {branchSummary.diagnostics.length > 0 ? (
+                  <p className="editor-branch-warning" role="status">
+                    {branchSummary.diagnostics.length} path issue
+                    {branchSummary.diagnostics.length === 1 ? "" : "s"} to review before publishing.
+                  </p>
+                ) : null}
+                {!readOnly ? (
+                  <button
+                    type="button"
+                    className="editor-small-button editor-branch-add"
+                    onClick={handleAddBranchChoice}
+                  >
+                    + Add branch choice
+                  </button>
+                ) : null}
+              </section>
               {!readOnly ? (
                 <>
                   <button

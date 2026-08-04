@@ -56,5 +56,10 @@ test("EditorShell keeps the reference authoring surfaces and accessible mutation
   assert.match(source, /type="color"/u);
   assert.match(source, /handleUndo/u);
   assert.match(source, /handleRedo/u);
+  assert.match(source, /generateBranchingDiagnosticSummary/u);
+  assert.match(source, /handleAddBranchChoice/u);
+  assert.match(source, /editor-branch-panel/u);
+  assert.match(source, /Conditional branching/u);
+  assert.match(source, /\+ Add branch choice/u);
   assert.doesNotMatch(source, /dangerouslySetInnerHTML|innerHTML|eval\(/u);
 });

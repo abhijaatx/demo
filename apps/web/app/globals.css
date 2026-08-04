@@ -10639,6 +10639,99 @@ h2 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
+.editor-branch-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  color: #aab6cf;
+  background: linear-gradient(160deg, #182448, #151e34);
+  border: 1px solid #35457a;
+  border-radius: 10px;
+}
+.editor-branch-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.editor-branch-heading > div {
+  display: grid;
+  gap: 4px;
+}
+.editor-branch-heading strong {
+  color: #f4f6ff;
+  font-size: 12px;
+}
+.editor-branch-count {
+  padding: 3px 7px;
+  color: #c5ccff;
+  background: #303d79;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.editor-branch-panel p {
+  margin: 0;
+  color: #aeb9d1;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.editor-branch-list {
+  display: grid;
+  gap: 6px;
+}
+.editor-branch-choice {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 2px 8px;
+  padding: 8px;
+  color: #dfe5f8;
+  background: #202c52;
+  border: 1px solid #354779;
+  border-radius: 7px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.editor-branch-choice:hover,
+.editor-branch-choice:focus-visible {
+  background: #293967;
+  border-color: #6e7df1;
+}
+.editor-branch-choice > span {
+  grid-row: 1 / span 2;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  color: #b7c0e7;
+  background: #303d79;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  font-weight: 800;
+}
+.editor-branch-choice strong {
+  overflow: hidden;
+  color: #f3f5fc;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.editor-branch-choice small,
+.editor-branch-empty {
+  color: #8e9dbd;
+  font-size: 10px;
+}
+.editor-branch-warning {
+  color: #ffd18c !important;
+}
+.editor-branch-add {
+  width: 100%;
+  color: #d7dcff;
+  border-color: #5262ca;
+}
 .editor-button-danger {
   color: #ffc2c2;
   background: #38202d;
@@ -10770,7 +10863,11 @@ h2 {
   background: #0d1423;
   border: 1px solid #34435e;
   border-radius: 7px;
-  font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+  font:
+    12px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
 }
 .editor-share-copy-row input {
   min-height: 38px;
@@ -10934,7 +11031,11 @@ h2 {
 }
 .demo-viewer-steps button span {
   color: #8c9bc0;
-  font: 11px ui-monospace, SFMono-Regular, Menlo, monospace;
+  font:
+    11px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
 }
 .demo-viewer-steps button strong {
   overflow: hidden;
@@ -11030,7 +11131,9 @@ h2 {
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
-  transition: box-shadow 160ms ease, transform 160ms ease;
+  transition:
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 .demo-viewer-hotspot:hover,
 .demo-viewer-hotspot:focus-visible {
