@@ -1888,6 +1888,15 @@ function CaptureEntryPanel({
           <a className="editor-capture-link" href="/step-manager">
             Manage steps
           </a>
+          <a className="editor-capture-link" href="/animation">
+            Tune animations
+          </a>
+          <a className="editor-capture-link" href="/autoplay">
+            Autoplay &amp; loop
+          </a>
+          <a className="editor-capture-link" href="/voiceovers">
+            Voiceovers 2.0
+          </a>
           {captureMode !== "video" && captureMode !== "figma" ? (
             <a className="editor-capture-link" href="/blur-annotate">
               Blur &amp; annotate
