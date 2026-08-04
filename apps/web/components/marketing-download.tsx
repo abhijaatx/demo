@@ -209,7 +209,7 @@ export function MarketingDownloadPage() {
             <h2>Desktop Recorder</h2>
             <p>Record your full window, desktop apps, and mobile apps in high quality.</p>
             <div className="download-platform-actions">
-              <a href="/downloaded"> Download for Mac</a>
+              <a href="/desktop-recorder"> Try desktop recorder</a>
               <a href="https://www.microsoft.com/store/apps/9MW7WVDXWWFH">▦ Download for Windows</a>
             </div>
             <DownloadFeatureList items={desktopFeatures} />
@@ -218,7 +218,7 @@ export function MarketingDownloadPage() {
         <div className="download-more-options">
           <h2>Need more recording options?</h2>
           <p>
-            Download the <a href="/features/figma">Figma Plugin</a> or create a Supademo by{" "}
+            Download the <a href="/figma-plugin">Figma Plugin importer</a> or create a Supademo by{" "}
             <a href="https://docs.supademo.com/create/by-method/create-from-uploads">
               uploading videos and images
             </a>

@@ -16,7 +16,7 @@ test("download page exposes safe recorder choices and bounded feature lists", as
   assert.match(surface, /Chrome Extension/u);
   assert.match(surface, /Desktop Recorder/u);
   assert.match(surface, /chromewebstore\.google\.com/u);
-  assert.match(surface, /Download for Mac/u);
+  assert.match(surface, /Try desktop recorder/u);
   assert.match(surface, /Download for Windows/u);
   assert.match(surface, /Figma Plugin/u);
   assert.match(css, /\.download-choice-grid/u);

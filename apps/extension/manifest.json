@@ -3,7 +3,7 @@
   "name": "SupaDemo Interactive Capture",
   "version": "0.1.0",
   "description": "Capture web workflows into interactive product demos.",
-  "permissions": ["activeTab", "storage"],
+  "permissions": ["activeTab", "scripting", "storage"],
   "action": {
     "default_title": "SupaDemo Capture",
     "default_popup": "popup.html"
@@ -11,5 +11,21 @@
   "background": {
     "service_worker": "background.js",
     "type": "module"
+  },
+  "commands": {
+    "start-recording": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+8",
+        "mac": "Command+Shift+8"
+      },
+      "description": "Start or stop a SupaDemo recording"
+    },
+    "instant-screenshot": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+9",
+        "mac": "Command+Shift+9"
+      },
+      "description": "Capture an instant SupaDemo screenshot"
+    }
   }
 }

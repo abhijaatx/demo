@@ -8,7 +8,15 @@ type DemoEditPageProps = {
     Promise<{ capture?: string; sample?: string }> | { capture?: string; sample?: string };
 };
 
-const captureModes = ["guided", "html", "sandbox", "screenshot", "video", "upload"] as const;
+const captureModes = [
+  "guided",
+  "html",
+  "sandbox",
+  "screenshot",
+  "video",
+  "upload",
+  "figma"
+] as const;
 type CaptureMode = (typeof captureModes)[number];
 
 export default async function DemoEditPage({ params, searchParams }: DemoEditPageProps) {

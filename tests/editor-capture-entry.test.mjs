@@ -22,9 +22,6 @@ test("capture entry exposes bounded media imports and preserves the browser trus
 
   assert.match(route, /searchParams\?/u);
   assert.match(route, /resolvedSearchParams\.sample === "1"/u);
-  assert.match(
-    route,
-    /captureModes = \["guided", "html", "sandbox", "screenshot", "video", "upload"\]/u
-  );
+  assert.match(route, /const captureModes = \[[\s\S]*"figma"/u);
   assert.match(surface, /encodeURIComponent\(selectedMode\)/u);
 });

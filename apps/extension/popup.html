@@ -5,17 +5,91 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SupaDemo Capture</title>
     <style>
-      body { width: 280px; margin: 0; padding: 16px; color: #172033; font: 14px/1.45 system-ui, sans-serif; }
-      h1 { margin: 0 0 6px; font-size: 17px; } p { margin: 0 0 14px; color: #526077; }
-      button { width: 100%; border: 0; border-radius: 8px; padding: 10px 12px; background: #5146e5; color: #fff; font: inherit; font-weight: 650; cursor: pointer; }
-      button:disabled { cursor: wait; opacity: .7; } #status { min-height: 20px; margin-top: 12px; color: #526077; font-size: 12px; }
+      :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+      * { box-sizing: border-box; }
+      body { width: 370px; margin: 0; padding: 16px; color: #172033; background: #fff; font-size: 13px; line-height: 1.4; }
+      h1 { margin: 0; font-size: 18px; letter-spacing: -.02em; }
+      h2 { margin: 18px 0 8px; font-size: 12px; color: #667085; text-transform: uppercase; letter-spacing: .07em; }
+      p { margin: 4px 0 0; color: #667085; }
+      label { display: grid; gap: 5px; color: #344054; font-weight: 600; }
+      select { width: 100%; border: 1px solid #d0d5dd; border-radius: 8px; padding: 8px 10px; background: #fff; color: inherit; font: inherit; }
+      fieldset { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; border: 0; }
+      fieldset label { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+      input[type="checkbox"] { width: 15px; height: 15px; accent-color: #5146e5; }
+      .header { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+      .status { min-height: 20px; margin-top: 10px; color: #475467; }
+      .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+      button { border: 1px solid #d0d5dd; border-radius: 8px; padding: 9px 10px; background: #fff; color: #344054; font: inherit; font-weight: 650; cursor: pointer; }
+      button.primary { border-color: #5146e5; background: #5146e5; color: #fff; }
+      button:disabled { cursor: not-allowed; opacity: .5; }
+      .small-controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+      .warnings, .steps { margin: 0; padding: 0; list-style: none; }
+      .warning, .step { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid #fedf89; border-radius: 8px; background: #fffaeb; color: #7a2e0e; }
+      .warning + .warning, .step + .step { margin-top: 6px; }
+      .warning button { padding: 4px 7px; font-size: 11px; }
+      .step { border-color: #eaecf0; background: #f9fafb; color: #475467; }
+      .step span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .muted { color: #98a2b3; font-size: 12px; }
     </style>
   </head>
   <body>
-    <h1>Capture a page</h1>
-    <p>Save the title and clean URL of the current tab to your local extension storage.</p>
-    <button id="capture" type="button">Capture current tab</button>
-    <p id="status" role="status" aria-live="polite"></p>
+    <div class="header">
+      <div>
+        <h1>Capture a SupaDemo</h1>
+        <p>Record the current page as a guided interactive workflow.</p>
+      </div>
+    </div>
+    <p id="status" class="status" role="status" aria-live="polite">Ready to capture.</p>
+
+    <label for="mode">
+      Capture mode
+      <select id="mode">
+        <option value="html">HTML hotspots</option>
+        <option value="screenshot">Screenshots</option>
+        <option value="video">Video recording</option>
+      </select>
+    </label>
+
+    <fieldset aria-label="Capture settings">
+      <label><input id="shareWithWorkspace" type="checkbox" checked /> Share with workspace</label>
+      <label><input id="enableVideo" type="checkbox" /> Enable video recording</label>
+      <label><input id="autoZoom" type="checkbox" checked /> Apply auto zoom</label>
+    </fieldset>
+
+    <label for="dimensions">
+      Recording dimensions
+      <select id="dimensions">
+        <option value="1280x720">1280 × 720</option>
+        <option value="1440x900">1440 × 900</option>
+        <option value="1920x1080">1920 × 1080</option>
+      </select>
+    </label>
+
+    <div class="controls">
+      <button id="start" class="primary" type="button">Start recording</button>
+      <button id="stop" type="button">Stop</button>
+    </div>
+    <div class="small-controls">
+      <button id="pause" type="button">Pause</button>
+      <button id="resume" type="button">Resume</button>
+      <button id="screenshot" type="button">Instant screenshot</button>
+    </div>
+    <div class="small-controls">
+      <button id="download" type="button">Download JSON</button>
+      <button id="clear" type="button">Clear</button>
+      <button id="workspace" type="button">Open workspace</button>
+    </div>
+
+    <h2>Capture warnings</h2>
+    <ul id="warnings" class="warnings">
+      <li class="muted">No warnings.</li>
+    </ul>
+
+    <h2>Recorded steps</h2>
+    <ol id="steps" class="steps">
+      <li class="muted">No steps yet.</li>
+    </ol>
+
     <script src="popup.js"></script>
   </body>
 </html>

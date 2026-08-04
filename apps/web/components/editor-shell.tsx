@@ -60,7 +60,8 @@ import {
 } from "../src/lib/offline-export";
 import { ChapterEditor } from "./editor/chapter-editor";
 
-export type CaptureMode = "guided" | "html" | "sandbox" | "screenshot" | "video" | "upload";
+export type CaptureMode =
+  "guided" | "html" | "sandbox" | "screenshot" | "video" | "upload" | "figma";
 
 const captureModeCopy: Record<CaptureMode, { title: string; description: string }> = {
   guided: {
@@ -90,6 +91,10 @@ const captureModeCopy: Record<CaptureMode, { title: string; description: string 
     title: "Upload media",
     description:
       "Bring in screenshots or video you already recorded. Files stay local until you save them."
+  },
+  figma: {
+    title: "Figma prototype import",
+    description: "Arrange imported frames, add hotspots, and prepare the prototype for sharing."
   }
 };
 
