@@ -14,7 +14,7 @@ const journeyStages = [
     label: "Edit",
     description: "Arrange steps and add only the guidance your viewer needs.",
     action: "Open a sample",
-    href: "/demos/demo-product-tour/edit",
+    href: "/demos/demo-product-tour/edit?sample=1",
     tone: "lilac"
   },
   {
@@ -138,7 +138,7 @@ export default async function WorkspaceHomePage(props: WorkspaceHomeProps) {
                 {recentDemos.map((demo) => (
                   <a
                     className="demo-row"
-                    href={`/demos/${encodeURIComponent(demo.id)}/edit`}
+                    href={`/demos/${encodeURIComponent(demo.id)}/edit?sample=1`}
                     key={demo.id}
                   >
                     <span className="demo-thumbnail" aria-hidden="true">

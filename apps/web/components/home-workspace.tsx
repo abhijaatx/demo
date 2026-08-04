@@ -265,7 +265,7 @@ export function HomeWorkspace() {
                 visibleDemos.map((demo) => (
                   <a
                     className="home-demo-card"
-                    href={`/demos/${demo.id}/edit`}
+                    href={`/demos/${demo.id}/edit?sample=1`}
                     key={`${activeTab}-${demo.title}`}
                   >
                     <span className={`home-demo-thumb tone-${demo.tone}`}>

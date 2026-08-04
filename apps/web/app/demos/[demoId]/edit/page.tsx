@@ -2,9 +2,24 @@ import { createDefaultDemoDocument } from "@supademo/domain";
 import React from "react";
 import { EditorShell } from "../../../../components/editor-shell";
 
-export default async function DemoEditPage({ params }: { params: Promise<{ demoId: string }> }) {
+type DemoEditPageProps = {
+  params: Promise<{ demoId: string }>;
+  searchParams?:
+    Promise<{ capture?: string; sample?: string }> | { capture?: string; sample?: string };
+};
+
+const captureModes = ["guided", "html", "sandbox", "screenshot", "video", "upload"] as const;
+type CaptureMode = (typeof captureModes)[number];
+
+export default async function DemoEditPage({ params, searchParams }: DemoEditPageProps) {
   const { demoId } = await params;
-  const isLocalSample = demoId.startsWith("demo-");
+  const resolvedSearchParams = searchParams ? await Promise.resolve(searchParams) : {};
+  const captureMode: CaptureMode = captureModes.includes(
+    resolvedSearchParams.capture as CaptureMode
+  )
+    ? (resolvedSearchParams.capture as CaptureMode)
+    : "guided";
+  const isLocalSample = resolvedSearchParams.sample === "1";
   const emptyDocument = createDefaultDemoDocument(demoId);
   const initialDocument = isLocalSample
     ? {
@@ -50,6 +65,7 @@ export default async function DemoEditPage({ params }: { params: Promise<{ demoI
       initialDocument={initialDocument}
       readOnly={isLocalSample}
       saveState="saved"
+      captureMode={captureMode}
     />
   );
 }

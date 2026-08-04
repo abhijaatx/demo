@@ -43,5 +43,18 @@ test("EditorShell keeps the reference authoring surfaces and accessible mutation
   assert.match(source, /aria-label="Demo Title"/u);
   assert.match(source, /aria-label=\{hotspot\.tooltipText/u);
   assert.match(source, /\+ Add hotspot/u);
+  assert.match(source, /handleDuplicateStep/u);
+  assert.match(source, /handleDeleteStep/u);
+  assert.match(source, /handleMoveStep/u);
+  assert.match(source, /Move up/u);
+  assert.match(source, /Move down/u);
+  assert.match(source, /Destination/u);
+  assert.match(source, /Next step \(linear\)/u);
+  assert.match(source, /Delete hotspot/u);
+  assert.match(source, /ArrowUp/u);
+  assert.match(source, /type="range"/u);
+  assert.match(source, /type="color"/u);
+  assert.match(source, /handleUndo/u);
+  assert.match(source, /handleRedo/u);
   assert.doesNotMatch(source, /dangerouslySetInnerHTML|innerHTML|eval\(/u);
 });

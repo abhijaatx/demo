@@ -69,7 +69,7 @@ const demoItems = [
   }
 ] as const;
 
-type CreateMode = "guided" | "screenshot" | "video";
+type CreateMode = "guided" | "html" | "sandbox" | "screenshot" | "video" | "upload";
 
 const createModes: readonly {
   readonly id: CreateMode;
@@ -82,6 +82,16 @@ const createModes: readonly {
     description: "Capture a workflow and add focused steps and hotspots."
   },
   {
+    id: "html",
+    title: "Guided HTML",
+    description: "Capture a realistic, clickable web workflow from your browser."
+  },
+  {
+    id: "sandbox",
+    title: "Sandbox demo",
+    description: "Start an explorable product environment for free-form discovery."
+  },
+  {
     id: "screenshot",
     title: "Screenshot",
     description: "Annotate one crisp screen for an update or quick explanation."
@@ -90,6 +100,11 @@ const createModes: readonly {
     id: "video",
     title: "Video",
     description: "Upload or record a short walkthrough for your team."
+  },
+  {
+    id: "upload",
+    title: "Upload media",
+    description: "Bring in screenshots or a video you already recorded."
   }
 ];
 
@@ -367,7 +382,13 @@ function DemosSurface({ mode }: { mode: "demos" | "screenshots" | "videos" }) {
   const createOpen = searchParams.get("new") === "1";
   const requestedMode = searchParams.get("mode");
   const defaultCreateMode: CreateMode =
-    requestedMode === "screenshot" || requestedMode === "video" ? requestedMode : "guided";
+    requestedMode === "html" ||
+    requestedMode === "sandbox" ||
+    requestedMode === "screenshot" ||
+    requestedMode === "video" ||
+    requestedMode === "upload"
+      ? requestedMode
+      : "guided";
   const showingScreenshots = mode === "screenshots" || segment === "Screenshots";
   const title =
     mode === "videos" ? "Videos" : showingScreenshots ? "Screenshots" : "Team Supademos";
@@ -401,12 +422,11 @@ function DemosSurface({ mode }: { mode: "demos" | "screenshots" | "videos" }) {
   };
 
   const startCreate = (selectedMode: CreateMode): void => {
-    const destination =
-      selectedMode === "screenshot"
-        ? "/demos/demo-screenshot/edit?capture=screenshot"
-        : selectedMode === "video"
-          ? "/demos/demo-video/edit?capture=video"
-          : "/demos/demo-product-tour/edit?capture=guided";
+    const draftId =
+      typeof globalThis.crypto?.randomUUID === "function"
+        ? `draft-${globalThis.crypto.randomUUID()}`
+        : `draft-${Date.now().toString(36)}`;
+    const destination = `/demos/${draftId}/edit?capture=${encodeURIComponent(selectedMode)}`;
     closeCreate();
     router.push(destination);
   };
@@ -570,7 +590,7 @@ function DemosSurface({ mode }: { mode: "demos" | "screenshots" | "videos" }) {
           <div className={`workspace-ref-card-row ${layout === "list" ? "is-list" : ""}`}>
             {sortedItems.map((item) => (
               <div className="workspace-ref-demo-card-wrap" key={item.name}>
-                <a className="workspace-ref-demo-card" href={`/demos/${item.id}/edit`}>
+                <a className="workspace-ref-demo-card" href={`/demos/${item.id}/edit?sample=1`}>
                   <DemoThumb tone={item.tone} image={item.image} />
                   <strong>{item.name}</strong>
                   <small>
@@ -587,7 +607,7 @@ function DemosSurface({ mode }: { mode: "demos" | "screenshots" | "videos" }) {
                 </button>
                 {menu === item.name ? (
                   <div className="workspace-ref-card-popover" role="menu">
-                    <a href={`/demos/${item.id}/edit`} role="menuitem">
+                    <a href={`/demos/${item.id}/edit?sample=1`} role="menuitem">
                       Open editor
                     </a>
                     <button type="button" onClick={() => choose(`Renamed ${item.name}`)}>

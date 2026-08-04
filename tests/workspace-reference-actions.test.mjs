@@ -17,16 +17,19 @@ test("reference workspace creation actions use bounded destinations and accessib
   assert.match(surface, /role="listbox" aria-label="Demo format"/u);
   assert.match(surface, /role="option"/u);
   assert.match(surface, /Capture a workflow and add focused steps and hotspots\./u);
-  assert.match(surface, /\/demos\/demo-screenshot\/edit\?capture=screenshot/u);
-  assert.match(surface, /\/demos\/demo-video\/edit\?capture=video/u);
-  assert.match(surface, /\/demos\/demo-product-tour\/edit\?capture=guided/u);
-  assert.match(surface, /href=\{`\/demos\/\$\{item\.id\}\/edit`\}/u);
+  assert.match(
+    surface,
+    /type CreateMode = "guided" \| "html" \| "sandbox" \| "screenshot" \| "video" \| "upload"/u
+  );
+  assert.match(surface, /draft-\$\{globalThis\.crypto\.randomUUID\(\)\}/u);
+  assert.match(surface, /\/edit\?capture=\$\{encodeURIComponent\(selectedMode\)\}/u);
+  assert.match(surface, /href=\{`\/demos\/\$\{item\.id\}\/edit\?sample=1`\}/u);
   assert.doesNotMatch(
     surface,
     /window\.location|dangerouslySetInnerHTML|innerHTML|eval\(|new Function\(/u
   );
 
-  assert.match(home, /href=\{`\/demos\/\$\{demo\.id\}\/edit`\}/u);
+  assert.match(home, /href=\{`\/demos\/\$\{demo\.id\}\/edit\?sample=1`\}/u);
   assert.match(home, /href="\/ai\/demo-agents"/u);
   assert.match(home, /href=\{lesson\.href\}/u);
   assert.doesNotMatch(home, /dangerouslySetInnerHTML|innerHTML|eval\(|new Function\(/u);
