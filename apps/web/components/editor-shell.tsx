@@ -11,7 +11,9 @@ import {
   generateBranchingDiagnosticSummary,
   generateIframeSnippet,
   generatePopupEmbedSnippet,
+  generateSopHtmlExport,
   generateSopMarkdownExport,
+  generateSopTextExport,
   generatePersonalizedEmbedUrl,
   getAvailableTtsVoices,
   nudgeHotspot,
@@ -44,6 +46,13 @@ import {
 import { Modal } from "@supademo/ui";
 import type { ChangeEvent, KeyboardEvent, RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
+import {
+  createDemoPng,
+  createDemoVideo,
+  downloadBlob,
+  type ExportResolution,
+  type VideoExportFormat
+} from "../src/lib/export-client";
 import { ChapterEditor } from "./editor/chapter-editor";
 
 export type CaptureMode = "guided" | "html" | "sandbox" | "screenshot" | "video" | "upload";
@@ -988,6 +997,24 @@ function downloadTextFile(filename: string, content: string, mimeType: string): 
   URL.revokeObjectURL(url);
 }
 
+function safeDownloadName(value: string): string {
+  return value.replace(/[^a-zA-Z0-9._-]/gu, "-").slice(0, 80) || "supademo";
+}
+
+function openPrintableExport(filename: string, content: string): boolean {
+  if (typeof window === "undefined") return false;
+  const blob = new Blob([content], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const printWindow = window.open(url, "_blank", "noopener,noreferrer");
+  if (!printWindow) {
+    downloadBlob(filename, blob);
+    URL.revokeObjectURL(url);
+    return false;
+  }
+  globalThis.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  return true;
+}
+
 function SharePanel({
   open,
   initialTab,
@@ -1014,6 +1041,12 @@ function SharePanel({
   const [expiringShareUrl, setExpiringShareUrl] = useState("");
   const [expiryStatus, setExpiryStatus] = useState("");
   const [popupOpen, setPopupOpen] = useState(false);
+  const [exportStatus, setExportStatus] = useState("");
+  const [exportBusy, setExportBusy] = useState(false);
+  const [videoFormat, setVideoFormat] = useState<VideoExportFormat>("mp4");
+  const [videoResolution, setVideoResolution] = useState<ExportResolution>("1080p");
+  const [videoFrameRate, setVideoFrameRate] = useState("30");
+  const [videoSlideDuration, setVideoSlideDuration] = useState("2");
 
   useEffect(() => {
     if (!open) return;
@@ -1026,6 +1059,12 @@ function SharePanel({
     setExpiringShareUrl("");
     setExpiryStatus("");
     setPopupOpen(false);
+    setExportStatus("");
+    setExportBusy(false);
+    setVideoFormat("mp4");
+    setVideoResolution("1080p");
+    setVideoFrameRate("30");
+    setVideoSlideDuration("2");
     try {
       const raw = localStorage.getItem(`supademo_published_${demoId}`);
       if (!raw) {
@@ -1095,6 +1134,7 @@ function SharePanel({
   const popupSnippet = generatePopupEmbedSnippet({ demoId });
   const exportDocument = safeExportDocument(demoDocument);
   const sopMarkdown = generateSopMarkdownExport(exportDocument);
+  const exportName = safeDownloadName(demoId);
   const tabs: readonly ShareTab[] = ["Link", "Embed", "Export", "Present"];
 
   const copyText = async (value: string): Promise<void> => {
@@ -1103,6 +1143,78 @@ function SharePanel({
       setCopyStatus("Copied to clipboard");
     } catch {
       setCopyStatus("Copy was blocked. Select the text and copy it manually.");
+    }
+  };
+
+  const copyStepsHtml = async (): Promise<void> => {
+    const html = generateSopHtmlExport(exportDocument);
+    const text = generateSopTextExport(exportDocument);
+    try {
+      if (typeof ClipboardItem !== "undefined" && navigator.clipboard.write) {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "text/html": new Blob([html], { type: "text/html" }),
+            "text/plain": new Blob([text], { type: "text/plain" })
+          })
+        ]);
+        setCopyStatus("Copied rich steps to clipboard");
+        return;
+      }
+    } catch {
+      // Fall back to plain text in browsers that block rich clipboard writes.
+    }
+    await copyText(html);
+  };
+
+  const handlePrintPdf = (): void => {
+    const printableHtml = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Supademo export</title><style>body{margin:32px;color:#172033;font:16px/1.5 system-ui,sans-serif}article{max-width:900px;margin:auto}img{display:block;max-width:100%;max-height:520px;object-fit:contain;border:1px solid #d6dce8;border-radius:8px}section{break-inside:avoid;margin:28px 0}h1{font-size:28px}h2{font-size:21px}</style></head><body>${generateSopHtmlExport(exportDocument)}</body></html>`;
+    const opened = openPrintableExport(`${exportName}-export.html`, printableHtml);
+    setExportStatus(
+      opened
+        ? "Printable export opened. Use your browser's Print → Save as PDF."
+        : "Popup blocked; the printable export was downloaded as HTML."
+    );
+  };
+
+  const handlePngExport = async (): Promise<void> => {
+    setExportBusy(true);
+    setExportStatus("");
+    try {
+      const blob = await createDemoPng(exportDocument);
+      downloadBlob(`${exportName}-steps.png`, blob);
+      setExportStatus("PNG export downloaded.");
+    } catch (error: unknown) {
+      setExportStatus(error instanceof Error ? error.message : "PNG export failed.");
+    } finally {
+      setExportBusy(false);
+    }
+  };
+
+  const handleVideoExport = async (): Promise<void> => {
+    if (exportDocument.steps.length > 70) {
+      setExportStatus("Video exports are limited to 70 steps. Split this demo before exporting.");
+      return;
+    }
+    setExportBusy(true);
+    setExportStatus("Rendering export… keep this tab open until the download starts.");
+    try {
+      const result = await createDemoVideo(exportDocument, {
+        format: videoFormat,
+        resolution: videoResolution,
+        frameRate: Number(videoFrameRate),
+        slideDurationMs: Number(videoSlideDuration) * 1_000,
+        transitionDelayMs: 250
+      });
+      downloadBlob(`${exportName}.${result.extension}`, result.blob);
+      setExportStatus(
+        result.extension === videoFormat
+          ? `${videoFormat.toUpperCase()} export downloaded.`
+          : `${videoFormat.toUpperCase()} is not available in this browser; WebM fallback downloaded.`
+      );
+    } catch (error: unknown) {
+      setExportStatus(error instanceof Error ? error.message : "Video export failed.");
+    } finally {
+      setExportBusy(false);
     }
   };
 
@@ -1413,14 +1525,35 @@ function SharePanel({
       {tab === "Export" ? (
         <div className="editor-share-section">
           <p className="editor-share-lede">
-            Download a handoff for your team or keep the structured document as a backup.
+            Repurpose the demo as a guide, printable PDF, image, or video for teams that cannot use
+            an embed.
           </p>
+          <div className="editor-share-section-heading">
+            <strong>Copy Steps</strong>
+            <small className="editor-share-note">
+              Copy every step as image-plus-text content for Notion, Confluence, or a CMS.
+            </small>
+          </div>
           <div className="editor-share-export-grid">
             <button
               type="button"
               className="editor-button editor-button-secondary"
+              onClick={() => void copyStepsHtml()}
+            >
+              Copy Steps (HTML)
+            </button>
+            <button
+              type="button"
+              className="editor-button editor-button-secondary"
+              onClick={() => void copyText(generateSopTextExport(exportDocument))}
+            >
+              Copy Steps (Text)
+            </button>
+            <button
+              type="button"
+              className="editor-button editor-button-secondary"
               onClick={() =>
-                downloadTextFile(`${demoId}-sop.md`, sopMarkdown, "text/markdown;charset=utf-8")
+                downloadTextFile(`${exportName}-sop.md`, sopMarkdown, "text/markdown;charset=utf-8")
               }
             >
               Download SOP (Markdown)
@@ -1430,7 +1563,7 @@ function SharePanel({
               className="editor-button editor-button-secondary"
               onClick={() =>
                 downloadTextFile(
-                  `${demoId}.json`,
+                  `${exportName}.json`,
                   JSON.stringify(exportDocument, null, 2),
                   "application/json"
                 )
@@ -1439,6 +1572,96 @@ function SharePanel({
               Download document (JSON)
             </button>
           </div>
+          <div className="editor-share-section-heading">
+            <strong>Export to PDF or PNG</strong>
+            <small className="editor-share-note">
+              PDF opens a print-ready guide; PNG downloads a bounded contact sheet of the steps.
+            </small>
+          </div>
+          <div className="editor-share-export-grid">
+            <button
+              type="button"
+              className="editor-button editor-button-secondary"
+              onClick={handlePrintPdf}
+              disabled={exportBusy}
+            >
+              Export to PDF
+            </button>
+            <button
+              type="button"
+              className="editor-button editor-button-secondary"
+              onClick={() => void handlePngExport()}
+              disabled={exportBusy}
+            >
+              Export to PNG
+            </button>
+          </div>
+          <div className="editor-share-section-heading">
+            <strong>Export to MP4/GIF</strong>
+            <small className="editor-share-note">
+              Video exports support up to 70 steps. Encoder support varies by browser; unsupported
+              formats use WebM.
+            </small>
+          </div>
+          <div className="editor-share-export-controls">
+            <label>
+              Format
+              <select
+                value={videoFormat}
+                onChange={(event) => setVideoFormat(event.target.value as VideoExportFormat)}
+              >
+                <option value="mp4">MP4</option>
+                <option value="gif">GIF</option>
+              </select>
+            </label>
+            <label>
+              Resolution
+              <select
+                value={videoResolution}
+                onChange={(event) => setVideoResolution(event.target.value as ExportResolution)}
+              >
+                <option value="720p">720p</option>
+                <option value="1080p">1080p</option>
+                <option value="4k">4K</option>
+              </select>
+            </label>
+            <label>
+              Frame rate
+              <select
+                value={videoFrameRate}
+                onChange={(event) => setVideoFrameRate(event.target.value)}
+              >
+                <option value="24">24 FPS</option>
+                <option value="30">30 FPS</option>
+                <option value="60">60 FPS</option>
+              </select>
+            </label>
+            <label>
+              Slide duration
+              <select
+                value={videoSlideDuration}
+                onChange={(event) => setVideoSlideDuration(event.target.value)}
+              >
+                <option value="1">1 second</option>
+                <option value="2">2 seconds</option>
+                <option value="3">3 seconds</option>
+                <option value="5">5 seconds</option>
+              </select>
+            </label>
+          </div>
+          <button
+            type="button"
+            className="editor-button editor-button-primary"
+            onClick={() => void handleVideoExport()}
+            disabled={exportBusy}
+          >
+            {exportBusy ? "Rendering export…" : `Download as ${videoFormat.toUpperCase()}`}
+          </button>
+          {exportStatus ? (
+            <p className="editor-share-feedback" role="status">
+              {exportStatus}
+            </p>
+          ) : null}
           <p className="editor-share-note">
             Media paths are included only when they use a safe HTTPS or local blob URL.
           </p>

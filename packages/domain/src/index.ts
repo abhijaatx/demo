@@ -453,7 +453,10 @@ export {
 
 export {
   generateSharingMetadata,
+  generateSopHtmlExport,
   generateSopMarkdownExport,
+  generateSopTextExport,
+  type CopyStepsFormat,
   type SharingMetadata
 } from "./sharing-exports.js";
 

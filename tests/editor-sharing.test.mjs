@@ -15,8 +15,17 @@ test("editor sharing exposes link, embed, export, and present flows with bounded
   assert.match(editor, /publishDemoDocument\(exportDocument/u);
   assert.match(editor, /generateIframeSnippet/u);
   assert.match(editor, /generateSopMarkdownExport/u);
+  assert.match(editor, /generateSopHtmlExport/u);
+  assert.match(editor, /generateSopTextExport/u);
   assert.match(editor, /Trackable link label/u);
   assert.match(editor, /Copy embed code/u);
+  assert.match(editor, /Copy Steps \(HTML\)/u);
+  assert.match(editor, /Copy Steps \(Text\)/u);
+  assert.match(editor, /Export to PDF/u);
+  assert.match(editor, /Export to PNG/u);
+  assert.match(editor, /Download as \$\{videoFormat\.toUpperCase\(\)\}/u);
+  assert.match(editor, /value="mp4"/u);
+  assert.match(editor, /value="gif"/u);
   assert.match(editor, /Download SOP \(Markdown\)/u);
   assert.match(editor, /Open viewer preview/u);
   assert.match(editor, /sanitizeTrackingKey/u);
