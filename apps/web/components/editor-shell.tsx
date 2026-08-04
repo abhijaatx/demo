@@ -20,6 +20,7 @@ import {
 import { Modal } from "@supademo/ui";
 import type { ChangeEvent, KeyboardEvent, RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
+import { ChapterEditor } from "./editor/chapter-editor";
 
 export type CaptureMode = "guided" | "html" | "sandbox" | "screenshot" | "video" | "upload";
 
@@ -58,6 +59,15 @@ function normalizeStepOrder(steps: readonly DemoStep[]): readonly DemoStep[] {
   return steps.map((step, index) => ({ ...step, orderIndex: index }));
 }
 
+function normalizeChapterOrder(chapters: DemoDocument["chapters"]): DemoDocument["chapters"] {
+  return [...chapters]
+    .sort((a, b) => a.orderIndex - b.orderIndex)
+    .map((chapter) => ({
+      ...chapter,
+      orderIndex: Math.max(0, Math.floor(chapter.orderIndex))
+    }));
+}
+
 function clampPercent(value: number, minimum = 0, maximum = 100): number {
   if (!Number.isFinite(value)) return minimum;
   return Math.min(maximum, Math.max(minimum, value));
@@ -66,6 +76,26 @@ function clampPercent(value: number, minimum = 0, maximum = 100): number {
 function safeExportDocument(document: DemoDocument): DemoDocument {
   return {
     ...document,
+    chapters: document.chapters.map((chapter) => ({
+      ...chapter,
+      // Presenter notes are authoring-only and must never be published or exported.
+      presenterNotes: null,
+      mediaUrl: chapter.mediaUrl && isSafeMediaUrl(chapter.mediaUrl) ? chapter.mediaUrl : null,
+      buttons: chapter.buttons.map((button) => {
+        const safeUrl = validateSafeUrl(button.url);
+        return {
+          ...button,
+          actionType:
+            button.actionType === "url" && safeUrl
+              ? "url"
+              : button.actionType === "url"
+                ? "next"
+                : button.actionType,
+          targetStepId: button.actionType === "url" && safeUrl ? null : button.targetStepId,
+          url: button.actionType === "url" ? safeUrl : null
+        };
+      })
+    })),
     steps: document.steps.map((step) => ({
       ...step,
       hotspots: step.hotspots.map((hotspot) => {
@@ -218,7 +248,7 @@ function SharePanel({
       return;
     }
     try {
-      const manifest = publishDemoDocument(demoDocument, publishedManifest?.version ?? 0);
+      const manifest = publishDemoDocument(exportDocument, publishedManifest?.version ?? 0);
       setPublishedManifest(manifest);
       setPublishError("");
       try {
@@ -356,7 +386,7 @@ function SharePanel({
               onClick={() =>
                 downloadTextFile(
                   `${demoId}.json`,
-                  JSON.stringify(demoDocument, null, 2),
+                  JSON.stringify(exportDocument, null, 2),
                   "application/json"
                 )
               }
@@ -484,6 +514,7 @@ export function EditorShell({
   const [selectedStepId, setSelectedStepId] = useState<string | null>(
     initialDocument.steps[0]?.id ?? null
   );
+  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
   const [selectedHotspotId, setSelectedHotspotId] = useState<string | null>(null);
   const [captureStatus, setCaptureStatus] = useState("");
   const [captureError, setCaptureError] = useState("");
@@ -514,6 +545,7 @@ export function EditorShell({
       if (restored.demoId !== demoId) return;
       setDocument(restored);
       setSelectedStepId(restored.steps[0]?.id ?? null);
+      setSelectedChapterId(null);
       setSelectedHotspotId(null);
     } catch {
       // A malformed or stale local draft fails closed to the server-provided empty document.
@@ -521,6 +553,8 @@ export function EditorShell({
   }, [demoId, initialDocument.steps.length, readOnly]);
 
   const selectedStep = document.steps.find((s) => s.id === selectedStepId) ?? null;
+  const selectedChapter =
+    document.chapters.find((chapter) => chapter.id === selectedChapterId) ?? null;
   const selectedHotspot = selectedStep?.hotspots.find((h) => h.id === selectedHotspotId) ?? null;
   const branchSummary = generateBranchingDiagnosticSummary(document);
 
@@ -561,6 +595,11 @@ export function EditorShell({
     const restoredStep =
       updated.steps.find((step) => step.id === selectedStepId) ?? updated.steps[0];
     setSelectedStepId(restoredStep?.id ?? null);
+    setSelectedChapterId(
+      updated.chapters.some((chapter) => chapter.id === selectedChapterId)
+        ? selectedChapterId
+        : null
+    );
     setSelectedHotspotId(
       restoredStep?.hotspots.some((hotspot) => hotspot.id === selectedHotspotId)
         ? selectedHotspotId
@@ -608,6 +647,81 @@ export function EditorShell({
     const updated = { ...document, steps: [...document.steps, newStep] };
     commitDocument(updated);
     setSelectedStepId(newStepId);
+    setSelectedChapterId(null);
+    setSelectedHotspotId(null);
+  };
+
+  const handleAddChapter = (): void => {
+    if (readOnly) return;
+    const selectedStepIndex = selectedStep
+      ? document.steps.findIndex((step) => step.id === selectedStep.id)
+      : -1;
+    const orderIndex =
+      selectedStepIndex >= 0
+        ? selectedStepIndex
+        : (selectedChapter?.orderIndex ?? document.steps.length);
+    const chapterId = makeLocalId("chapter");
+    const chapter = {
+      id: chapterId,
+      type: "intro" as const,
+      orderIndex: Math.max(0, Math.min(document.steps.length, orderIndex)),
+      title: `Chapter ${document.chapters.length + 1}`,
+      bodyText: "Add context before the viewer continues.",
+      mediaAssetId: null,
+      mediaUrl: null,
+      presenterNotes: null,
+      buttons: [
+        {
+          id: makeLocalId("chapter-button"),
+          label: "Continue",
+          actionType: "next" as const,
+          targetStepId: null,
+          url: null
+        }
+      ]
+    };
+    commitDocument({
+      ...document,
+      chapters: normalizeChapterOrder([...document.chapters, chapter])
+    });
+    setSelectedChapterId(chapterId);
+    setSelectedStepId(null);
+    setSelectedHotspotId(null);
+  };
+
+  const handleUpdateChapter = (updatedChapter: DemoDocument["chapters"][number]): void => {
+    if (readOnly) return;
+    const boundedChapter = {
+      ...updatedChapter,
+      orderIndex: Math.max(
+        0,
+        Math.min(document.steps.length, Math.floor(updatedChapter.orderIndex))
+      ),
+      title: updatedChapter.title.slice(0, 160),
+      bodyText: updatedChapter.bodyText?.slice(0, 4_000) ?? null,
+      mediaUrl: updatedChapter.mediaUrl?.slice(0, 2_048) ?? null,
+      presenterNotes: updatedChapter.presenterNotes?.slice(0, 4_000) ?? null
+    };
+    commitDocument({
+      ...document,
+      chapters: normalizeChapterOrder(
+        document.chapters.map((chapter) =>
+          chapter.id === updatedChapter.id ? boundedChapter : chapter
+        )
+      )
+    });
+  };
+
+  const handleDeleteChapter = (): void => {
+    if (readOnly || !selectedChapter) return;
+    const selectedIndex = document.chapters.findIndex(
+      (chapter) => chapter.id === selectedChapter.id
+    );
+    const remaining = document.chapters.filter((chapter) => chapter.id !== selectedChapter.id);
+    commitDocument({ ...document, chapters: normalizeChapterOrder(remaining) });
+    const fallback = remaining[selectedIndex] ?? remaining[selectedIndex - 1] ?? null;
+    setSelectedChapterId(fallback?.id ?? null);
+    setSelectedStepId(fallback ? null : (document.steps[0]?.id ?? null));
     setSelectedHotspotId(null);
   };
 
@@ -623,6 +737,7 @@ export function EditorShell({
     ]);
     commitDocument({ ...document, steps: nextSteps });
     setSelectedStepId(duplicate.id);
+    setSelectedChapterId(null);
     setSelectedHotspotId(null);
   };
 
@@ -634,6 +749,7 @@ export function EditorShell({
     commitDocument({ ...document, steps: remaining });
     const fallback = remaining[selectedIndex] ?? remaining[selectedIndex - 1] ?? null;
     setSelectedStepId(fallback?.id ?? null);
+    setSelectedChapterId(null);
     setSelectedHotspotId(null);
   };
 
@@ -645,6 +761,7 @@ export function EditorShell({
     if (toIndex < 0 || toIndex >= document.steps.length) return;
     const nextSteps = reorderSteps(document.steps, fromIndex, toIndex);
     commitDocument({ ...document, steps: nextSteps });
+    setSelectedChapterId(null);
   };
 
   const handleCaptureFile = (event: ChangeEvent<HTMLInputElement>): void => {
@@ -949,6 +1066,7 @@ export function EditorShell({
                   className={`editor-step-card${isSelected ? " is-selected" : ""}`}
                   onClick={() => {
                     setSelectedStepId(step.id);
+                    setSelectedChapterId(null);
                     setSelectedHotspotId(null);
                   }}
                   aria-pressed={isSelected}
@@ -967,6 +1085,60 @@ export function EditorShell({
               <p className="editor-empty-state">No steps yet. Add one to start your demo.</p>
             ) : null}
           </div>
+          <div className="editor-panel-heading editor-chapter-heading">
+            <div>
+              <span className="editor-kicker">Context</span>
+              <strong>Chapters ({document.chapters.length})</strong>
+            </div>
+            {!readOnly ? (
+              <button
+                type="button"
+                className="editor-small-button"
+                onClick={handleAddChapter}
+                aria-label="Add chapter"
+              >
+                + Chapter
+              </button>
+            ) : null}
+          </div>
+          <div className="editor-chapter-list" aria-label="Chapter navigation">
+            {document.chapters.map((chapter, index) => {
+              const isSelected = chapter.id === selectedChapterId;
+              const placement =
+                chapter.orderIndex === 0
+                  ? "Beginning"
+                  : chapter.orderIndex >= document.steps.length
+                    ? "End"
+                    : `Before step ${chapter.orderIndex + 1}`;
+              return (
+                <button
+                  key={chapter.id}
+                  type="button"
+                  className={`editor-chapter-card${isSelected ? " is-selected" : ""}`}
+                  onClick={() => {
+                    setSelectedChapterId(chapter.id);
+                    setSelectedStepId(null);
+                    setSelectedHotspotId(null);
+                  }}
+                  aria-pressed={isSelected}
+                >
+                  <span className="editor-chapter-number">
+                    C{String(index + 1).padStart(2, "0")}
+                  </span>
+                  <span className="editor-step-copy">
+                    <strong>{chapter.title}</strong>
+                    <small>
+                      {chapter.type} · {placement} · {chapter.buttons.length} action
+                      {chapter.buttons.length === 1 ? "" : "s"}
+                    </small>
+                  </span>
+                </button>
+              );
+            })}
+            {document.chapters.length === 0 ? (
+              <p className="editor-empty-state">Add a chapter to guide viewers between screens.</p>
+            ) : null}
+          </div>
         </aside>
 
         <main className="editor-canvas" aria-label="Editor Canvas">
@@ -977,7 +1149,31 @@ export function EditorShell({
               {document.steps.length === 1 ? "" : "s"}
             </span>
           </div>
-          {selectedStep ? (
+          {selectedChapter ? (
+            <div className="editor-chapter-preview" aria-label="Chapter preview">
+              <span className="editor-chapter-preview-badge">{selectedChapter.type} · chapter</span>
+              <h2>{selectedChapter.title}</h2>
+              <p>{selectedChapter.bodyText || "Add a description for viewers."}</p>
+              <div className="editor-chapter-preview-actions">
+                {selectedChapter.buttons.map((button) => (
+                  <button
+                    key={button.id}
+                    type="button"
+                    className="editor-button editor-button-primary"
+                    disabled
+                  >
+                    {button.label}
+                  </button>
+                ))}
+                {selectedChapter.buttons.length === 0 ? (
+                  <button type="button" className="editor-button editor-button-secondary" disabled>
+                    Continue
+                  </button>
+                ) : null}
+              </div>
+              <small>Preview only — publish to see this chapter in the viewer.</small>
+            </div>
+          ) : selectedStep ? (
             <div
               className={`editor-preview editor-preview-${document.layout.aspectRatio.replace(":", "-")}`}
             >
@@ -1012,6 +1208,7 @@ export function EditorShell({
                     }`}
                     onClick={(event) => {
                       event.stopPropagation();
+                      setSelectedChapterId(null);
                       setSelectedHotspotId(hotspot.id);
                     }}
                     onKeyDown={handleHotspotKeyDown}
@@ -1065,13 +1262,33 @@ export function EditorShell({
               <strong>
                 {selectedHotspot
                   ? "Hotspot properties"
-                  : selectedStep
-                    ? "Step properties"
-                    : "Demo settings"}
+                  : selectedChapter
+                    ? "Chapter properties"
+                    : selectedStep
+                      ? "Step properties"
+                      : "Demo settings"}
               </strong>
             </div>
           </div>
-          {selectedHotspot ? (
+          {selectedChapter ? (
+            <div className="editor-inspector-stack">
+              <ChapterEditor
+                chapter={selectedChapter}
+                steps={document.steps}
+                readOnly={readOnly}
+                onChangeChapter={handleUpdateChapter}
+              />
+              {!readOnly ? (
+                <button
+                  type="button"
+                  className="editor-button editor-button-danger editor-wide-button"
+                  onClick={handleDeleteChapter}
+                >
+                  Delete chapter
+                </button>
+              ) : null}
+            </div>
+          ) : selectedHotspot ? (
             <div className="editor-inspector-stack">
               <label className="editor-field">
                 <span>Tooltip text</span>

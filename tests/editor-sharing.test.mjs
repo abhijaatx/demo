@@ -12,7 +12,7 @@ test("editor sharing exposes link, embed, export, and present flows with bounded
   ]);
 
   assert.match(editor, /type ShareTab = "Link" \| "Embed" \| "Export" \| "Present"/u);
-  assert.match(editor, /publishDemoDocument\(demoDocument/u);
+  assert.match(editor, /publishDemoDocument\(exportDocument/u);
   assert.match(editor, /generateIframeSnippet/u);
   assert.match(editor, /generateSopMarkdownExport/u);
   assert.match(editor, /Trackable link label/u);
@@ -24,6 +24,10 @@ test("editor sharing exposes link, embed, export, and present flows with bounded
   assert.match(editor, /supademo_draft_/u);
   assert.match(editor, /parseDemoDocument\(JSON\.parse\(raw\)\)/u);
   assert.match(editor, /Destination URL/u);
+  assert.match(editor, /ChapterEditor/u);
+  assert.match(editor, /handleAddChapter/u);
+  assert.match(editor, /Delete chapter/u);
+  assert.match(editor, /mediaUrl/u);
   assert.doesNotMatch(editor, /dangerouslySetInnerHTML|innerHTML|eval\(|new Function\(/u);
 
   assert.match(viewer, /parseDemoDocument/u);
@@ -32,6 +36,8 @@ test("editor sharing exposes link, embed, export, and present flows with bounded
   assert.match(viewer, /safeMediaUrl/u);
   assert.match(viewer, /validateSafeUrl/u);
   assert.match(viewer, /actionType === "open_url"/u);
+  assert.match(viewer, /demo-viewer-chapter/u);
+  assert.match(viewer, /handleChapterButton/u);
   assert.match(viewer, /Next step/u);
   assert.match(viewer, /Previous/u);
   assert.doesNotMatch(viewer, /dangerouslySetInnerHTML|innerHTML|eval\(|new Function\(/u);

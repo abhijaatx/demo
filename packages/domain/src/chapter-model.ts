@@ -22,8 +22,21 @@ export interface DemoChapter {
   readonly title: string;
   readonly bodyText: string | null;
   readonly mediaAssetId: string | null;
+  readonly mediaUrl: string | null;
   readonly presenterNotes: string | null;
   readonly buttons: readonly ChapterButton[];
+}
+
+const MAX_CHAPTER_TITLE_LENGTH = 160;
+const MAX_CHAPTER_BODY_LENGTH = 4_000;
+const MAX_PRESENTER_NOTES_LENGTH = 4_000;
+const MAX_CHAPTER_BUTTONS = 12;
+const MAX_BUTTON_LABEL_LENGTH = 96;
+const MAX_TARGET_ID_LENGTH = 128;
+const MAX_MEDIA_URL_LENGTH = 2_048;
+
+function boundedString(value: unknown, maximum: number): string | null {
+  return typeof value === "string" ? value.slice(0, maximum) : null;
 }
 
 export function parseDemoChapter(input: unknown): DemoChapter {
@@ -33,8 +46,8 @@ export function parseDemoChapter(input: unknown): DemoChapter {
 
   const raw = input as Record<string, unknown>;
 
-  const id =
-    typeof raw["id"] === "string" && raw["id"].trim() ? raw["id"].trim() : `chap-${Date.now()}`;
+  const rawId = boundedString(raw["id"], MAX_TARGET_ID_LENGTH);
+  const id = rawId && rawId.trim() ? rawId.trim() : `chap-${Date.now()}`;
   const validTypes: ChapterType[] = [
     "intro",
     "context",
@@ -49,33 +62,43 @@ export function parseDemoChapter(input: unknown): DemoChapter {
     ? (raw["type"] as ChapterType)
     : "intro";
 
-  const orderIndex = typeof raw["orderIndex"] === "number" ? Math.max(0, raw["orderIndex"]) : 0;
-  const title =
-    typeof raw["title"] === "string" && raw["title"].trim()
-      ? raw["title"].trim()
-      : "Untitled Chapter";
-  const bodyText = typeof raw["bodyText"] === "string" ? raw["bodyText"] : null;
-  const mediaAssetId = typeof raw["mediaAssetId"] === "string" ? raw["mediaAssetId"] : null;
-  const presenterNotes = typeof raw["presenterNotes"] === "string" ? raw["presenterNotes"] : null;
+  const orderIndex =
+    typeof raw["orderIndex"] === "number" && Number.isFinite(raw["orderIndex"])
+      ? Math.max(0, Math.floor(raw["orderIndex"]))
+      : 0;
+  const rawTitle = boundedString(raw["title"], MAX_CHAPTER_TITLE_LENGTH);
+  const title = rawTitle && rawTitle.trim() ? rawTitle.trim() : "Untitled Chapter";
+  const bodyText = boundedString(raw["bodyText"], MAX_CHAPTER_BODY_LENGTH);
+  const mediaAssetId = boundedString(raw["mediaAssetId"], MAX_TARGET_ID_LENGTH);
+  const rawMediaUrl = boundedString(raw["mediaUrl"], MAX_MEDIA_URL_LENGTH);
+  const mediaUrl = rawMediaUrl?.startsWith("blob:") ? rawMediaUrl : validateSafeUrl(rawMediaUrl);
+  const presenterNotes = boundedString(raw["presenterNotes"], MAX_PRESENTER_NOTES_LENGTH);
 
-  const rawButtons = Array.isArray(raw["buttons"]) ? raw["buttons"] : [];
+  const rawButtons = Array.isArray(raw["buttons"])
+    ? raw["buttons"].slice(0, MAX_CHAPTER_BUTTONS)
+    : [];
   const buttons: ChapterButton[] = rawButtons.map((btnRaw, idx) => {
     const btnObj = (btnRaw ?? {}) as Record<string, unknown>;
-    const btnId = typeof btnObj["id"] === "string" ? btnObj["id"] : `btn-${idx}`;
-    const label = typeof btnObj["label"] === "string" ? btnObj["label"] : "Continue";
-    const actionType = ["next", "url", "step"].includes(String(btnObj["actionType"]))
-      ? (String(btnObj["actionType"]) as ChapterButton["actionType"])
+    const rawButtonId = boundedString(btnObj["id"], MAX_TARGET_ID_LENGTH);
+    const btnId = rawButtonId && rawButtonId.trim() ? rawButtonId.trim() : `btn-${idx}`;
+    const rawLabel = boundedString(btnObj["label"], MAX_BUTTON_LABEL_LENGTH);
+    const label = rawLabel && rawLabel.trim() ? rawLabel.trim() : "Continue";
+    const requestedAction = String(btnObj["actionType"]);
+    const parsedAction = ["next", "url", "step"].includes(requestedAction)
+      ? (requestedAction as ChapterButton["actionType"])
       : "next";
-    const targetStepId = typeof btnObj["targetStepId"] === "string" ? btnObj["targetStepId"] : null;
-    const rawUrl = typeof btnObj["url"] === "string" ? btnObj["url"] : null;
+    const rawTargetStepId = boundedString(btnObj["targetStepId"], MAX_TARGET_ID_LENGTH);
+    const targetStepId = rawTargetStepId?.trim() || null;
+    const rawUrl = boundedString(btnObj["url"], 2_048);
     const url = validateSafeUrl(rawUrl);
+    const actionType = parsedAction === "url" && !url ? "next" : parsedAction;
 
     return Object.freeze({
       id: btnId,
       label,
       actionType,
-      targetStepId,
-      url
+      targetStepId: actionType === "url" ? null : targetStepId,
+      url: actionType === "url" ? url : null
     });
   });
 
@@ -86,6 +109,7 @@ export function parseDemoChapter(input: unknown): DemoChapter {
     title,
     bodyText,
     mediaAssetId,
+    mediaUrl,
     presenterNotes,
     buttons: Object.freeze(buttons)
   });

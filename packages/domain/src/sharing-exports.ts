@@ -41,7 +41,25 @@ export function generateSopMarkdownExport(document: DemoDocument): string {
   lines.push(`# Standard Operating Procedure: ${document.demoId}`);
   lines.push("");
   lines.push(`Total Steps: ${document.steps.length}`);
+  lines.push(`Total Chapters: ${document.chapters?.length ?? 0}`);
   lines.push("");
+
+  for (const [idx, chapter] of (document.chapters ?? []).entries()) {
+    lines.push(`## Chapter ${idx + 1}: ${chapter.title}`);
+    if (chapter.bodyText) lines.push(chapter.bodyText);
+    chapter.buttons.forEach((button, buttonIndex) => {
+      const destination =
+        button.actionType === "url"
+          ? button.url
+            ? `Open ${button.url}`
+            : "Open external URL"
+          : button.actionType === "step"
+            ? `Go to step ${button.targetStepId ?? "(unassigned)"}`
+            : "Continue to next step";
+      lines.push(`- Button ${buttonIndex + 1}: ${button.label} — ${destination}`);
+    });
+    lines.push("");
+  }
 
   document.steps.forEach((step, idx) => {
     lines.push(`## Step ${idx + 1}: ${step.title}`);

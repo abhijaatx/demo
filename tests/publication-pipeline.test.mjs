@@ -32,3 +32,48 @@ test("publishDemoDocument creates immutable versioned manifest with content hash
   const unpublished = unpublishDemo(manifest);
   assert.equal(unpublished.isPublished, false);
 });
+
+test("publishDemoDocument strips private chapter notes and unsafe destinations", () => {
+  const doc = createDefaultDemoDocument("demo-pub-chapter");
+  const documentWithChapter = {
+    ...doc,
+    steps: [
+      {
+        id: "s1",
+        orderIndex: 0,
+        title: "S1",
+        media: null,
+        hotspots: [],
+        callouts: [],
+        audioNarration: null
+      }
+    ],
+    chapters: [
+      {
+        id: "chapter-1",
+        type: "cta",
+        orderIndex: 0,
+        title: "Take action",
+        bodyText: "Next step",
+        mediaAssetId: null,
+        mediaUrl: "javascript:alert(1)",
+        presenterNotes: "private presenter context",
+        buttons: [
+          {
+            id: "button-1",
+            label: "Unsafe",
+            actionType: "url",
+            targetStepId: null,
+            url: "javascript:alert(1)"
+          }
+        ]
+      }
+    ]
+  };
+
+  const manifest = publishDemoDocument(documentWithChapter, 0);
+  assert.equal(manifest.document.chapters[0].presenterNotes, null);
+  assert.equal(manifest.document.chapters[0].mediaUrl, null);
+  assert.equal(manifest.document.chapters[0].buttons[0].actionType, "next");
+  assert.equal(manifest.document.chapters[0].buttons[0].url, null);
+});

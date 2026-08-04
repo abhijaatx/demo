@@ -11,6 +11,7 @@
  * - Backward compatibility with document versioning
  */
 
+import { parseDemoChapter, type DemoChapter } from "./chapter-model.js";
 import { validateSafeUrl } from "./hotspot-schema.js";
 
 export const DEMO_DOCUMENT_VERSION = "1.0.0" as const;
@@ -105,6 +106,8 @@ export type DemoDocument = Readonly<{
   settings: DemoSettings;
   layout: DemoLayout;
   steps: readonly DemoStep[];
+  /** Contextual sections rendered before the matching step index. */
+  chapters: readonly DemoChapter[];
   updatedAtIso: string;
 }>;
 
@@ -142,6 +145,7 @@ export function createDefaultDemoDocument(demoId: string): DemoDocument {
     settings: DEFAULT_DEMO_SETTINGS,
     layout: DEFAULT_DEMO_LAYOUT,
     steps: [],
+    chapters: [],
     updatedAtIso: new Date().toISOString()
   });
 }
@@ -177,6 +181,11 @@ export function parseDemoDocument(input: unknown): DemoDocument {
   // Sort steps stably by orderIndex
   steps.sort((a, b) => a.orderIndex - b.orderIndex);
 
+  const chaptersRaw = Array.isArray(raw["chapters"]) ? raw["chapters"] : [];
+  const chapters: DemoChapter[] = chaptersRaw
+    .map((chapterRaw) => parseDemoChapter(chapterRaw))
+    .sort((a, b) => a.orderIndex - b.orderIndex);
+
   const settingsRaw =
     typeof raw["settings"] === "object" && raw["settings"] !== null
       ? (raw["settings"] as Record<string, unknown>)
@@ -192,6 +201,7 @@ export function parseDemoDocument(input: unknown): DemoDocument {
     settings: parseDemoSettings(settingsRaw),
     layout: parseDemoLayout(layoutRaw),
     steps: Object.freeze(steps),
+    chapters: Object.freeze(chapters),
     updatedAtIso:
       typeof raw["updatedAtIso"] === "string" ? raw["updatedAtIso"] : new Date().toISOString()
   });

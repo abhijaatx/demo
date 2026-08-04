@@ -13,6 +13,7 @@ test("createDefaultDemoDocument generates valid document structure", () => {
   assert.equal(doc.version, DEMO_DOCUMENT_VERSION);
   assert.equal(doc.demoId, "demo-123");
   assert.equal(doc.steps.length, 0);
+  assert.deepEqual(doc.chapters, []);
   assert.equal(doc.settings.autoPlay, false);
   assert.equal(doc.layout.aspectRatio, "16:9");
 });
@@ -60,6 +61,31 @@ test("serializeDemoDocument and parseDemoDocument perform round-trip serializati
   assert.equal(reconstructed.demoId, initial.demoId);
   assert.equal(reconstructed.version, initial.version);
   assert.equal(reconstructed.settings.theme.primaryColor, initial.settings.theme.primaryColor);
+});
+
+test("parseDemoDocument preserves chapters at beginning, middle, and end", () => {
+  const parsed = parseDemoDocument({
+    version: "1.0.0",
+    demoId: "demo-chapters",
+    steps: [
+      { id: "step-1", orderIndex: 0, title: "First" },
+      { id: "step-2", orderIndex: 1, title: "Second" }
+    ],
+    chapters: [
+      { id: "chapter-end", orderIndex: 2, title: "Finish", buttons: [] },
+      { id: "chapter-start", orderIndex: 0, title: "Welcome", buttons: [] },
+      { id: "chapter-middle", orderIndex: 1, title: "Context", buttons: [] }
+    ]
+  });
+
+  assert.deepEqual(
+    parsed.chapters.map((chapter) => [chapter.id, chapter.orderIndex]),
+    [
+      ["chapter-start", 0],
+      ["chapter-middle", 1],
+      ["chapter-end", 2]
+    ]
+  );
 });
 
 test("parseDemoDocument rejects malformed shapes with InvalidDemoDocumentError", () => {
