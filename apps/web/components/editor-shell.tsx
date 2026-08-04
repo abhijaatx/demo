@@ -167,6 +167,12 @@ const URL_DESTINATION_OPTION = "__supademo_open_url__";
 
 function isSafeMediaUrl(value: string): boolean {
   if (value.startsWith("blob:")) return true;
+  if (
+    value.length <= 1_800_000 &&
+    /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/u.test(value)
+  ) {
+    return true;
+  }
   try {
     return new URL(value).protocol === "https:";
   } catch {
@@ -1849,6 +1855,21 @@ function CaptureEntryPanel({
           {captureMode === "html" || captureMode === "sandbox" ? (
             <a className="editor-capture-link" href="/download">
               Open recorder setup
+            </a>
+          ) : null}
+          {captureMode === "video" ? (
+            <>
+              <a className="editor-capture-link" href="/screen-recorder">
+                Record screen &amp; camera
+              </a>
+              <a className="editor-capture-link" href="/video-hotspots">
+                Add video hotspots
+              </a>
+            </>
+          ) : null}
+          {captureMode === "upload" ? (
+            <a className="editor-capture-link" href="/upload">
+              Open upload workspace
             </a>
           ) : null}
         </div>

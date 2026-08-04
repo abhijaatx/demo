@@ -219,10 +219,8 @@ export function MarketingDownloadPage() {
           <h2>Need more recording options?</h2>
           <p>
             Download the <a href="/figma-plugin">Figma Plugin importer</a> or create a Supademo by{" "}
-            <a href="https://docs.supademo.com/create/by-method/create-from-uploads">
-              uploading videos and images
-            </a>
-            .
+            <a href="/upload">uploading videos and images</a>. You can also{" "}
+            <a href="/screen-recorder">record your screen and camera</a> directly in the browser.
           </p>
         </div>
       </section>

@@ -17,7 +17,10 @@ test("capture entry exposes bounded media imports and preserves the browser trus
   assert.match(editor, /file\.type\.startsWith\("video\/"\)/u);
   assert.match(editor, /URL\.createObjectURL\(file\)/u);
   assert.match(editor, /URL\.revokeObjectURL\(url\)/u);
+  assert.match(editor, /data:image/u);
+  assert.match(editor, /value\.length <= 1_800_000/u);
   assert.match(editor, /assetType: isVideo \? "video" : "screenshot"/u);
+  assert.match(editor, /href="\/video-hotspots"/u);
   assert.doesNotMatch(editor, /dangerouslySetInnerHTML|innerHTML|eval\(|new Function\(/u);
 
   assert.match(route, /searchParams\?/u);

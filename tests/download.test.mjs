@@ -17,8 +17,11 @@ test("download page exposes safe recorder choices and bounded feature lists", as
   assert.match(surface, /Desktop Recorder/u);
   assert.match(surface, /chromewebstore\.google\.com/u);
   assert.match(surface, /Try desktop recorder/u);
+  assert.match(surface, /screen and camera/u);
+  assert.match(surface, /href="\/screen-recorder"/u);
   assert.match(surface, /Download for Windows/u);
   assert.match(surface, /Figma Plugin/u);
+  assert.match(surface, /href="\/upload"/u);
   assert.match(css, /\.download-choice-grid/u);
   assert.match(css, /\.download-cta/u);
   assert.doesNotMatch(surface, /dangerouslySetInnerHTML|innerHTML|eval\(|new Function\(/u);
