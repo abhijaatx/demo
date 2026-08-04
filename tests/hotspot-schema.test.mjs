@@ -23,3 +23,22 @@ test("parseAndNormalizeHotspot clamps geometry and sets default style", () => {
   assert.equal(hotspot.height, 15);
   assert.equal(hotspot.style.color, "#4f46e5");
 });
+
+test("hotspot URL actions keep safe links and fail closed for unsafe schemes", () => {
+  const safe = parseAndNormalizeHotspot({
+    id: "hotspot-url",
+    actionType: "open_url",
+    url: "https://example.com/next"
+  });
+  assert.equal(safe.actionType, "open_url");
+  assert.equal(safe.targetStepId, null);
+  assert.equal(safe.url, "https://example.com/next");
+
+  const unsafe = parseAndNormalizeHotspot({
+    id: "hotspot-unsafe-url",
+    actionType: "open_url",
+    url: "javascript:alert(document.domain)"
+  });
+  assert.equal(unsafe.actionType, "next_step");
+  assert.equal(unsafe.url, null);
+});

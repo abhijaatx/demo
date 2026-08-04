@@ -10591,6 +10591,16 @@ h2 {
 .editor-field input:disabled {
   opacity: 0.65;
 }
+.editor-url-help {
+  color: #8e9dbd;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.editor-field input[aria-invalid="true"] {
+  border-color: #d98b8b;
+  outline-color: #d98b8b;
+}
 .editor-field select {
   width: 100%;
   min-height: 38px;

@@ -11,6 +11,8 @@
  * - Backward compatibility with document versioning
  */
 
+import { validateSafeUrl } from "./hotspot-schema.js";
+
 export const DEMO_DOCUMENT_VERSION = "1.0.0" as const;
 
 export type AspectRatio = "16:9" | "4:3" | "9:16" | "fit";
@@ -50,6 +52,9 @@ export type DemoHotspot = Readonly<{
   height: number; // Normalized percentage height (0.0 to 100.0)
   targetStepId: string | null; // Next step ID or null for linear sequence
   tooltipText: string | null;
+  /** Optional action metadata; omitted values retain the legacy linear behavior. */
+  actionType?: "next_step" | "prev_step" | "goto_step" | "open_url" | "none";
+  url?: string | null;
   style: DemoHotspotStyle;
 }>;
 
@@ -292,14 +297,34 @@ function parseDemoHotspot(input: unknown): DemoHotspot {
       ? (raw["style"] as Record<string, unknown>)
       : {};
 
+  const requestedAction = String(raw["actionType"] ?? "next_step");
+  const validActions = ["next_step", "prev_step", "goto_step", "open_url", "none"] as const;
+  const parsedAction = validActions.includes(requestedAction as (typeof validActions)[number])
+    ? (requestedAction as (typeof validActions)[number])
+    : "next_step";
+  const safeUrl = validateSafeUrl(typeof raw["url"] === "string" ? raw["url"] : null);
+  const actionType =
+    parsedAction === "open_url" && safeUrl
+      ? parsedAction
+      : parsedAction === "open_url"
+        ? "next_step"
+        : parsedAction;
+
   return Object.freeze({
     id: String(raw["id"]),
     x: Number(raw["x"] ?? 0),
     y: Number(raw["y"] ?? 0),
     width: Number(raw["width"] ?? 10),
     height: Number(raw["height"] ?? 10),
-    targetStepId: typeof raw["targetStepId"] === "string" ? raw["targetStepId"] : null,
+    targetStepId:
+      actionType === "open_url"
+        ? null
+        : typeof raw["targetStepId"] === "string"
+          ? raw["targetStepId"]
+          : null,
     tooltipText: typeof raw["tooltipText"] === "string" ? raw["tooltipText"] : null,
+    actionType,
+    url: actionType === "open_url" ? safeUrl : null,
     style: Object.freeze({
       pulse: Boolean(styleRaw["pulse"] ?? true),
       color: String(styleRaw["color"] ?? "#4f46e5"),

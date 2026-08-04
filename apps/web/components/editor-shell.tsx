@@ -11,6 +11,7 @@ import {
   parseDemoDocument,
   reorderSteps,
   resizeHotspot,
+  validateSafeUrl,
   type DemoDocument,
   type DemoStep,
   type DemoHotspot,
@@ -67,6 +68,16 @@ function safeExportDocument(document: DemoDocument): DemoDocument {
     ...document,
     steps: document.steps.map((step) => ({
       ...step,
+      hotspots: step.hotspots.map((hotspot) => {
+        if (hotspot.actionType !== "open_url") return hotspot;
+        const safeUrl = validateSafeUrl(hotspot.url);
+        return {
+          ...hotspot,
+          actionType: safeUrl ? "open_url" : "next_step",
+          targetStepId: safeUrl ? null : hotspot.targetStepId,
+          url: safeUrl
+        };
+      }),
       media:
         step.media && isSafeMediaUrl(step.media.storagePath)
           ? step.media
@@ -76,6 +87,8 @@ function safeExportDocument(document: DemoDocument): DemoDocument {
     }))
   };
 }
+
+const URL_DESTINATION_OPTION = "__supademo_open_url__";
 
 function isSafeMediaUrl(value: string): boolean {
   if (value.startsWith("blob:")) return true;
@@ -481,6 +494,7 @@ export function EditorShell({
   const [historyVersion, setHistoryVersion] = useState(0);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareInitialTab, setShareInitialTab] = useState<ShareTab>("Link");
+  const [hotspotUrlDraft, setHotspotUrlDraft] = useState("");
 
   useEffect(() => {
     return () => {
@@ -489,9 +503,30 @@ export function EditorShell({
     };
   }, []);
 
+  useEffect(() => {
+    if (readOnly || initialDocument.steps.length > 0 || typeof localStorage === "undefined") {
+      return;
+    }
+    try {
+      const raw = localStorage.getItem(`supademo_draft_${demoId}`);
+      if (!raw) return;
+      const restored = parseDemoDocument(JSON.parse(raw));
+      if (restored.demoId !== demoId) return;
+      setDocument(restored);
+      setSelectedStepId(restored.steps[0]?.id ?? null);
+      setSelectedHotspotId(null);
+    } catch {
+      // A malformed or stale local draft fails closed to the server-provided empty document.
+    }
+  }, [demoId, initialDocument.steps.length, readOnly]);
+
   const selectedStep = document.steps.find((s) => s.id === selectedStepId) ?? null;
   const selectedHotspot = selectedStep?.hotspots.find((h) => h.id === selectedHotspotId) ?? null;
   const branchSummary = generateBranchingDiagnosticSummary(document);
+
+  useEffect(() => {
+    setHotspotUrlDraft(selectedHotspot?.url ?? "");
+  }, [selectedHotspot?.id, selectedHotspot?.url]);
 
   const makeLocalId = (prefix: string): string => {
     if (typeof globalThis.crypto?.randomUUID === "function") {
@@ -677,6 +712,8 @@ export function EditorShell({
       height: 12,
       targetStepId: null,
       tooltipText: "Click to continue",
+      actionType: "next_step",
+      url: null,
       style: { pulse: true, color: "#4f46e5", opacity: 0.8 }
     };
     const updatedSteps = document.steps.map((s) => {
@@ -714,6 +751,8 @@ export function EditorShell({
       height: 12,
       targetStepId: branchStepId,
       tooltipText: `Explore ${branchStep.title}`,
+      actionType: "goto_step",
+      url: null,
       style: { pulse: true, color: "#7c5cff", opacity: 0.86 }
     };
 
@@ -728,6 +767,8 @@ export function EditorShell({
               height: 12,
               targetStepId: nextStep.id,
               tooltipText: "Continue to next step",
+              actionType: "goto_step",
+              url: null,
               style: { pulse: true, color: "#4d56e8", opacity: 0.8 }
             },
             branchChoice
@@ -1047,11 +1088,28 @@ export function EditorShell({
               <label className="editor-field">
                 <span>Destination</span>
                 <select
-                  value={selectedHotspot.targetStepId ?? ""}
-                  disabled={readOnly}
-                  onChange={(event) =>
-                    updateSelectedHotspot({ targetStepId: event.currentTarget.value || null })
+                  value={
+                    selectedHotspot.actionType === "open_url"
+                      ? URL_DESTINATION_OPTION
+                      : (selectedHotspot.targetStepId ?? "")
                   }
+                  disabled={readOnly}
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    if (value === URL_DESTINATION_OPTION) {
+                      updateSelectedHotspot({
+                        actionType: "open_url",
+                        targetStepId: null,
+                        url: validateSafeUrl(hotspotUrlDraft)
+                      });
+                      return;
+                    }
+                    updateSelectedHotspot({
+                      actionType: value ? "goto_step" : "next_step",
+                      targetStepId: value || null,
+                      url: null
+                    });
+                  }}
                 >
                   <option value="">Next step (linear)</option>
                   {document.steps
@@ -1061,8 +1119,34 @@ export function EditorShell({
                         {step.title}
                       </option>
                     ))}
+                  <option value={URL_DESTINATION_OPTION}>Open URL</option>
                 </select>
               </label>
+              {selectedHotspot.actionType === "open_url" ? (
+                <label className="editor-field">
+                  <span>Destination URL</span>
+                  <input
+                    type="url"
+                    inputMode="url"
+                    value={hotspotUrlDraft}
+                    maxLength={2048}
+                    placeholder="https://example.com/next-step"
+                    aria-invalid={Boolean(hotspotUrlDraft && !validateSafeUrl(hotspotUrlDraft))}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value.slice(0, 2048);
+                      setHotspotUrlDraft(value);
+                      updateSelectedHotspot({
+                        actionType: "open_url",
+                        targetStepId: null,
+                        url: validateSafeUrl(value)
+                      });
+                    }}
+                  />
+                  <small className="editor-url-help">
+                    Use an HTTPS link or a relative path. Unsafe URL schemes are blocked.
+                  </small>
+                </label>
+              ) : null}
               <div className="editor-field-grid">
                 {(["x", "y", "width", "height"] as const).map((field) => (
                   <label className="editor-field" key={field}>
@@ -1197,6 +1281,10 @@ export function EditorShell({
                       const target = document.steps.find(
                         (step) => step.id === hotspot.targetStepId
                       );
+                      const destination =
+                        hotspot.actionType === "open_url"
+                          ? hotspot.url || "External URL"
+                          : (target?.title ?? "Next step (linear)");
                       return (
                         <button
                           key={hotspot.id}
@@ -1206,7 +1294,7 @@ export function EditorShell({
                         >
                           <span>{String(index + 1).padStart(2, "0")}</span>
                           <strong>{hotspot.tooltipText || "Untitled path"}</strong>
-                          <small>{target?.title ?? "Next step (linear)"}</small>
+                          <small>{destination}</small>
                         </button>
                       );
                     })}

@@ -3,6 +3,7 @@
  */
 
 import type { DemoHotspot, DemoStep } from "./demo-document.js";
+import { validateSafeUrl } from "./hotspot-schema.js";
 
 export type ResolvedNavigationResult = Readonly<{
   actionType: "next" | "prev" | "step" | "url" | "none";
@@ -18,6 +19,18 @@ export function resolveHotspotNavigation(
   steps: readonly DemoStep[],
   currentStepIndex: number
 ): ResolvedNavigationResult {
+  if (hotspot.actionType === "open_url") {
+    const url = validateSafeUrl(hotspot.url);
+    return Object.freeze({
+      actionType: "url",
+      targetStepIndex: null,
+      targetStepId: null,
+      url,
+      isBroken: !url,
+      diagnosticReason: url ? null : "Hotspot URL is missing or unsafe."
+    });
+  }
+
   // If targetStepId is explicitly set
   if (hotspot.targetStepId) {
     const targetIdx = steps.findIndex((s) => s.id === hotspot.targetStepId);

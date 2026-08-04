@@ -40,6 +40,49 @@ test("resolveHotspotNavigation advances to next step by default", () => {
   assert.equal(res.isBroken, false);
 });
 
+test("resolveHotspotNavigation returns validated external URL actions", () => {
+  const result = resolveHotspotNavigation(
+    {
+      id: "external-link",
+      x: 10,
+      y: 10,
+      width: 20,
+      height: 12,
+      targetStepId: null,
+      tooltipText: "Read the docs",
+      actionType: "open_url",
+      url: "https://example.com/docs",
+      style: { pulse: false, color: "#4f46e5", opacity: 0.8 }
+    },
+    [],
+    0
+  );
+
+  assert.equal(result.actionType, "url");
+  assert.equal(result.url, "https://example.com/docs");
+  assert.equal(result.isBroken, false);
+
+  const unsafe = resolveHotspotNavigation(
+    {
+      id: "unsafe-link",
+      x: 10,
+      y: 10,
+      width: 20,
+      height: 12,
+      targetStepId: null,
+      tooltipText: "Unsafe",
+      actionType: "open_url",
+      url: "javascript:alert(1)",
+      style: { pulse: false, color: "#4f46e5", opacity: 0.8 }
+    },
+    [],
+    0
+  );
+  assert.equal(unsafe.actionType, "url");
+  assert.equal(unsafe.url, null);
+  assert.equal(unsafe.isBroken, true);
+});
+
 test("diagnoseBrokenTargets flags missing target steps", () => {
   const step1 = {
     id: "step-1",

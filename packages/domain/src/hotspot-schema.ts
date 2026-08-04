@@ -55,6 +55,18 @@ export function parseAndNormalizeHotspot(input: unknown): DemoHotspot {
 
   const tooltipText = typeof raw["tooltipText"] === "string" ? raw["tooltipText"] : null;
   const targetStepId = typeof raw["targetStepId"] === "string" ? raw["targetStepId"] : null;
+  const requestedAction = String(raw["actionType"] ?? "next_step");
+  const validActions = ["next_step", "prev_step", "goto_step", "open_url", "none"] as const;
+  const parsedAction = validActions.includes(requestedAction as (typeof validActions)[number])
+    ? (requestedAction as (typeof validActions)[number])
+    : "next_step";
+  const safeUrl = validateSafeUrl(typeof raw["url"] === "string" ? raw["url"] : null);
+  const actionType =
+    parsedAction === "open_url" && safeUrl
+      ? parsedAction
+      : parsedAction === "open_url"
+        ? "next_step"
+        : parsedAction;
 
   const styleRaw = (raw["style"] ?? {}) as Record<string, unknown>;
   const pulse = Boolean(styleRaw["pulse"] ?? true);
@@ -71,8 +83,10 @@ export function parseAndNormalizeHotspot(input: unknown): DemoHotspot {
     y,
     width,
     height,
-    targetStepId,
+    targetStepId: actionType === "open_url" ? null : targetStepId,
     tooltipText,
+    actionType,
+    url: actionType === "open_url" ? safeUrl : null,
     style: Object.freeze({
       pulse,
       color,

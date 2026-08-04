@@ -21,12 +21,17 @@ test("editor sharing exposes link, embed, export, and present flows with bounded
   assert.match(editor, /Open viewer preview/u);
   assert.match(editor, /sanitizeTrackingKey/u);
   assert.match(editor, /isSafeMediaUrl/u);
+  assert.match(editor, /supademo_draft_/u);
+  assert.match(editor, /parseDemoDocument\(JSON\.parse\(raw\)\)/u);
+  assert.match(editor, /Destination URL/u);
   assert.doesNotMatch(editor, /dangerouslySetInnerHTML|innerHTML|eval\(|new Function\(/u);
 
   assert.match(viewer, /parseDemoDocument/u);
   assert.match(viewer, /supademo_published_/u);
   assert.match(viewer, /supademo_view_events_/u);
   assert.match(viewer, /safeMediaUrl/u);
+  assert.match(viewer, /validateSafeUrl/u);
+  assert.match(viewer, /actionType === "open_url"/u);
   assert.match(viewer, /Next step/u);
   assert.match(viewer, /Previous/u);
   assert.doesNotMatch(viewer, /dangerouslySetInnerHTML|innerHTML|eval\(|new Function\(/u);

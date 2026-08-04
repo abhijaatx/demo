@@ -1,6 +1,11 @@
 "use client";
 
-import { parseDemoDocument, type DemoDocument } from "@supademo/domain";
+import {
+  parseDemoDocument,
+  type DemoDocument,
+  type DemoHotspot,
+  validateSafeUrl
+} from "@supademo/domain";
 import { useEffect, useMemo, useState } from "react";
 
 function safeMediaUrl(value: string): string | null {
@@ -89,12 +94,21 @@ export function DemoViewer({
     goToStep(last ? 0 : currentIndex + 1);
   };
 
-  const goHotspot = (targetStepId: string | null): void => {
-    if (!targetStepId) {
+  const goHotspot = (hotspot: DemoHotspot): void => {
+    if (hotspot.actionType === "open_url") {
+      const safeUrl = validateSafeUrl(hotspot.url);
+      if (safeUrl) {
+        globalThis.location.assign(safeUrl);
+        return;
+      }
+    }
+    if (!hotspot.targetStepId) {
       goNext();
       return;
     }
-    const targetIndex = demoDocument.steps.findIndex((candidate) => candidate.id === targetStepId);
+    const targetIndex = demoDocument.steps.findIndex(
+      (candidate) => candidate.id === hotspot.targetStepId
+    );
     goToStep(targetIndex >= 0 ? targetIndex : currentIndex + 1);
   };
 
@@ -173,7 +187,7 @@ export function DemoViewer({
                     backgroundColor: hotspot.style.color,
                     opacity: Math.max(0.2, Math.min(1, hotspot.style.opacity))
                   }}
-                  onClick={() => goHotspot(hotspot.targetStepId)}
+                  onClick={() => goHotspot(hotspot)}
                   aria-label={hotspot.tooltipText ?? "Continue"}
                 >
                   {hotspot.tooltipText ?? "Continue"}
