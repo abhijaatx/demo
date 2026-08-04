@@ -10,6 +10,7 @@ import {
   generateAiVoiceover,
   generateBranchingDiagnosticSummary,
   generateIframeSnippet,
+  generatePopupEmbedSnippet,
   generateSopMarkdownExport,
   generatePersonalizedEmbedUrl,
   getAvailableTtsVoices,
@@ -1012,6 +1013,7 @@ function SharePanel({
   const [expiryPreset, setExpiryPreset] = useState<ShareLinkExpiryPreset>("none");
   const [expiringShareUrl, setExpiringShareUrl] = useState("");
   const [expiryStatus, setExpiryStatus] = useState("");
+  const [popupOpen, setPopupOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -1023,6 +1025,7 @@ function SharePanel({
     setExpiryPreset("none");
     setExpiringShareUrl("");
     setExpiryStatus("");
+    setPopupOpen(false);
     try {
       const raw = localStorage.getItem(`supademo_published_${demoId}`);
       if (!raw) {
@@ -1089,6 +1092,7 @@ function SharePanel({
     demoId,
     baseUrl: baseUrl || undefined
   });
+  const popupSnippet = generatePopupEmbedSnippet({ demoId });
   const exportDocument = safeExportDocument(demoDocument);
   const sopMarkdown = generateSopMarkdownExport(exportDocument);
   const tabs: readonly ShareTab[] = ["Link", "Embed", "Export", "Present"];
@@ -1386,10 +1390,23 @@ function SharePanel({
             >
               Copy embed code
             </button>
+            <button
+              type="button"
+              className="editor-button editor-button-secondary"
+              onClick={() => void copyText(popupSnippet)}
+            >
+              Copy popup trigger
+            </button>
           </div>
           <p className="editor-share-note">
             The demo ID is URL-encoded and the iframe only requests fullscreen and clipboard-write.
           </p>
+          <textarea
+            className="editor-share-code"
+            readOnly
+            value={popupSnippet}
+            aria-label="Popup embed snippet"
+          />
         </div>
       ) : null}
 
@@ -1438,6 +1455,37 @@ function SharePanel({
           <a className="editor-button editor-button-primary" href={viewerPath}>
             Open viewer preview
           </a>
+          <button
+            type="button"
+            className="editor-button editor-button-secondary"
+            onClick={() => setPopupOpen(true)}
+          >
+            Open popup preview
+          </button>
+          {popupOpen ? (
+            <div
+              className="editor-popup-preview"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Interactive Demo Popup"
+            >
+              <div className="editor-popup-preview-frame">
+                <button
+                  type="button"
+                  className="editor-popup-preview-close"
+                  aria-label="Close popup preview"
+                  onClick={() => setPopupOpen(false)}
+                >
+                  ×
+                </button>
+                <iframe
+                  title="Interactive demo popup preview"
+                  src={`${baseUrl}/e/${encodeURIComponent(demoId)}?popup=true`}
+                  allow="fullscreen; clipboard-write"
+                />
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

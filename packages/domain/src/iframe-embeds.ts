@@ -37,5 +37,35 @@ export function generateIframeSnippet(options: EmbedSnippetOptions): string {
     ${loadingAttr}
     title="Interactive Product Demo"
   ></iframe>
-</div>`.trim();
+  </div>`.trim();
+}
+
+export interface PopupEmbedSnippetOptions {
+  readonly demoId: string;
+  readonly sdkUrl?: string;
+}
+
+export function generatePopupEmbedSnippet(options: PopupEmbedSnippetOptions): string {
+  const demoId = encodeURIComponent(options.demoId.trim().slice(0, 160)).replace(/'/g, "%27");
+  const defaultSdkUrl = "https://script.supademo.com/supademo.js";
+  const sdkUrl = options.sdkUrl ?? defaultSdkUrl;
+  let safeSdkUrl = defaultSdkUrl;
+  try {
+    const parsed = new URL(sdkUrl);
+    if (
+      parsed.protocol === "https:" &&
+      parsed.hostname === "script.supademo.com" &&
+      parsed.pathname === "/supademo.js" &&
+      parsed.search === "" &&
+      parsed.hash === ""
+    ) {
+      safeSdkUrl = parsed.toString();
+    }
+  } catch {
+    safeSdkUrl = defaultSdkUrl;
+  }
+  return `<script src="${safeSdkUrl}" defer></script>
+<button type="button" onclick="Supademo.open(decodeURIComponent('${demoId}'))">
+  Take a tour
+</button>`.trim();
 }

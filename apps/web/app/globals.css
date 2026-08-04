@@ -11456,6 +11456,47 @@ h2 {
   justify-self: start;
   text-decoration: none;
 }
+.editor-popup-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(3 7 18 / 78%);
+  backdrop-filter: blur(4px);
+}
+.editor-popup-preview-frame {
+  position: relative;
+  width: min(1100px, 92vw);
+  height: min(700px, 84vh);
+  overflow: hidden;
+  background: #0d1322;
+  border: 1px solid #3d4e71;
+  border-radius: 14px;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 45%);
+}
+.editor-popup-preview-frame iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.editor-popup-preview-close {
+  position: absolute;
+  z-index: 1;
+  top: 12px;
+  right: 14px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  color: #fff;
+  background: rgb(13 19 34 / 80%);
+  border: 1px solid #586887;
+  border-radius: 50%;
+  font-size: 22px;
+  cursor: pointer;
+}
 .editor-share-error {
   margin: -7px 0 0;
   color: #ffb1b1;
@@ -11481,6 +11522,9 @@ h2 {
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
+}
+.demo-viewer-shell.is-embedded {
+  min-height: 100%;
 }
 .demo-viewer-topbar {
   min-height: 64px;

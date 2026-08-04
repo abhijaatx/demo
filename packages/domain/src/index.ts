@@ -429,7 +429,12 @@ export {
   type ShareLinkExpiryPreset
 } from "./share-link.js";
 
-export { generateIframeSnippet, type EmbedSnippetOptions } from "./iframe-embeds.js";
+export {
+  generateIframeSnippet,
+  generatePopupEmbedSnippet,
+  type EmbedSnippetOptions,
+  type PopupEmbedSnippetOptions
+} from "./iframe-embeds.js";
 
 export {
   addDemoToShowcase,

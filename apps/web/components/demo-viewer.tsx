@@ -18,7 +18,45 @@ import {
   type DemoTranslationDictionary,
   validateSafeUrl
 } from "@supademo/domain";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+
+type EmbeddedEventType =
+  | "Supademo:load"
+  | "Supademo:started"
+  | "Supademo:slideChange"
+  | "Supademo:progress"
+  | "Supademo:completed"
+  | "Supademo:close";
+
+function embeddedParentOrigin(): string | null {
+  if (typeof window === "undefined" || window.parent === window) return null;
+  try {
+    const referrer = document.referrer;
+    if (!referrer) return null;
+    const origin = new URL(referrer).origin;
+    return origin === "null" ? null : origin;
+  } catch {
+    return null;
+  }
+}
+
+function postEmbeddedEvent(
+  embedded: boolean,
+  type: EmbeddedEventType,
+  payload: Readonly<Record<string, unknown>>
+): void {
+  if (!embedded || typeof window === "undefined") return;
+  const targetOrigin = embeddedParentOrigin();
+  if (!targetOrigin) return;
+  window.parent.postMessage(
+    Object.freeze({
+      source: "Supademo",
+      type,
+      payload: Object.freeze({ ...payload })
+    }),
+    targetOrigin
+  );
+}
 
 function safeMediaUrl(value: string): string | null {
   try {
@@ -146,10 +184,12 @@ function recordFormSubmission(
 
 export function DemoViewer({
   demoId,
-  initialDocument
+  initialDocument,
+  embedded = false
 }: {
   demoId: string;
   initialDocument: DemoDocument;
+  embedded?: boolean;
 }) {
   const [demoDocument, setDemoDocument] = useState<DemoDocument>(initialDocument);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -163,6 +203,13 @@ export function DemoViewer({
   const [selectedLocale, setSelectedLocale] = useState("en-US");
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [shareAccessError, setShareAccessError] = useState<string | null>(null);
+  const startedRef = useRef(false);
+
+  const emitStarted = (): void => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    postEmbeddedEvent(embedded, "Supademo:started", { demoId });
+  };
 
   useEffect(() => {
     const stored = readStoredDocument(demoId);
@@ -191,7 +238,21 @@ export function DemoViewer({
       );
     }
     setLoadedFromStorage(true);
-  }, [demoId]);
+    postEmbeddedEvent(embedded, "Supademo:load", {
+      demoId,
+      title: demoId,
+      totalSlides: nextDocument.steps.length
+    });
+  }, [demoId, embedded, initialDocument]);
+
+  useEffect(() => {
+    if (!embedded) return;
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") postEmbeddedEvent(true, "Supademo:close", {});
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [demoId, embedded]);
 
   const step = demoDocument.steps[currentIndex] ?? null;
   const currentChapter =
@@ -271,6 +332,7 @@ export function DemoViewer({
     const bounded = Math.max(0, Math.min(demoDocument.steps.length - 1, nextIndex));
     const nextStep = demoDocument.steps[bounded];
     if (!nextStep) return;
+    emitStarted();
     setCurrentIndex(bounded);
     setActiveChapterId(chapterAtPosition(demoDocument, bounded)?.id ?? null);
     try {
@@ -280,10 +342,24 @@ export function DemoViewer({
     } catch {
       // Deep-link URL state is best effort and never blocks playback.
     }
+    const totalSlides = demoDocument.steps.length;
+    const currentSlide = bounded + 1;
+    postEmbeddedEvent(embedded, "Supademo:slideChange", {
+      demoId,
+      currentSlide,
+      totalSlides
+    });
+    postEmbeddedEvent(embedded, "Supademo:progress", {
+      demoId,
+      percentage: Math.round((currentSlide / totalSlides) * 100),
+      currentSlide,
+      totalSlides
+    });
     recordViewerEvent(demoId, nextStep.id);
   };
 
   const continueFromChapter = (): void => {
+    emitStarted();
     if (currentIndex >= demoDocument.steps.length) {
       goToStep(0);
       return;
@@ -294,6 +370,7 @@ export function DemoViewer({
   };
 
   const goNext = (): void => {
+    emitStarted();
     if (currentChapter) {
       continueFromChapter();
       return;
@@ -305,10 +382,18 @@ export function DemoViewer({
       setActiveChapterId(chapterAtPosition(demoDocument, demoDocument.steps.length)?.id ?? null);
       return;
     }
+    if (last) {
+      postEmbeddedEvent(embedded, "Supademo:completed", {
+        demoId,
+        title: demoId,
+        completedAt: new Date().toISOString()
+      });
+    }
     goToStep(last ? 0 : currentIndex + 1);
   };
 
   const handleChapterButton = (button: DemoChapter["buttons"][number]): void => {
+    emitStarted();
     if (button.actionType === "url") {
       const safeUrl = validateSafeUrl(button.url);
       if (safeUrl) globalThis.location.assign(safeUrl);
@@ -328,6 +413,7 @@ export function DemoViewer({
 
   const handleFormSubmit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    emitStarted();
     if (!currentForm) return;
     const result = validateFormSubmission(currentForm, {
       formId: currentForm.formId,
@@ -343,6 +429,7 @@ export function DemoViewer({
   };
 
   const goHotspot = (hotspot: DemoHotspot): void => {
+    emitStarted();
     if (hotspot.actionType === "open_url") {
       const safeUrl = validateSafeUrl(hotspot.url);
       if (safeUrl) {
@@ -362,7 +449,7 @@ export function DemoViewer({
 
   return (
     <main
-      className="demo-viewer-shell"
+      className={`demo-viewer-shell${embedded ? " is-embedded" : ""}`}
       style={{
         backgroundColor: viewerTheme.backgroundColor,
         backgroundImage: viewerBackgroundImage === "none" ? undefined : viewerBackgroundImage,
@@ -370,52 +457,56 @@ export function DemoViewer({
         backgroundPosition: customBackgroundImage ? "center" : undefined
       }}
     >
-      <header className="demo-viewer-topbar">
-        <a className="demo-viewer-brand" href="/demos">
-          <span aria-hidden="true">S</span> Supademo
-        </a>
-        <span className="demo-viewer-mode">Viewer preview</span>
-        {demoDocument.translations.length > 0 ? (
-          <div className="demo-viewer-language">
-            <button
-              type="button"
-              className="demo-viewer-language-trigger"
-              aria-expanded={languageMenuOpen}
-              aria-haspopup="listbox"
-              onClick={() => setLanguageMenuOpen((open) => !open)}
-            >
-              Translate
-              {selectedLocale !== "en-US" ? ` · ${translationLabelForLocale(selectedLocale)}` : ""}
-            </button>
-            {languageMenuOpen ? (
-              <div className="demo-viewer-language-menu" role="listbox" aria-label="Languages">
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={selectedLocale === "en-US"}
-                  onClick={() => selectLocale("en-US")}
-                >
-                  Original (English)
-                </button>
-                {demoDocument.translations.map((translation) => (
+      {!embedded ? (
+        <header className="demo-viewer-topbar">
+          <a className="demo-viewer-brand" href="/demos">
+            <span aria-hidden="true">S</span> Supademo
+          </a>
+          <span className="demo-viewer-mode">Viewer preview</span>
+          {demoDocument.translations.length > 0 ? (
+            <div className="demo-viewer-language">
+              <button
+                type="button"
+                className="demo-viewer-language-trigger"
+                aria-expanded={languageMenuOpen}
+                aria-haspopup="listbox"
+                onClick={() => setLanguageMenuOpen((open) => !open)}
+              >
+                Translate
+                {selectedLocale !== "en-US"
+                  ? ` · ${translationLabelForLocale(selectedLocale)}`
+                  : ""}
+              </button>
+              {languageMenuOpen ? (
+                <div className="demo-viewer-language-menu" role="listbox" aria-label="Languages">
                   <button
-                    key={translation.locale}
                     type="button"
                     role="option"
-                    aria-selected={selectedLocale === translation.locale}
-                    onClick={() => selectLocale(translation.locale)}
+                    aria-selected={selectedLocale === "en-US"}
+                    onClick={() => selectLocale("en-US")}
                   >
-                    {translationLabelForLocale(translation.locale)}
+                    Original (English)
                   </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-        <a className="demo-viewer-exit" href={`/demos/${encodeURIComponent(demoId)}/edit`}>
-          Back to editor
-        </a>
-      </header>
+                  {demoDocument.translations.map((translation) => (
+                    <button
+                      key={translation.locale}
+                      type="button"
+                      role="option"
+                      aria-selected={selectedLocale === translation.locale}
+                      onClick={() => selectLocale(translation.locale)}
+                    >
+                      {translationLabelForLocale(translation.locale)}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <a className="demo-viewer-exit" href={`/demos/${encodeURIComponent(demoId)}/edit`}>
+            Back to editor
+          </a>
+        </header>
+      ) : null}
 
       {!loadedFromStorage ? (
         <div className="demo-viewer-empty" role="status">

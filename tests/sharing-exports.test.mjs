@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   createDefaultDemoDocument,
   generateSharingMetadata,
+  generatePopupEmbedSnippet,
   generateSopMarkdownExport
 } from "@supademo/domain";
 
@@ -32,4 +33,17 @@ test("generateSopMarkdownExport formats step-by-step SOP markdown document", () 
   assert.equal(markdown.includes("# Standard Operating Procedure: demo-sop-1"), true);
   assert.equal(markdown.includes("![Step 1 screenshot](/media/s1.png)"), true);
   assert.equal(markdown.includes("Click Gear Icon"), true);
+});
+
+test("generatePopupEmbedSnippet bounds the demo identifier and SDK origin", () => {
+  const snippet = generatePopupEmbedSnippet({
+    demoId: "sales/' onclick='alert(1)",
+    sdkUrl: "https://evil.example/supademo.js"
+  });
+  assert.equal(snippet.includes("evil.example"), false);
+  assert.equal(snippet.includes("https://script.supademo.com/supademo.js"), true);
+  assert.equal(
+    snippet.includes("Supademo.open(decodeURIComponent('sales%2F%27%20onclick%3D%27alert(1)'))"),
+    true
+  );
 });
