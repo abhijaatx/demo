@@ -2,6 +2,7 @@
 
 import { createVideoEditTimeline } from "@supademo/domain";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { saveLocalCaptureBundle } from "../src/lib/local-capture-storage";
 
 type Segment = {
   id: string;
@@ -11,9 +12,22 @@ type Segment = {
   muted: boolean;
 };
 
+type ImageStep = {
+  id: string;
+  atSeconds: number;
+  title: string;
+  description: string;
+  blob: Blob;
+  url: string;
+  width: number;
+  height: number;
+};
+
 const MAX_FILE_BYTES = 40 * 1024 * 1024;
 const MAX_DURATION_SECONDS = 7_200;
 const MAX_SEGMENTS = 40;
+const MAX_IMAGE_STEPS = 20;
+const MAX_IMAGE_BYTES = 1_800_000;
 const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
 
@@ -44,11 +58,14 @@ function createSegment(startSeconds: number, endSeconds: number, suffix: string)
 export function VideoEditorWorkbench() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoUrlRef = useRef<string | null>(null);
+  const videoFileRef = useRef<File | null>(null);
+  const imageUrlsRef = useRef<Set<string>>(new Set());
   const [videoUrl, setVideoUrl] = useState("");
   const [fileName, setFileName] = useState("");
   const [durationSeconds, setDurationSeconds] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [segments, setSegments] = useState<Segment[]>([]);
+  const [imageSteps, setImageSteps] = useState<ImageStep[]>([]);
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
   const [message, setMessage] = useState("Load a video to start editing its timeline.");
   const [error, setError] = useState("");
@@ -75,11 +92,15 @@ export function VideoEditorWorkbench() {
     if (videoUrlRef.current) URL.revokeObjectURL(videoUrlRef.current);
     const nextUrl = URL.createObjectURL(file);
     videoUrlRef.current = nextUrl;
+    videoFileRef.current = file;
     setVideoUrl(nextUrl);
     setFileName(file.name.slice(0, 120));
     setDurationSeconds(0);
     setCurrentTime(0);
     setSegments([]);
+    imageUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    imageUrlsRef.current.clear();
+    setImageSteps([]);
     setSelectedSegmentId(null);
     setMessage("Video loaded. Scrub the timeline, then split or select a segment to edit it.");
   };
@@ -212,6 +233,118 @@ export function VideoEditorWorkbench() {
     setMessage("Segment deleted from the edit plan. The original video remains unchanged.");
   };
 
+  const captureImageStep = async () => {
+    const video = videoRef.current;
+    if (!video || !durationSeconds || imageSteps.length >= MAX_IMAGE_STEPS) {
+      setError(`A video can contain at most ${String(MAX_IMAGE_STEPS)} image steps.`);
+      return;
+    }
+    if (!video.videoWidth || !video.videoHeight) {
+      setError("Wait for the video preview to finish loading before capturing a frame.");
+      return;
+    }
+    const scale = Math.min(1, 2_000 / Math.max(video.videoWidth, video.videoHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+    const context = canvas.getContext("2d");
+    if (!context) {
+      setError("This browser could not prepare a frame capture.");
+      return;
+    }
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/png", 0.92)
+    );
+    if (!blob || blob.size > MAX_IMAGE_BYTES) {
+      setError("The frame is too large to keep locally. Move to a simpler frame and try again.");
+      return;
+    }
+    const id = `image-${Date.now()}-${imageSteps.length + 1}`;
+    const url = URL.createObjectURL(blob);
+    imageUrlsRef.current.add(url);
+    const next: ImageStep = {
+      id,
+      atSeconds: rounded(currentTime),
+      title: `Image step ${imageSteps.length + 1}`,
+      description: `Frame captured at ${formatTime(currentTime)}.`,
+      blob,
+      url,
+      width: canvas.width,
+      height: canvas.height
+    };
+    setImageSteps((current) =>
+      [...current, next].sort((left, right) => left.atSeconds - right.atSeconds)
+    );
+    setError("");
+    setMessage(
+      `Image step added at ${formatTime(currentTime)}. Edit its caption below or keep scrubbing.`
+    );
+  };
+
+  const updateImageStep = (
+    id: string,
+    patch: Partial<Pick<ImageStep, "title" | "description">>
+  ) => {
+    setImageSteps((current) =>
+      current.map((step) =>
+        step.id === id
+          ? {
+              ...step,
+              title: patch.title === undefined ? step.title : patch.title.slice(0, 160),
+              description:
+                patch.description === undefined ? step.description : patch.description.slice(0, 400)
+            }
+          : step
+      )
+    );
+  };
+
+  const removeImageStep = (id: string) => {
+    const removed = imageSteps.find((step) => step.id === id);
+    if (removed) {
+      URL.revokeObjectURL(removed.url);
+      imageUrlsRef.current.delete(removed.url);
+    }
+    setImageSteps((current) => current.filter((step) => step.id !== id));
+  };
+
+  const openInEditor = async () => {
+    if (!videoFileRef.current || !segments.length) {
+      setError("Load a video and wait for its metadata before opening the editor.");
+      return;
+    }
+    const id = `video-split-${Date.now()}`;
+    const saved = await saveLocalCaptureBundle({
+      version: 1,
+      id,
+      kind: "video-split",
+      createdAtIso: new Date().toISOString(),
+      title: fileName || "Video split",
+      mimeType: videoFileRef.current.type || "video/webm",
+      blob: videoFileRef.current,
+      screenshots: imageSteps.map((step) => ({
+        id: step.id,
+        blob: step.blob,
+        width: step.width,
+        height: step.height,
+        title: step.title,
+        description: step.description,
+        atSeconds: step.atSeconds
+      })),
+      segments
+    });
+    if (!saved) {
+      setError(
+        "The video edit could not be saved locally. Reduce the file or image steps and retry."
+      );
+      return;
+    }
+    window.location.assign(
+      `/demos/${encodeURIComponent(`draft-${id}`)}/edit?capture=video&localCapture=${encodeURIComponent(id)}`
+    );
+  };
+
   const downloadPlan = () => {
     if (!videoUrl || !durationSeconds || !segments.length) {
       setError("Load a video and wait for its metadata before exporting an edit plan.");
@@ -245,6 +378,8 @@ export function VideoEditorWorkbench() {
   useEffect(() => {
     return () => {
       if (videoUrlRef.current) URL.revokeObjectURL(videoUrlRef.current);
+      imageUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      imageUrlsRef.current.clear();
     };
   }, []);
 
@@ -350,6 +485,9 @@ export function VideoEditorWorkbench() {
             >
               Split at playhead
             </button>
+            <button type="button" onClick={() => void captureImageStep()} disabled={!videoUrl}>
+              Create image step
+            </button>
             <button type="button" onClick={duplicateSelected} disabled={!selectedSegment}>
               Duplicate segment
             </button>
@@ -439,6 +577,68 @@ export function VideoEditorWorkbench() {
         </aside>
       </section>
 
+      <section
+        className="video-editor-image-steps"
+        aria-labelledby="video-editor-image-steps-heading"
+      >
+        <div className="video-editor-section-heading">
+          <div>
+            <p className="eyebrow">3 · Image steps</p>
+            <h2 id="video-editor-image-steps-heading">Frames between video moments</h2>
+          </div>
+          <span>
+            {imageSteps.length} / {MAX_IMAGE_STEPS}
+          </span>
+        </div>
+        {imageSteps.length ? (
+          <ol className="video-editor-image-step-list">
+            {imageSteps.map((step) => (
+              <li key={step.id}>
+                <img src={step.url} alt="" />
+                <div>
+                  <strong>{step.title}</strong>
+                  <small>
+                    {formatTime(step.atSeconds)} · {step.width} × {step.height}
+                  </small>
+                  <label>
+                    Caption
+                    <input
+                      value={step.title}
+                      maxLength={160}
+                      onChange={(event) =>
+                        updateImageStep(step.id, { title: event.currentTarget.value })
+                      }
+                    />
+                  </label>
+                  <label>
+                    Description
+                    <textarea
+                      value={step.description}
+                      maxLength={400}
+                      rows={2}
+                      onChange={(event) =>
+                        updateImageStep(step.id, { description: event.currentTarget.value })
+                      }
+                    />
+                  </label>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeImageStep(step.id)}
+                  aria-label={`Remove ${step.title}`}
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="video-editor-inspector-empty">
+            Move the playhead and capture an image step to insert a still frame.
+          </p>
+        )}
+      </section>
+
       {error ? (
         <p className="video-editor-error" role="alert">
           {error}
@@ -455,6 +655,9 @@ export function VideoEditorWorkbench() {
         </div>
         <button type="button" onClick={downloadPlan}>
           Download edit plan
+        </button>
+        <button type="button" className="video-editor-primary" onClick={() => void openInEditor()}>
+          Open steps in editor
         </button>
       </section>
     </main>

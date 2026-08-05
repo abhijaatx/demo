@@ -39,6 +39,7 @@ import {
   type RewriteTone,
   type TextRewriteProposal,
   type DemoStep,
+  type DemoStepMedia,
   type DemoHotspot,
   type PublishedDemoManifest,
   type ShareLinkExpiryPreset
@@ -1006,46 +1007,110 @@ function createDocumentFromLocalCapture(
   bundle: LocalCaptureBundle,
   createObjectUrl: (blob: Blob) => string
 ): DemoDocument {
-  const steps: DemoStep[] =
-    bundle.kind === "video" && bundle.blob
-      ? [
-          {
-            id: `local-step-${bundle.id}`,
-            orderIndex: 0,
-            title: bundle.title.slice(0, 160) || "Desktop recording",
-            description: "Imported local recording.",
-            media: {
-              assetId: `local-asset-${bundle.id}`,
-              assetType: "video",
-              storagePath: createObjectUrl(bundle.blob),
-              width: null,
-              height: null,
-              durationSeconds: null,
-              posterPath: null
-            },
-            hotspots: [],
-            callouts: [],
-            audioNarration: null
-          }
-        ]
-      : (bundle.screenshots || []).map((screenshot, index) => ({
-          id: `local-step-${bundle.id}-${index + 1}`,
-          orderIndex: index,
-          title: screenshot.title.slice(0, 160) || `Desktop capture ${index + 1}`,
-          description: "Imported local desktop screenshot.",
-          media: {
-            assetId: `local-asset-${screenshot.id}`,
-            assetType: "screenshot" as const,
-            storagePath: createObjectUrl(screenshot.blob),
-            width: screenshot.width,
-            height: screenshot.height,
-            durationSeconds: null,
-            posterPath: null
-          },
-          hotspots: [],
-          callouts: [],
-          audioNarration: null
-        }));
+  const createStep = (
+    id: string,
+    title: string,
+    description: string | null,
+    assetType: DemoStepMedia["assetType"],
+    blob: Blob,
+    width: number | null = null,
+    height: number | null = null
+  ): DemoStep => ({
+    id,
+    orderIndex: 0,
+    title: title.slice(0, 160) || "Imported local step",
+    description,
+    media: {
+      assetId: `local-asset-${id}`,
+      assetType,
+      storagePath: createObjectUrl(blob),
+      width,
+      height,
+      durationSeconds: null,
+      posterPath: null
+    },
+    hotspots: [],
+    callouts: [],
+    audioNarration: null
+  });
+
+  let steps: DemoStep[];
+  if ((bundle.kind === "video" || bundle.kind === "video-split") && bundle.blob) {
+    const videoBlob = bundle.blob;
+    const segments = bundle.kind === "video-split" ? bundle.segments || [] : [];
+    const screenshots = [...(bundle.screenshots || [])].sort(
+      (left, right) => (left.atSeconds || 0) - (right.atSeconds || 0)
+    );
+    if (!segments.length) {
+      steps = [
+        createStep(
+          `local-step-${bundle.id}`,
+          bundle.title || "Desktop recording",
+          "Imported local recording.",
+          "video",
+          videoBlob
+        )
+      ];
+    } else {
+      const videoSteps = segments.map((segment, index) =>
+        createStep(
+          `local-video-step-${bundle.id}-${index + 1}`,
+          `${bundle.title || "Video"} · ${segment.startSeconds.toFixed(2)}–${segment.endSeconds.toFixed(2)}s`,
+          `Video segment from ${segment.startSeconds.toFixed(2)}s to ${segment.endSeconds.toFixed(2)}s at ${segment.speed}×${segment.muted ? ", muted" : ""}.`,
+          "video",
+          videoBlob
+        )
+      );
+      const combined: Array<{ at: number; order: number; step: DemoStep }> = [];
+      videoSteps.forEach((step, index) => {
+        combined.push({ at: segments[index]?.startSeconds || 0, order: index * 2, step });
+      });
+      screenshots.forEach((screenshot, index) => {
+        combined.push({
+          at: screenshot.atSeconds || 0,
+          order: index * 2 + 1,
+          step: createStep(
+            `local-image-step-${bundle.id}-${index + 1}`,
+            screenshot.title || `Image step ${index + 1}`,
+            screenshot.description ||
+              `Frame captured at ${(screenshot.atSeconds || 0).toFixed(2)}s.`,
+            "screenshot",
+            screenshot.blob,
+            screenshot.width,
+            screenshot.height
+          )
+        });
+      });
+      combined.sort((left, right) => left.at - right.at || left.order - right.order);
+      steps = combined.map(({ step }) => step);
+    }
+  } else if (bundle.kind === "upload") {
+    steps = (bundle.assets || []).map((asset) =>
+      createStep(
+        `local-upload-step-${bundle.id}-${asset.id}`,
+        asset.title,
+        asset.description || "Imported local upload.",
+        asset.assetType === "image" ? "image" : asset.assetType,
+        asset.blob,
+        asset.width,
+        asset.height
+      )
+    );
+  } else {
+    steps = (bundle.screenshots || []).map((screenshot, index) =>
+      createStep(
+        `local-step-${bundle.id}-${index + 1}`,
+        screenshot.title || `Desktop capture ${index + 1}`,
+        screenshot.description || "Imported local desktop screenshot.",
+        "screenshot",
+        screenshot.blob,
+        screenshot.width,
+        screenshot.height
+      )
+    );
+  }
+
+  steps = steps.map((step, index) => ({ ...step, orderIndex: index }));
 
   return {
     ...baseDocument,
@@ -2110,7 +2175,11 @@ export function EditorShell({
       setCaptureStatus(
         bundle.kind === "video"
           ? "Your local recording is ready as the first step."
-          : `${restored.steps.length} desktop screenshots are ready as ordered steps.`
+          : bundle.kind === "video-split"
+            ? `${restored.steps.length} video and image steps are ready in timeline order.`
+            : bundle.kind === "upload"
+              ? `${restored.steps.length} uploaded assets are ready as ordered steps.`
+              : `${restored.steps.length} desktop screenshots are ready as ordered steps.`
       );
     });
     return () => {

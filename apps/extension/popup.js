@@ -13,6 +13,7 @@ const stopButton = document.querySelector("#stop");
 const pauseButton = document.querySelector("#pause");
 const resumeButton = document.querySelector("#resume");
 const screenshotButton = document.querySelector("#screenshot");
+const manualButton = document.querySelector("#manual");
 const downloadButton = document.querySelector("#download");
 const clearButton = document.querySelector("#clear");
 const workspaceButton = document.querySelector("#workspace");
@@ -181,6 +182,23 @@ async function instantScreenshot() {
   }
 }
 
+async function manualCapture() {
+  manualButton.disabled = true;
+  status.textContent = "Capturing the hovered element…";
+  try {
+    const response = await send("CAPTURE_MANUAL");
+    if (!response.ok) {
+      status.textContent = response.error || "Manual capture could not be completed.";
+      return;
+    }
+    render(response.state);
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    manualButton.disabled = false;
+  }
+}
+
 async function clearCapture() {
   try {
     const response = await send("CLEAR_RECORDING");
@@ -216,7 +234,7 @@ async function download() {
 }
 
 function openWorkspace() {
-  chrome.tabs.create({ url: "http://localhost:3000/demos?new=1&capture=extension" });
+  chrome.tabs.create({ url: "http://localhost:3000/extension-import" });
 }
 
 startButton.addEventListener("click", () => void start());
@@ -224,6 +242,7 @@ stopButton.addEventListener("click", () => void stop());
 pauseButton.addEventListener("click", () => void pauseOrResume("PAUSE_RECORDING"));
 resumeButton.addEventListener("click", () => void pauseOrResume("RESUME_RECORDING"));
 screenshotButton.addEventListener("click", () => void instantScreenshot());
+manualButton.addEventListener("click", () => void manualCapture());
 downloadButton.addEventListener("click", () => void download());
 clearButton.addEventListener("click", () => void clearCapture());
 workspaceButton.addEventListener("click", openWorkspace);

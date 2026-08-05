@@ -6,6 +6,7 @@
 
   let active = false;
   let scrollTimer = null;
+  let hoveredElement = null;
   const listeners = [];
 
   function boundedText(value, maxLength) {
@@ -69,6 +70,11 @@
       y: point.y,
       scrollY: window.scrollY
     });
+  }
+
+  function onMouseover(event) {
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    if (target && !target.closest("[data-supademo-overlay]")) hoveredElement = target;
   }
 
   function onInput(event) {
@@ -136,7 +142,8 @@
     window.addEventListener("input", onInput, true);
     window.addEventListener("keydown", onKeydown, true);
     window.addEventListener("scroll", onScroll, true);
-    listeners.push(onClick, onInput, onKeydown, onScroll);
+    window.addEventListener("mouseover", onMouseover, true);
+    listeners.push(onClick, onInput, onKeydown, onScroll, onMouseover);
   }
 
   function stop() {
@@ -145,8 +152,10 @@
     window.removeEventListener("input", onInput, true);
     window.removeEventListener("keydown", onKeydown, true);
     window.removeEventListener("scroll", onScroll, true);
+    window.removeEventListener("mouseover", onMouseover, true);
     if (scrollTimer) window.clearTimeout(scrollTimer);
     scrollTimer = null;
+    hoveredElement = null;
     listeners.length = 0;
   }
 
@@ -175,6 +184,20 @@
     }
     if (message?.type === "SUPADEMO_CONTEXT") {
       sendResponse({ ok: true, context: context() });
+      return false;
+    }
+    if (message?.type === "SUPADEMO_MANUAL_CAPTURE") {
+      const target = hoveredElement || (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+      const rect = target?.getBoundingClientRect();
+      const width = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1);
+      const height = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1);
+      sendResponse({
+        ok: true,
+        elementHint: elementHint(target),
+        x: rect ? Math.max(0, Math.min(1, (rect.left + rect.width / 2) / width)) : 0.5,
+        y: rect ? Math.max(0, Math.min(1, (rect.top + rect.height / 2) / height)) : 0.5,
+        scrollY: window.scrollY
+      });
       return false;
     }
     return false;

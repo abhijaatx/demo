@@ -41,6 +41,7 @@ test("capture extension is loadable and stores only bounded, cleaned active-tab 
   assert.doesNotMatch(content, /\.value\b|innerHTML|eval\(/u);
   assert.match(popup, /Start recording/u);
   assert.match(popup, /Instant screenshot/u);
+  assert.match(popup, /Manual capture/u);
   assert.match(popup, /Share with workspace/u);
   assert.match(popup, /Apply auto zoom/u);
   assert.match(popup, /Download JSON/u);

@@ -2,7 +2,8 @@
 
 import { createDefaultDemoDocument, type DemoDocument } from "@supademo/domain";
 import { useRouter } from "next/navigation";
-import { useState, type ChangeEvent, type DragEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { saveLocalCaptureBundle } from "../src/lib/local-capture-storage";
 
 type UploadAssetKind = "image" | "video" | "document";
 
@@ -12,6 +13,7 @@ type UploadAssetDraft = {
   title: string;
   description: string;
   kind: UploadAssetKind;
+  blob: Blob;
   url: string;
   widthPx: number | null;
   heightPx: number | null;
@@ -71,6 +73,7 @@ function readImage(file: File, id: string): Promise<UploadAssetDraft> {
           title: safeFileName(file.name),
           description: "",
           kind: "image",
+          blob: file,
           url,
           widthPx: Math.min(10_000, image.naturalWidth),
           heightPx: Math.min(10_000, image.naturalHeight),
@@ -99,6 +102,7 @@ function readLocalAsset(file: File, index: number): Promise<UploadAssetDraft> {
     title: safeFileName(file.name),
     description: "",
     kind,
+    blob: file,
     url: URL.createObjectURL(file),
     widthPx: null,
     heightPx: null,
@@ -116,8 +120,14 @@ export function UploadImportWorkbench() {
   const [error, setError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [exported, setExported] = useState(false);
+  const [localCaptureId, setLocalCaptureId] = useState("");
+  const assetsRef = useRef<UploadAssetDraft[]>([]);
 
   const selectedAsset = assets.find((asset) => asset.id === selectedAssetId) || assets[0] || null;
+
+  useEffect(() => {
+    assetsRef.current = assets;
+  }, [assets]);
 
   const addFiles = async (files: File[]) => {
     const remaining = Math.max(0, MAX_ASSETS - assets.length);
@@ -193,12 +203,32 @@ export function UploadImportWorkbench() {
     );
   };
 
-  const exportToEditor = () => {
+  const exportToEditor = async () => {
     if (!assets.length) {
       setError("Add at least one file before opening the editor.");
       return;
     }
     try {
+      const captureId = `upload-${Date.now()}`;
+      const saved = await saveLocalCaptureBundle({
+        version: 1,
+        id: captureId,
+        kind: "upload",
+        createdAtIso: new Date().toISOString(),
+        title: "Uploaded demo",
+        mimeType: "application/pdf",
+        assets: assets.map((asset) => ({
+          id: asset.id,
+          blob: asset.blob,
+          assetType: asset.kind,
+          mimeType: asset.blob.type || "application/octet-stream",
+          width: asset.widthPx,
+          height: asset.heightPx,
+          title: asset.title,
+          description: asset.description
+        }))
+      });
+      if (!saved) throw new Error("The upload bundle could not be saved locally.");
       const base = createDefaultDemoDocument(DRAFT_DEMO_ID);
       const document: DemoDocument = {
         ...base,
@@ -223,15 +253,28 @@ export function UploadImportWorkbench() {
         }))
       };
       localStorage.setItem(`supademo_draft_${DRAFT_DEMO_ID}`, JSON.stringify(document));
+      setLocalCaptureId(captureId);
       setExported(true);
       setError("");
       setMessage(
         "Your local upload draft is ready. Opening the editor keeps these files in this browser."
       );
-    } catch {
-      setError("The draft could not be saved locally. Remove a file and try again.");
+    } catch (exportError) {
+      setError(
+        exportError instanceof Error
+          ? exportError.message
+          : "The draft could not be saved locally. Remove a file and try again."
+      );
     }
   };
+
+  useEffect(() => {
+    return () => {
+      assetsRef.current.forEach((asset) => {
+        if (asset.url.startsWith("blob:")) URL.revokeObjectURL(asset.url);
+      });
+    };
+  }, []);
 
   return (
     <main className="upload-import-page">
@@ -414,14 +457,22 @@ export function UploadImportWorkbench() {
           </p>
         </div>
         <div>
-          <button type="button" className="upload-import-primary" onClick={exportToEditor}>
+          <button
+            type="button"
+            className="upload-import-primary"
+            onClick={() => void exportToEditor()}
+          >
             Export to editor
           </button>
           {exported ? (
             <button
               type="button"
               className="upload-import-open"
-              onClick={() => router.push(`/demos/${DRAFT_DEMO_ID}/edit?capture=upload`)}
+              onClick={() =>
+                router.push(
+                  `/demos/${DRAFT_DEMO_ID}/edit?capture=upload&localCapture=${encodeURIComponent(localCaptureId)}`
+                )
+              }
             >
               Open editor →
             </button>

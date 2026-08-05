@@ -444,7 +444,7 @@ function queueCaptureEvent(payload, sender) {
   });
 }
 
-async function captureScreenshot(commandTab = null) {
+async function captureScreenshot(commandTab = null, metadata = {}) {
   const tab = commandTab?.id ? commandTab : await queryActiveTab();
   const capture = safeCapture(tab);
   const screenshot = await captureVisibleTab(tab);
@@ -456,10 +456,12 @@ async function captureScreenshot(commandTab = null) {
   const step = {
     id: "step-" + String(state.steps.length + 1),
     eventType: "screenshot",
-    elementHint: "visible page",
-    x: 0,
-    y: 0,
-    scrollY: 0,
+    elementHint: boundedText(metadata.elementHint, MAX_ELEMENT_HINT_LENGTH) || "visible page",
+    x: normalizeCoordinate(metadata.x),
+    y: normalizeCoordinate(metadata.y),
+    scrollY: Number.isFinite(metadata.scrollY)
+      ? Math.max(0, Math.min(100000, Math.round(metadata.scrollY)))
+      : 0,
     screenshot,
     capturedAt: new Date().toISOString()
   };
@@ -473,6 +475,16 @@ async function captureScreenshot(commandTab = null) {
     finalized: state.status !== "recording" && state.status !== "paused"
   });
   return { ok: true, state: next };
+}
+
+async function captureManual(commandTab = null) {
+  const tab = commandTab?.id ? commandTab : await queryActiveTab();
+  if (!tab?.id || !safeCapture(tab)) {
+    return { ok: false, error: "Open a regular http or https page before capturing." };
+  }
+  await executeContent(tab.id);
+  const target = await sendToTab(tab.id, { type: "SUPADEMO_MANUAL_CAPTURE" });
+  return captureScreenshot(tab, target?.ok ? target : {});
 }
 
 async function applyFix(code) {
@@ -514,6 +526,8 @@ async function handleMessage(message, sender) {
       return queueCaptureEvent(message.payload, sender);
     case "CAPTURE_SCREENSHOT":
       return captureScreenshot(null);
+    case "CAPTURE_MANUAL":
+      return captureManual(null);
     case "APPLY_FIX":
       return applyFix(boundedText(message.code, 40));
     case "CLEAR_RECORDING":
