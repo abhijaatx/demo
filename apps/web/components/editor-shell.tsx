@@ -1926,6 +1926,15 @@ function CaptureEntryPanel({
           <a className="editor-capture-link" href="/session-metrics">
             Inspect session metrics
           </a>
+          <a className="editor-capture-link" href="/exports">
+            Export this demo
+          </a>
+          <a className="editor-capture-link" href="/analytics-dashboard">
+            Open analytics dashboard
+          </a>
+          <a className="editor-capture-link" href="/account-analytics">
+            Trace viewer journey
+          </a>
           {captureMode !== "video" && captureMode !== "figma" ? (
             <a className="editor-capture-link" href="/blur-annotate">
               Blur &amp; annotate
