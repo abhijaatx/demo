@@ -668,13 +668,19 @@ function ShowcaseSurface({ kind }: { kind: "showcases" | "hubs" }) {
               </p>
             ) : null}
           </div>
-          <button
-            type="button"
-            className="workspace-ref-primary"
-            onClick={() => (showcase ? setEditorOpen(true) : choose("Create hub started"))}
-          >
-            Create
-          </button>
+          {showcase ? (
+            <button
+              type="button"
+              className="workspace-ref-primary"
+              onClick={() => setEditorOpen(true)}
+            >
+              Create
+            </button>
+          ) : (
+            <a className="workspace-ref-primary" href="/demo-hub">
+              Create
+            </a>
+          )}
         </div>
         <div
           className="workspace-ref-tabs"

@@ -1935,6 +1935,15 @@ function CaptureEntryPanel({
           <a className="editor-capture-link" href="/account-analytics">
             Trace viewer journey
           </a>
+          <a className="editor-capture-link" href="/folder-sharing">
+            Share a folder
+          </a>
+          <a className="editor-capture-link" href="/demo-hub">
+            Configure Demo Hub
+          </a>
+          <a className="editor-capture-link" href="/branding">
+            Customize branding
+          </a>
           {captureMode !== "video" && captureMode !== "figma" ? (
             <a className="editor-capture-link" href="/blur-annotate">
               Blur &amp; annotate
