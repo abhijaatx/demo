@@ -5,7 +5,12 @@ import { EditorShell } from "../../../../components/editor-shell";
 type DemoEditPageProps = {
   params: Promise<{ demoId: string }>;
   searchParams?:
-    Promise<{ capture?: string; sample?: string }> | { capture?: string; sample?: string };
+    | Promise<{ capture?: string; sample?: string; localCapture?: string }>
+    | {
+        capture?: string;
+        sample?: string;
+        localCapture?: string;
+      };
 };
 
 const captureModes = [
@@ -74,6 +79,7 @@ export default async function DemoEditPage({ params, searchParams }: DemoEditPag
       readOnly={isLocalSample}
       saveState="saved"
       captureMode={captureMode}
+      localCaptureId={resolvedSearchParams.localCapture}
     />
   );
 }

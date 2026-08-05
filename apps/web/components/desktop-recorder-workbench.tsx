@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import {
+  dataUrlToBlob,
+  deleteLocalCaptureBundle,
+  saveLocalCaptureBundle
+} from "../src/lib/local-capture-storage";
 
 type DesktopCaptureMode = "screenshot" | "video";
 type DesktopSourceMode = "screen" | "window";
@@ -10,6 +15,8 @@ type DesktopCaptureStep = {
   id: string;
   image: string;
   capturedAt: string;
+  width: number;
+  height: number;
 };
 
 const MAX_STEPS = 30;
@@ -37,6 +44,7 @@ export function DesktopRecorderWorkbench() {
   const [statusMessage, setStatusMessage] = useState("Choose a screen or window to begin.");
   const [steps, setSteps] = useState<DesktopCaptureStep[]>([]);
   const [videoUrl, setVideoUrl] = useState("");
+  const [localCaptureId, setLocalCaptureId] = useState("");
   const [timedCapture, setTimedCapture] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
@@ -85,14 +93,16 @@ export function DesktopRecorderWorkbench() {
         {
           id: "desktop-step-" + String(Date.now()),
           image,
-          capturedAt: new Date().toISOString()
+          capturedAt: new Date().toISOString(),
+          width: canvas.width,
+          height: canvas.height
         }
       ].slice(-MAX_STEPS)
     );
     setStatusMessage("Screenshot captured. Keep sharing to add another step.");
   };
 
-  const finishVideo = () => {
+  const finishVideo = async () => {
     const chunks = chunksRef.current;
     if (!chunks.length) {
       setStatus("error");
@@ -106,9 +116,27 @@ export function DesktopRecorderWorkbench() {
     const nextUrl = URL.createObjectURL(blob);
     videoUrlRef.current = nextUrl;
     setVideoUrl(nextUrl);
-    setStatus("complete");
-    setStatusMessage("Video ready. Download it or continue in the editor.");
     stopTracks();
+    const captureId =
+      typeof globalThis.crypto?.randomUUID === "function"
+        ? `capture-${globalThis.crypto.randomUUID()}`
+        : `capture-${Date.now().toString(36)}`;
+    const saved = await saveLocalCaptureBundle({
+      version: 1,
+      id: captureId,
+      kind: "video",
+      createdAtIso: new Date().toISOString(),
+      title: "Desktop recording",
+      mimeType: blob.type || "video/webm",
+      blob
+    });
+    setLocalCaptureId(saved ? captureId : "");
+    setStatus(saved ? "complete" : "error");
+    setStatusMessage(
+      saved
+        ? "Video ready. Download it or continue in the editor."
+        : "Video is ready to download, but this browser could not keep an editor handoff."
+    );
   };
 
   const stopRecording = () => {
@@ -182,7 +210,7 @@ export function DesktopRecorderWorkbench() {
           }
           chunksRef.current.push(event.data);
         };
-        recorder.onstop = finishVideo;
+        recorder.onstop = () => void finishVideo();
         recorder.start(1000);
       }
     } catch {
@@ -215,12 +243,66 @@ export function DesktopRecorderWorkbench() {
 
   const clearAll = () => {
     stopRecording();
+    if (localCaptureId) void deleteLocalCaptureBundle(localCaptureId);
     if (videoUrlRef.current) URL.revokeObjectURL(videoUrlRef.current);
     videoUrlRef.current = null;
     setVideoUrl("");
+    setLocalCaptureId("");
     setSteps([]);
     setStatus("idle");
     setStatusMessage("Choose a screen or window to begin.");
+  };
+
+  const openEditor = async () => {
+    if (localCaptureId) {
+      window.location.assign(
+        `/demos/${encodeURIComponent(`draft-${localCaptureId}`)}/edit?capture=${captureMode}&localCapture=${encodeURIComponent(localCaptureId)}`
+      );
+      return;
+    }
+    if (captureMode !== "screenshot" || !steps.length) {
+      setStatusMessage(
+        "Capture at least one screenshot or finish a video before opening the editor."
+      );
+      return;
+    }
+    const captureId =
+      typeof globalThis.crypto?.randomUUID === "function"
+        ? `capture-${globalThis.crypto.randomUUID()}`
+        : `capture-${Date.now().toString(36)}`;
+    const screenshots = steps.flatMap((step) => {
+      const blob = dataUrlToBlob(step.image);
+      return blob
+        ? [
+            {
+              id: step.id,
+              blob,
+              width: step.width,
+              height: step.height,
+              title: `Desktop capture ${steps.indexOf(step) + 1}`
+            }
+          ]
+        : [];
+    });
+    const saved = await saveLocalCaptureBundle({
+      version: 1,
+      id: captureId,
+      kind: "screenshots",
+      createdAtIso: new Date().toISOString(),
+      title: "Desktop screenshot capture",
+      mimeType: "image/png",
+      screenshots
+    });
+    if (!saved) {
+      setStatusMessage(
+        "Screenshots are ready to download, but this browser could not keep an editor handoff."
+      );
+      return;
+    }
+    setLocalCaptureId(captureId);
+    window.location.assign(
+      `/demos/${encodeURIComponent(`draft-${captureId}`)}/edit?capture=screenshot&localCapture=${encodeURIComponent(captureId)}`
+    );
   };
 
   const downloadScreenshot = (step: DesktopCaptureStep) => {
@@ -434,7 +516,13 @@ export function DesktopRecorderWorkbench() {
         <div className="desktop-recorder-next">
           <strong>Ready to keep editing?</strong>
           <span>Move your captured screens into the familiar demo editor.</span>
-          <a href="/demos?new=1&capture=desktop">Open editor</a>
+          <button
+            type="button"
+            onClick={() => void openEditor()}
+            disabled={!steps.length && !videoUrl}
+          >
+            Open editor
+          </button>
         </div>
       </section>
     </main>

@@ -53,6 +53,7 @@ import {
   type ExportResolution,
   type VideoExportFormat
 } from "../src/lib/export-client";
+import { readLocalCaptureBundle, type LocalCaptureBundle } from "../src/lib/local-capture-storage";
 import {
   createOfflineZip,
   readOfflineDownloads,
@@ -998,6 +999,59 @@ function persistLocalDocument(demoId: string, demoDocument: DemoDocument): void 
   } catch {
     // Local persistence is a best-effort fallback for the browser-only demo workspace.
   }
+}
+
+function createDocumentFromLocalCapture(
+  baseDocument: DemoDocument,
+  bundle: LocalCaptureBundle,
+  createObjectUrl: (blob: Blob) => string
+): DemoDocument {
+  const steps: DemoStep[] =
+    bundle.kind === "video" && bundle.blob
+      ? [
+          {
+            id: `local-step-${bundle.id}`,
+            orderIndex: 0,
+            title: bundle.title.slice(0, 160) || "Desktop recording",
+            description: "Imported local recording.",
+            media: {
+              assetId: `local-asset-${bundle.id}`,
+              assetType: "video",
+              storagePath: createObjectUrl(bundle.blob),
+              width: null,
+              height: null,
+              durationSeconds: null,
+              posterPath: null
+            },
+            hotspots: [],
+            callouts: [],
+            audioNarration: null
+          }
+        ]
+      : (bundle.screenshots || []).map((screenshot, index) => ({
+          id: `local-step-${bundle.id}-${index + 1}`,
+          orderIndex: index,
+          title: screenshot.title.slice(0, 160) || `Desktop capture ${index + 1}`,
+          description: "Imported local desktop screenshot.",
+          media: {
+            assetId: `local-asset-${screenshot.id}`,
+            assetType: "screenshot" as const,
+            storagePath: createObjectUrl(screenshot.blob),
+            width: screenshot.width,
+            height: screenshot.height,
+            durationSeconds: null,
+            posterPath: null
+          },
+          hotspots: [],
+          callouts: [],
+          audioNarration: null
+        }));
+
+  return {
+    ...baseDocument,
+    steps,
+    updatedAtIso: new Date().toISOString()
+  };
 }
 
 type ShareTab = "Link" | "Embed" | "Download" | "Export" | "Present";
@@ -1978,6 +2032,7 @@ export interface EditorShellProps {
   onPreview?: () => void;
   onShare?: () => void;
   captureMode?: CaptureMode;
+  localCaptureId?: string;
 }
 
 export function EditorShell({
@@ -1988,7 +2043,8 @@ export function EditorShell({
   onSaveDocument,
   onPreview,
   onShare,
-  captureMode = "guided"
+  captureMode = "guided",
+  localCaptureId
 }: EditorShellProps) {
   const [document, setDocument] = useState<DemoDocument>(initialDocument);
   const [selectedStepId, setSelectedStepId] = useState<string | null>(
@@ -2031,6 +2087,36 @@ export function EditorShell({
       // A malformed or stale local draft fails closed to the server-provided empty document.
     }
   }, [demoId, initialDocument.steps.length, readOnly]);
+
+  useEffect(() => {
+    if (readOnly || !localCaptureId) return;
+    let active = true;
+    void readLocalCaptureBundle(localCaptureId).then((bundle) => {
+      if (!active) return;
+      if (!bundle) {
+        setCaptureError("The local capture is no longer available. Download it again and retry.");
+        return;
+      }
+      const restored = createDocumentFromLocalCapture(initialDocument, bundle, (blob) => {
+        const objectUrl = URL.createObjectURL(blob);
+        objectUrlsRef.current.add(objectUrl);
+        return objectUrl;
+      });
+      setDocument(restored);
+      setSelectedStepId(restored.steps[0]?.id ?? null);
+      setSelectedChapterId(null);
+      setSelectedHotspotId(null);
+      setCaptureError("");
+      setCaptureStatus(
+        bundle.kind === "video"
+          ? "Your local recording is ready as the first step."
+          : `${restored.steps.length} desktop screenshots are ready as ordered steps.`
+      );
+    });
+    return () => {
+      active = false;
+    };
+  }, [demoId, initialDocument, localCaptureId, readOnly]);
 
   const selectedStep = document.steps.find((s) => s.id === selectedStepId) ?? null;
   const selectedChapter =

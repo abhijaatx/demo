@@ -18,6 +18,9 @@ test("desktop recorder exposes permission-aware screenshot and video capture con
   assert.match(surface, /Timed screenshots every 3s/u);
   assert.match(surface, /MAX_VIDEO_BYTES/u);
   assert.match(surface, /MAX_RECORDING_SECONDS/u);
+  assert.match(surface, /dataUrlToBlob/u);
+  assert.match(surface, /saveLocalCaptureBundle/u);
+  assert.match(surface, /Open editor/u);
   assert.match(surface, /permission was denied/u);
   assert.match(surface, /No screen data was uploaded/u);
   assert.doesNotMatch(surface, /dangerouslySetInnerHTML|innerHTML|eval\(|new Function\(/u);

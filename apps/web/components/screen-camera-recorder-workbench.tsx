@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { deleteLocalCaptureBundle, saveLocalCaptureBundle } from "../src/lib/local-capture-storage";
 
 type RecorderLayout = "screen" | "camera" | "screen-camera";
 type RecorderStatus = "idle" | "requesting" | "recording" | "paused" | "complete" | "error";
@@ -96,6 +97,7 @@ export function ScreenCameraRecorderWorkbench() {
   const [bubblePosition, setBubblePosition] = useState<BubblePosition>("bottom-right");
   const [bubbleSize, setBubbleSize] = useState(26);
   const [videoUrl, setVideoUrl] = useState("");
+  const [localCaptureId, setLocalCaptureId] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   const stopSources = () => {
@@ -123,7 +125,7 @@ export function ScreenCameraRecorderWorkbench() {
     setMicrophoneDevices(devices.filter((device) => device.kind === "audioinput").slice(0, 8));
   };
 
-  const finishRecording = () => {
+  const finishRecording = async () => {
     const chunks = chunksRef.current;
     if (!chunks.length) {
       stopAnimation();
@@ -139,11 +141,32 @@ export function ScreenCameraRecorderWorkbench() {
     setVideoUrl(nextUrl);
     stopAnimation();
     stopSources();
-    setStatus(blob.size > MAX_VIDEO_BYTES ? "error" : "complete");
+    if (blob.size > MAX_VIDEO_BYTES) {
+      setStatus("error");
+      setStatusMessage(
+        "The local 40 MB recording limit was reached before the video could be prepared."
+      );
+      return;
+    }
+    const captureId =
+      typeof globalThis.crypto?.randomUUID === "function"
+        ? `capture-${globalThis.crypto.randomUUID()}`
+        : `capture-${Date.now().toString(36)}`;
+    const saved = await saveLocalCaptureBundle({
+      version: 1,
+      id: captureId,
+      kind: "video",
+      createdAtIso: new Date().toISOString(),
+      title: "Screen and camera recording",
+      mimeType: blob.type || "video/webm",
+      blob
+    });
+    setLocalCaptureId(saved ? captureId : "");
+    setStatus(saved ? "complete" : "error");
     setStatusMessage(
-      blob.size > MAX_VIDEO_BYTES
-        ? "The local 40 MB recording limit was reached before the video could be prepared."
-        : "Recording ready. Download it or continue in the demo editor."
+      saved
+        ? "Recording ready. Download it or continue in the demo editor."
+        : "Recording is ready to download, but this browser could not keep an editor handoff."
     );
   };
 
@@ -273,7 +296,7 @@ export function ScreenCameraRecorderWorkbench() {
         }
         chunksRef.current.push(event.data);
       };
-      recorder.onstop = finishRecording;
+      recorder.onstop = () => void finishRecording();
       recorder.start(1000);
       const endCapture = () => stopRecording();
       displayStream?.getTracks().forEach((track) => track.addEventListener("ended", endCapture));
@@ -312,9 +335,11 @@ export function ScreenCameraRecorderWorkbench() {
 
   const clearRecording = () => {
     stopRecording();
+    if (localCaptureId) void deleteLocalCaptureBundle(localCaptureId);
     if (videoUrlRef.current) URL.revokeObjectURL(videoUrlRef.current);
     videoUrlRef.current = null;
     setVideoUrl("");
+    setLocalCaptureId("");
     setElapsedSeconds(0);
     setStatus("idle");
     setStatusMessage("Choose a layout, then grant access to the sources you want to record.");
@@ -548,7 +573,13 @@ export function ScreenCameraRecorderWorkbench() {
               <a href={videoUrl} download="supademo-screen-camera-recording.webm">
                 Download recording
               </a>
-              <a href="/demos?new=1&capture=video">Continue in editor →</a>
+              {localCaptureId ? (
+                <a
+                  href={`/demos/${encodeURIComponent(`draft-${localCaptureId}`)}/edit?capture=video&localCapture=${encodeURIComponent(localCaptureId)}`}
+                >
+                  Continue in editor →
+                </a>
+              ) : null}
               <button
                 type="button"
                 onClick={clearRecording}

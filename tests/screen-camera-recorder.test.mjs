@@ -21,6 +21,8 @@ test("screen and camera recorder exposes bounded local capture controls", async 
   assert.match(surface, /Include system audio/u);
   assert.match(surface, /MAX_RECORDING_SECONDS = 120/u);
   assert.match(surface, /MAX_VIDEO_BYTES/u);
+  assert.match(surface, /saveLocalCaptureBundle/u);
+  assert.match(surface, /localCapture=/u);
   assert.match(surface, /URL\.createObjectURL/u);
   assert.match(surface, /No recording data was uploaded/u);
   assert.doesNotMatch(
