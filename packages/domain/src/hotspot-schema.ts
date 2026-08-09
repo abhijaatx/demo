@@ -4,6 +4,7 @@
 
 import { clampNormalizedCoordinate } from "./canvas-coordinates.js";
 import type { DemoHotspot } from "./demo-document.js";
+import { parseDemoHotspotTiming } from "./video-hotspot-timing.js";
 
 export type HotspotActionType = "next_step" | "prev_step" | "goto_step" | "open_url" | "none";
 
@@ -41,6 +42,7 @@ export function parseAndNormalizeHotspot(input: unknown): DemoHotspot {
   }
 
   const raw = input as Record<string, unknown>;
+  const timing = parseDemoHotspotTiming(raw["timing"]);
 
   const id =
     typeof raw["id"] === "string" && raw["id"].trim() ? raw["id"].trim() : `hotspot-${Date.now()}`;
@@ -87,6 +89,7 @@ export function parseAndNormalizeHotspot(input: unknown): DemoHotspot {
     tooltipText,
     actionType,
     url: actionType === "open_url" ? safeUrl : null,
+    ...(timing ? { timing } : {}),
     style: Object.freeze({
       pulse,
       color,

@@ -24,6 +24,24 @@ test("parseAndNormalizeHotspot clamps geometry and sets default style", () => {
   assert.equal(hotspot.style.color, "#4f46e5");
 });
 
+test("parseAndNormalizeHotspot retains only bounded video timing", () => {
+  const timed = parseAndNormalizeHotspot({
+    id: "timed-hotspot",
+    timing: { kind: "duration", startSeconds: 1.25, endSeconds: 3.75 }
+  });
+  assert.deepEqual(timed.timing, {
+    kind: "duration",
+    startSeconds: 1.25,
+    endSeconds: 3.75
+  });
+
+  const malformed = parseAndNormalizeHotspot({
+    id: "malformed-timing",
+    timing: { kind: "pause", startSeconds: 7_201 }
+  });
+  assert.equal("timing" in malformed, false);
+});
+
 test("hotspot URL actions keep safe links and fail closed for unsafe schemes", () => {
   const safe = parseAndNormalizeHotspot({
     id: "hotspot-url",

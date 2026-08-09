@@ -45,7 +45,7 @@ test("demo dashboard keeps the Demos journey simple, responsive, and URL-backed"
   assert.match(editPage, /params: Promise<\{ demoId: string \}>/u);
   assert.match(editPage, /const \{ demoId \} = await params/u);
   assert.match(editPage, /readOnly=\{isLocalSample\}/u);
-  assert.match(nextConfig, /allowedDevOrigins: \["10\.2\.13\.175"\]/u);
+  assert.match(nextConfig, /allowedDevOrigins: \["10\.2\.13\.175", "127\.0\.0\.1", "localhost"\]/u);
   assert.match(screen, /supademo:workspace-changed/u);
   assert.match(screen, /EmptyState/u);
   assert.match(screen, /aria-label="Choose demo view"/u);

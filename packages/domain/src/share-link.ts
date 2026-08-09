@@ -18,6 +18,40 @@ export const SHARE_LINK_EXPIRY_OPTIONS = Object.freeze([
 const SHARE_LABEL_PATTERN = /^[a-zA-Z0-9._-]{1,64}$/u;
 const SHARE_TOKEN_PATTERN = /^sl_[a-zA-Z0-9_-]{16,96}$/u;
 const MAX_STEP_NUMBER = 10_000;
+const RELATIVE_URL_ORIGIN = "https://share-link-relative.invalid";
+
+/** @internal Shared with the personalization URL composer. */
+export function parseShareLinkBase(baseUrl: string): {
+  readonly relative: boolean;
+  readonly url: URL;
+} {
+  if (!baseUrl.trim()) {
+    throw new TypeError("Share link base URL must not be empty.");
+  }
+
+  let relative = false;
+  let url: URL;
+  try {
+    url = new URL(baseUrl);
+  } catch {
+    url = new URL(baseUrl, RELATIVE_URL_ORIGIN);
+    relative = url.origin === RELATIVE_URL_ORIGIN;
+  }
+
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new TypeError("Share link base URL must use HTTP or HTTPS.");
+  }
+  if (url.username || url.password) {
+    throw new TypeError("Share link base URL must not include credentials.");
+  }
+
+  return { relative, url };
+}
+
+/** @internal Preserve browser-relative references instead of inventing a server origin. */
+export function serializeShareLinkBase(url: URL, relative: boolean): string {
+  return relative ? `${url.pathname}${url.search}${url.hash}` : url.toString();
+}
 
 export function sanitizeShareLabel(value: unknown): string {
   if (typeof value !== "string") return "";
@@ -57,7 +91,7 @@ export function buildShareLinkUrl(
     readonly expiresAtMs?: number | null;
   } = {}
 ): string {
-  const url = new URL(baseUrl);
+  const { relative, url } = parseShareLinkBase(baseUrl);
   if (Object.hasOwn(options, "trackingLabel")) {
     const trackingLabel = sanitizeShareLabel(options.trackingLabel);
     if (trackingLabel && SHARE_LABEL_PATTERN.test(trackingLabel)) {
@@ -88,7 +122,7 @@ export function buildShareLinkUrl(
     }
   }
 
-  return url.toString();
+  return serializeShareLinkBase(url, relative);
 }
 
 export function isValidShareToken(value: unknown): value is string {

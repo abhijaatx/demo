@@ -17,11 +17,13 @@ import {
   parseDemoTranslation,
   type DemoTranslationDictionary
 } from "./localization-infrastructure.js";
+import { validateCropMetadata, type CropMetadata } from "./media-redaction.js";
 import {
   DEFAULT_DEMO_PERSONALIZATION,
   parseDemoPersonalization,
   type DemoPersonalization
 } from "./personalized-links.js";
+import { parseDemoHotspotTiming, type DemoHotspotTiming } from "./video-hotspot-timing.js";
 
 export const DEMO_DOCUMENT_VERSION = "1.0.0" as const;
 
@@ -68,6 +70,8 @@ export type DemoHotspot = Readonly<{
   /** Optional action metadata; omitted values retain the legacy linear behavior. */
   actionType?: "next_step" | "prev_step" | "goto_step" | "open_url" | "none";
   url?: string | null;
+  /** Optional video-only presentation timing; omitted values remain always visible. */
+  timing?: DemoHotspotTiming | null;
   style: DemoHotspotStyle;
 }>;
 
@@ -101,6 +105,9 @@ export type DemoStepMedia = Readonly<{
   height: number | null;
   durationSeconds: number | null;
   posterPath: string | null;
+  /** Non-destructive framing metadata for imported media. */
+  crop?: CropMetadata | null;
+  fit?: "cover" | "contain";
 }>;
 
 export type DemoStep = Readonly<{
@@ -112,6 +119,8 @@ export type DemoStep = Readonly<{
   hotspots: readonly DemoHotspot[];
   callouts: readonly DemoCallout[];
   audioNarration: DemoAudioNarration | null;
+  /** Locks the viewer shell for guided, single-viewport captured HTML steps. */
+  disableViewerScroll?: boolean;
 }>;
 
 export type DemoLayout = Readonly<{
@@ -365,12 +374,15 @@ function parseDemoStep(input: unknown, defaultIndex: number): DemoStep {
     media: raw["media"] ? parseDemoStepMedia(raw["media"]) : null,
     hotspots: Object.freeze(hotspotsRaw.map(parseDemoHotspot)),
     callouts: Object.freeze(calloutsRaw.map(parseDemoCallout)),
-    audioNarration: raw["audioNarration"] ? parseDemoAudioNarration(raw["audioNarration"]) : null
+    audioNarration: raw["audioNarration"] ? parseDemoAudioNarration(raw["audioNarration"]) : null,
+    ...(raw["disableViewerScroll"] === true ? { disableViewerScroll: true } : {})
   });
 }
 
 function parseDemoStepMedia(input: unknown): DemoStepMedia {
   const raw = input as Record<string, unknown>;
+  const crop = validateCropMetadata(raw["crop"]);
+  const fit = raw["fit"] === "cover" || raw["fit"] === "contain" ? raw["fit"] : null;
   return Object.freeze({
     assetId: String(raw["assetId"]),
     assetType: (["image", "video", "audio", "document", "screenshot"].includes(
@@ -382,12 +394,15 @@ function parseDemoStepMedia(input: unknown): DemoStepMedia {
     width: typeof raw["width"] === "number" ? raw["width"] : null,
     height: typeof raw["height"] === "number" ? raw["height"] : null,
     durationSeconds: typeof raw["durationSeconds"] === "number" ? raw["durationSeconds"] : null,
-    posterPath: typeof raw["posterPath"] === "string" ? raw["posterPath"] : null
+    posterPath: typeof raw["posterPath"] === "string" ? raw["posterPath"] : null,
+    ...(crop ? { crop } : {}),
+    ...(fit ? { fit } : {})
   });
 }
 
 function parseDemoHotspot(input: unknown): DemoHotspot {
   const raw = input as Record<string, unknown>;
+  const timing = parseDemoHotspotTiming(raw["timing"]);
   const styleRaw =
     typeof raw["style"] === "object" && raw["style"] !== null
       ? (raw["style"] as Record<string, unknown>)
@@ -421,6 +436,7 @@ function parseDemoHotspot(input: unknown): DemoHotspot {
     tooltipText: typeof raw["tooltipText"] === "string" ? raw["tooltipText"] : null,
     actionType,
     url: actionType === "open_url" ? safeUrl : null,
+    ...(timing ? { timing } : {}),
     style: Object.freeze({
       pulse: Boolean(styleRaw["pulse"] ?? true),
       color: String(styleRaw["color"] ?? "#4f46e5"),

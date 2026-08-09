@@ -2,7 +2,7 @@
 const nextConfig = {
   // The local preview is opened through this LAN address by the desktop app.
   // This only permits Next development resources for that exact origin.
-  allowedDevOrigins: ["10.2.13.175"],
+  allowedDevOrigins: ["10.2.13.175", "127.0.0.1", "localhost"],
   turbopack: {
     root: new URL("../../", import.meta.url).pathname
   },

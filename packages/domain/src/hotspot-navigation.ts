@@ -19,6 +19,16 @@ export function resolveHotspotNavigation(
   steps: readonly DemoStep[],
   currentStepIndex: number
 ): ResolvedNavigationResult {
+  if (hotspot.actionType === "none") {
+    return Object.freeze({
+      actionType: "none",
+      targetStepIndex: null,
+      targetStepId: null,
+      url: null,
+      isBroken: false,
+      diagnosticReason: null
+    });
+  }
   if (hotspot.actionType === "open_url") {
     const url = validateSafeUrl(hotspot.url);
     return Object.freeze({

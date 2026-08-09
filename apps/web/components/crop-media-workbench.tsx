@@ -2,6 +2,8 @@
 
 import { validateCropMetadata, type CropMetadata } from "@supademo/domain";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { croppedMediaStyle } from "../src/lib/crop-media-style";
+import { saveLocalCaptureBundle } from "../src/lib/local-capture-storage";
 
 type FitMode = "cover" | "contain";
 type CropStep = {
@@ -9,6 +11,7 @@ type CropStep = {
   name: string;
   url: string;
   mediaType: "image" | "video";
+  blob: Blob;
   crop: CropMetadata;
   fit: FitMode;
 };
@@ -55,6 +58,8 @@ export function CropMediaWorkbench() {
   const objectUrlsRef = useRef(new Map<string, string>());
   const [steps, setSteps] = useState<CropStep[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [localCaptureId, setLocalCaptureId] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const [aspectPreset, setAspectPreset] = useState("free");
   const [message, setMessage] = useState(
     "Choose one or more screenshots or videos to standardize their framing."
@@ -102,6 +107,7 @@ export function CropMediaWorkbench() {
         name: safeName,
         url,
         mediaType: fileType(file),
+        blob: file,
         crop: DEFAULT_CROP,
         fit: "contain"
       });
@@ -124,10 +130,10 @@ export function CropMediaWorkbench() {
     );
   };
 
-  const updateCrop = (patch: Partial<CropMetadata>) => {
+  const updateCrop = (patch: Partial<CropMetadata>, resetPreset = true) => {
     if (!selectedStep) return;
     updateSelected({ crop: boundedCrop({ ...selectedStep.crop, ...patch }) });
-    setAspectPreset("free");
+    if (resetPreset) setAspectPreset("free");
   };
 
   const applyAspectPreset = (value: string) => {
@@ -139,16 +145,22 @@ export function CropMediaWorkbench() {
     if (!Number.isFinite(target) || !Number.isFinite(current)) return;
     if (current > target) {
       const nextWidth = selectedStep.crop.height * target;
-      updateCrop({
-        x: (100 - nextWidth) / 2,
-        width: nextWidth
-      });
+      updateCrop(
+        {
+          x: (100 - nextWidth) / 2,
+          width: nextWidth
+        },
+        false
+      );
     } else {
       const nextHeight = selectedStep.crop.width / target;
-      updateCrop({
-        y: (100 - nextHeight) / 2,
-        height: nextHeight
-      });
+      updateCrop(
+        {
+          y: (100 - nextHeight) / 2,
+          height: nextHeight
+        },
+        false
+      );
     }
   };
 
@@ -202,6 +214,49 @@ export function CropMediaWorkbench() {
     setError("");
   };
 
+  const openEditor = async () => {
+    if (isSaving) return;
+    if (!steps.length) {
+      setError("Add at least one media step before opening the editor.");
+      return;
+    }
+    setIsSaving(true);
+    const captureId = `crop-${Date.now()}`;
+    const saved = await saveLocalCaptureBundle({
+      version: 1,
+      id: captureId,
+      kind: "upload",
+      createdAtIso: new Date().toISOString(),
+      title: "Cropped media",
+      mimeType: "image/png",
+      assets: steps.map((step) => ({
+        id: step.id,
+        blob: step.blob,
+        assetType: step.mediaType,
+        mimeType: step.blob.type,
+        width: null,
+        height: null,
+        title: step.name,
+        description: `Crop ${step.crop.x.toFixed(2)}%, ${step.crop.y.toFixed(2)}%, ${step.crop.width.toFixed(2)}% × ${step.crop.height.toFixed(2)}% (${step.fit}).`,
+        crop: step.crop,
+        fit: step.fit
+      }))
+    });
+    if (!saved) {
+      setError("The local crop bundle could not be saved. Remove a file and try again.");
+      setIsSaving(false);
+      return;
+    }
+    setLocalCaptureId(captureId);
+    setError("");
+    setMessage(
+      "Your cropped media is ready in the local editor; the original files are unchanged."
+    );
+    globalThis.location.assign(
+      `/demos/${encodeURIComponent(`draft-${captureId}`)}/edit?capture=upload&localCapture=${encodeURIComponent(captureId)}`
+    );
+  };
+
   useEffect(() => {
     return () => {
       for (const id of objectUrlsRef.current.keys()) revokeStepUrl(id);
@@ -210,12 +265,7 @@ export function CropMediaWorkbench() {
 
   const previewStyle = useMemo(() => {
     if (!selectedStep) return undefined;
-    const crop = selectedStep.crop;
-    return {
-      objectFit: selectedStep.fit,
-      objectPosition: `${rounded(crop.x + crop.width / 2)}% ${rounded(crop.y + crop.height / 2)}%`,
-      transform: `scale(${Math.max(1, rounded(100 / Math.min(crop.width, crop.height)))})`
-    } as const;
+    return croppedMediaStyle(selectedStep.crop, selectedStep.fit);
   }, [selectedStep]);
 
   return (
@@ -403,6 +453,17 @@ export function CropMediaWorkbench() {
         <button type="button" onClick={downloadPlan}>
           Download crop plan
         </button>
+        <button type="button" onClick={() => void openEditor()} disabled={isSaving}>
+          {isSaving ? "Saving…" : "Save and open editor"}
+        </button>
+        {localCaptureId ? (
+          <a
+            className="crop-media-editor-link"
+            href={`/demos/${encodeURIComponent(`draft-${localCaptureId}`)}/edit?capture=upload&localCapture=${encodeURIComponent(localCaptureId)}`}
+          >
+            Open cropped media in editor →
+          </a>
+        ) : null}
       </section>
     </main>
   );

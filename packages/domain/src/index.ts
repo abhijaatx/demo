@@ -329,6 +329,19 @@ export {
 } from "./hotspot-schema.js";
 
 export {
+  clampVideoHotspotTime,
+  findCrossedPauseHotspots,
+  isDemoHotspotVisibleAtTime,
+  MAX_VIDEO_HOTSPOT_TIME_SECONDS,
+  parseDemoHotspotTiming,
+  pauseHotspotIdsBeforeTime,
+  resolveTimelineEdgeDrag,
+  type DemoHotspotTiming,
+  type HotspotTimelineEdge,
+  type VideoHotspotCue
+} from "./video-hotspot-timing.js";
+
+export {
   MIN_HOTSPOT_SIZE_PERCENT,
   moveHotspot,
   nudgeHotspot,

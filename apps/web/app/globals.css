@@ -2696,31 +2696,104 @@ a:focus-visible {
 }
 
 .video-hotspots-markers {
-  position: absolute;
-  right: 0;
-  bottom: 20px;
-  left: 0;
-  height: 12px;
-  pointer-events: none;
+  position: relative;
+  height: 26px;
+  margin-top: 4px;
+  border-radius: 8px;
+  background: linear-gradient(
+    to bottom,
+    transparent 11px,
+    #dfe2ec 11px,
+    #dfe2ec 13px,
+    transparent 13px
+  );
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
 }
 
-.video-hotspots-markers button {
+.video-hotspots-marker {
   position: absolute;
-  width: 10px;
-  height: 10px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
   padding: 0;
   border: 2px solid #fff;
   border-radius: 50%;
   background: #5146e5;
   box-shadow: 0 0 0 1px #5146e5;
-  transform: translateX(-50%);
-  pointer-events: auto;
+  transform: translate(-50%, -50%);
+  cursor: grab;
+  touch-action: none;
+}
+
+.video-hotspots-marker:hover,
+.video-hotspots-cue-handle:hover {
+  transform: translate(-50%, -50%) scale(1.15);
+}
+
+.video-hotspots-marker:focus-visible,
+.video-hotspots-cue-handle:focus-visible {
+  outline: 2px solid #7c3aed;
+  outline-offset: 2px;
+}
+
+.video-hotspots-marker.is-selected {
+  width: 15px;
+  height: 15px;
+  background: #f04438;
+  box-shadow: 0 0 0 1px #f04438;
+}
+
+.video-hotspots-cue {
+  position: absolute;
+  top: 50%;
+  height: 14px;
+  transform: translateY(-50%);
   cursor: pointer;
 }
 
-.video-hotspots-markers button.is-selected {
-  width: 13px;
-  height: 13px;
+.video-hotspots-cue-bar {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: #5146e5;
+  opacity: 0.42;
+  cursor: pointer;
+}
+
+.video-hotspots-cue.is-selected .video-hotspots-cue-bar {
+  background: #f04438;
+  opacity: 0.6;
+}
+
+.video-hotspots-cue-handle {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 16px;
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 4px;
+  background: #5146e5;
+  box-shadow: 0 0 0 1px #5146e5;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.video-hotspots-cue-handle.is-start {
+  left: 0;
+  transform: translate(-50%, -50%);
+}
+
+.video-hotspots-cue-handle.is-end {
+  right: 0;
+  transform: translate(50%, -50%);
+}
+
+.video-hotspots-cue.is-selected .video-hotspots-cue-handle {
   background: #f04438;
   box-shadow: 0 0 0 1px #f04438;
 }
@@ -18003,6 +18076,12 @@ h2 {
 .demo-viewer-shell.is-embedded {
   min-height: 100%;
 }
+
+.demo-viewer-shell.is-scroll-locked {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
 .demo-viewer-topbar {
   min-height: 64px;
   display: flex;
@@ -32110,7 +32189,7 @@ h2 {
 .tutorials-page .marketing-footer-showcase {
   width: 100%;
   max-width: none;
-  min-height: 1275px;
+  min-height: 0;
   margin: 0;
   padding: 32px 0 0;
 }
@@ -34518,7 +34597,6 @@ h2 {
   display: block;
   width: 100%;
   max-width: none;
-  min-height: 1275px;
   margin: 0;
   padding: 32px 0 0;
   box-sizing: border-box;
@@ -34591,8 +34669,11 @@ h2 {
   height: 276px;
   object-fit: contain;
 }
-.marketing-footer-dark {
-  min-height: 795px;
+.marketing-footer-showcase .marketing-footer-dark {
+  /* The generic `.marketing-footer > div` rule sets `display: flex`, which lays
+     primary/grid/bottom out side-by-side as squeezed strips. The showcase footer
+     stacks them full-width instead. */
+  display: block;
   padding: 32px max(24px, calc((100% - 1232px) / 2)) 0;
   box-sizing: border-box;
   color: #fff;
@@ -41746,7 +41827,7 @@ h2 {
   object-position: center;
 }
 .integrations-page .marketing-footer {
-  min-height: 1275px;
+  min-height: 0;
   box-sizing: border-box;
 }
 @media (max-width: 900px) {
@@ -41996,7 +42077,7 @@ h2 {
   min-height: 244px;
 }
 .tools-page .marketing-footer {
-  min-height: 1275px;
+  min-height: 0;
   box-sizing: border-box;
 }
 .tools-page .tools-card-icon {
@@ -57186,8 +57267,8 @@ h2 {
   .marketing-home > .marketing-footer-showcase {
     box-sizing: border-box;
     width: 100%;
-    min-height: 1275px;
-    height: 1275px;
+    height: auto;
+    min-height: 0;
     margin: 0;
     padding: 32px 0 0;
   }

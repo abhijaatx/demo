@@ -26,3 +26,14 @@ test("generatePersonalizedEmbedUrl appends allowed variables to target URL", () 
   assert.equal(url.includes("first_name=Bob"), true);
   assert.equal(url.includes("unallowed"), false);
 });
+
+test("generatePersonalizedEmbedUrl preserves browser-relative share links", () => {
+  const url = generatePersonalizedEmbedUrl(
+    "/demos/demo-preview/view?ref=launch#overview",
+    { first_name: "Bob", unallowed: "value" },
+    ["first_name"]
+  );
+
+  assert.equal(url, "/demos/demo-preview/view?ref=launch&v_first_name=Bob#overview");
+  assert.equal(url.includes("localhost"), false);
+});

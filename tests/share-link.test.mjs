@@ -52,3 +52,24 @@ test("share link helpers preserve existing parameters when composing links", () 
   assert.equal(parsed.searchParams.get("ref"), "launch-email");
   assert.equal(parsed.searchParams.get("step"), "2");
 });
+
+test("share link helpers preserve browser-relative bases without inventing an origin", () => {
+  const url = buildShareLinkUrl("/demos/demo-preview/view?foo=bar#overview", {
+    trackingLabel: "launch-email",
+    step: 2
+  });
+
+  assert.equal(url, "/demos/demo-preview/view?foo=bar&ref=launch-email&step=2#overview");
+  assert.equal(url.includes("localhost"), false);
+});
+
+test("share link helpers reject executable schemes and credential-bearing URLs", () => {
+  assert.throws(
+    () => buildShareLinkUrl("javascript:alert(1)", { trackingLabel: "launch" }),
+    /must use HTTP or HTTPS/u
+  );
+  assert.throws(
+    () => buildShareLinkUrl("https://user:password@demo.example/view"),
+    /must not include credentials/u
+  );
+});

@@ -40,6 +40,49 @@ test("resolveHotspotNavigation advances to next step by default", () => {
   assert.equal(res.isBroken, false);
 });
 
+test("resolveHotspotNavigation keeps no-action informational hotspots inert", () => {
+  const result = resolveHotspotNavigation(
+    {
+      id: "timed-note",
+      x: 10,
+      y: 10,
+      width: 20,
+      height: 12,
+      targetStepId: null,
+      tooltipText: "Notice this setting",
+      actionType: "none",
+      timing: { kind: "duration", startSeconds: 2, endSeconds: 4 },
+      style: { pulse: false, color: "#4f46e5", opacity: 0.8 }
+    },
+    [
+      {
+        id: "step-1",
+        orderIndex: 0,
+        title: "Step",
+        description: null,
+        media: null,
+        hotspots: [],
+        callouts: [],
+        audioNarration: null
+      },
+      {
+        id: "step-2",
+        orderIndex: 1,
+        title: "Next",
+        description: null,
+        media: null,
+        hotspots: [],
+        callouts: [],
+        audioNarration: null
+      }
+    ],
+    0
+  );
+  assert.equal(result.actionType, "none");
+  assert.equal(result.targetStepIndex, null);
+  assert.equal(result.isBroken, false);
+});
+
 test("resolveHotspotNavigation returns validated external URL actions", () => {
   const result = resolveHotspotNavigation(
     {

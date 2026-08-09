@@ -124,6 +124,50 @@ test("serializeDemoDocument and parseDemoDocument perform round-trip serializati
   assert.equal(reconstructed.settings.theme.primaryColor, initial.settings.theme.primaryColor);
 });
 
+test("parseDemoDocument preserves valid video hotspot timing and drops malformed timing", () => {
+  const parsed = parseDemoDocument({
+    version: "1.0.0",
+    demoId: "demo-video-hotspots",
+    steps: [
+      {
+        id: "step-video",
+        orderIndex: 0,
+        title: "Video",
+        hotspots: [
+          {
+            id: "duration-hotspot",
+            timing: { kind: "duration", startSeconds: 2, endSeconds: 4.5 }
+          },
+          {
+            id: "pause-hotspot",
+            timing: { kind: "pause", startSeconds: 5, endSeconds: 9 }
+          },
+          {
+            id: "invalid-hotspot",
+            timing: { kind: "duration", startSeconds: 7, endSeconds: 7 }
+          }
+        ]
+      }
+    ]
+  });
+
+  assert.deepEqual(parsed.steps[0].hotspots[0].timing, {
+    kind: "duration",
+    startSeconds: 2,
+    endSeconds: 4.5
+  });
+  assert.deepEqual(parsed.steps[0].hotspots[1].timing, {
+    kind: "pause",
+    startSeconds: 5,
+    endSeconds: null
+  });
+  assert.equal("timing" in parsed.steps[0].hotspots[2], false);
+
+  const roundTripped = parseDemoDocument(JSON.parse(serializeDemoDocument(parsed)));
+  assert.deepEqual(roundTripped.steps[0].hotspots[0].timing, parsed.steps[0].hotspots[0].timing);
+  assert.deepEqual(roundTripped.steps[0].hotspots[1].timing, parsed.steps[0].hotspots[1].timing);
+});
+
 test("parseDemoDocument preserves chapters at beginning, middle, and end", () => {
   const parsed = parseDemoDocument({
     version: "1.0.0",

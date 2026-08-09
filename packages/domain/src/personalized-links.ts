@@ -6,6 +6,8 @@
  * bounded before they are rendered by React.
  */
 
+import { parseShareLinkBase, serializeShareLinkBase } from "./share-link.js";
+
 export const PERSONALIZATION_VARIABLE_LIMIT = 12;
 export const PERSONALIZATION_VARIABLE_NAME_LIMIT = 32;
 export const PERSONALIZATION_VALUE_LIMIT = 160;
@@ -115,7 +117,7 @@ export function generatePersonalizedEmbedUrl(
   variables: Record<string, string>,
   allowlist: readonly string[]
 ): string {
-  const url = new URL(baseUrl);
+  const { relative, url } = parseShareLinkBase(baseUrl);
   const allowSet = new Set(
     allowlist.map(normalizeVariableName).filter((value): value is string => Boolean(value))
   );
@@ -128,5 +130,5 @@ export function generatePersonalizedEmbedUrl(
     }
   });
 
-  return url.toString();
+  return serializeShareLinkBase(url, relative);
 }

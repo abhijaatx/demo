@@ -1,7 +1,11 @@
 "use client";
 
 import { resolveTemplateTokens, sanitizeHtmlContent } from "@supademo/domain";
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import {
+  saveLocalCaptureBundle,
+  type LocalCaptureHtmlNode
+} from "../src/lib/local-capture-storage";
 
 const MAX_TEXT_LENGTH = 400;
 const MAX_VARIABLE_LENGTH = 160;
@@ -17,6 +21,7 @@ type HtmlNode = {
   readonly redacted: boolean;
   readonly imageUrl: string | null;
   readonly imageName: string | null;
+  readonly imageBlob?: Blob;
 };
 
 type ApplyScope = "current" | "all";
@@ -68,7 +73,11 @@ function serializeNodes(nodes: readonly HtmlNode[]): string {
   return nodes
     .filter((node) => !node.hidden)
     .map((node) => {
-      if (node.tag === "image") return `<img alt="${node.label}" src="asset://${node.id}">`;
+      if (node.tag === "image") {
+        return node.redacted
+          ? "<p>[REDACTED]</p>"
+          : `<img alt="${node.label}" src="asset://${node.id}">`;
+      }
       const tag = node.tag === "heading" ? "h1" : node.tag === "button" ? "button" : "p";
       const text = node.redacted ? "[REDACTED]" : node.text;
       return `<${tag}>${text}</${tag}>`;
@@ -100,6 +109,8 @@ export function HtmlEditWorkbench() {
     "Select an element to edit its text, image, or protection effect."
   );
   const [error, setError] = useState("");
+  const [localCaptureId, setLocalCaptureId] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const [report, setReport] = useState<{
     removedTagsCount: number;
     removedAttrsCount: number;
@@ -150,6 +161,89 @@ export function HtmlEditWorkbench() {
     );
   };
 
+  const openEditor = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+    const htmlNodes: LocalCaptureHtmlNode[] = nodes.map((node) => ({
+      id: node.id,
+      tag: node.tag,
+      label: node.hidden
+        ? "Hidden element"
+        : node.redacted
+          ? "Redacted element"
+          : node.label.slice(0, 160),
+      text: node.hidden || node.redacted ? "[REDACTED]" : node.text.slice(0, MAX_TEXT_LENGTH),
+      hidden: node.hidden,
+      redacted: node.redacted,
+      imageAssetId:
+        !node.hidden && !node.redacted && node.imageBlob ? `html-image-${node.id}` : undefined
+    }));
+    const imageAssets = nodes
+      .filter(
+        (node): node is HtmlNode & { imageBlob: Blob } =>
+          !node.hidden && !node.redacted && node.imageBlob instanceof Blob
+      )
+      .map((node) => ({
+        id: `html-image-${node.id}`,
+        blob: node.imageBlob,
+        assetType: "image" as const,
+        mimeType: node.imageBlob.type,
+        width: null,
+        height: null,
+        title: node.imageName || node.label,
+        description: "Image replacement from the sanitized HTML plan."
+      }));
+    const captureId = `html-${Date.now()}`;
+    const saved = await saveLocalCaptureBundle({
+      version: 1,
+      id: captureId,
+      kind: "html",
+      createdAtIso: new Date().toISOString(),
+      title: "Captured HTML plan",
+      mimeType: "text/html",
+      htmlNodes,
+      htmlVariables: variables,
+      htmlDisableScroll: disableScroll,
+      assets: imageAssets
+    });
+    if (!saved) {
+      setError("The sanitized HTML plan could not be saved locally.");
+      setIsSaving(false);
+      return;
+    }
+    setLocalCaptureId(captureId);
+    setError("");
+    setMessage(
+      "The sanitized HTML plan is ready in the local editor. No page scripts were stored."
+    );
+    globalThis.location.assign(
+      `/demos/${encodeURIComponent(`draft-${captureId}`)}/edit?capture=html&localCapture=${encodeURIComponent(captureId)}`
+    );
+  };
+
+  const focusNodeOption = (nodeId: string): void => {
+    globalThis.requestAnimationFrame(() => {
+      document.getElementById(`html-node-option-${nodeId}`)?.focus();
+    });
+  };
+
+  const handleNodeKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const nextIndex =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? nodes.length - 1
+          : event.key === "ArrowDown"
+            ? (index + 1) % nodes.length
+            : (index - 1 + nodes.length) % nodes.length;
+    const nextNode = nodes[nextIndex];
+    if (!nextNode) return;
+    setSelectedId(nextNode.id);
+    focusNodeOption(nextNode.id);
+  };
+
   const handleImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = "";
@@ -162,7 +256,7 @@ export function HtmlEditWorkbench() {
     if (previous) URL.revokeObjectURL(previous);
     const url = URL.createObjectURL(file);
     objectUrlsRef.current.set(selectedNode.id, url);
-    updateSelected({ imageUrl: url, imageName: file.name.slice(0, 120) });
+    updateSelected({ imageUrl: url, imageName: file.name.slice(0, 120), imageBlob: file });
     setMessage(
       `${file.name.slice(0, 120)} ready locally. Save changes to keep the replacement in this plan.`
     );
@@ -175,8 +269,14 @@ export function HtmlEditWorkbench() {
     disableScroll,
     variables,
     sanitizedHtml: renderedHtml,
-    nodes: nodes.map(({ imageUrl, ...node }) => ({
-      ...node,
+    nodes: nodes.map(({ id, tag, label, text, hidden, redacted, imageName, imageUrl }) => ({
+      id,
+      tag,
+      label,
+      text,
+      hidden,
+      redacted,
+      imageName,
       imageUrl: imageUrl?.startsWith("blob:") ? "local-object-url" : imageUrl
     }))
   };
@@ -203,6 +303,22 @@ export function HtmlEditWorkbench() {
         >
           Download plan
         </button>
+        <button
+          type="button"
+          className="motion-workbench-button motion-workbench-button-primary"
+          onClick={() => void openEditor()}
+          disabled={isSaving}
+        >
+          {isSaving ? "Saving…" : "Save and open editor"}
+        </button>
+        {localCaptureId ? (
+          <a
+            className="motion-workbench-button motion-workbench-button-secondary"
+            href={`/demos/${encodeURIComponent(`draft-${localCaptureId}`)}/edit?capture=html&localCapture=${encodeURIComponent(localCaptureId)}`}
+          >
+            Open HTML plan in editor →
+          </a>
+        ) : null}
       </div>
       {error ? (
         <p className="html-edit-workbench-error" role="alert">
@@ -224,14 +340,17 @@ export function HtmlEditWorkbench() {
             role="listbox"
             aria-label="HTML elements"
           >
-            {nodes.map((node) => (
+            {nodes.map((node, index) => (
               <button
+                id={`html-node-option-${node.id}`}
                 type="button"
                 role="option"
                 aria-selected={node.id === selectedNode.id}
+                tabIndex={node.id === selectedNode.id ? 0 : -1}
                 className={`html-edit-workbench-element${node.id === selectedNode.id ? " is-selected" : ""}`}
                 key={node.id}
                 onClick={() => setSelectedId(node.id)}
+                onKeyDown={(event) => handleNodeKeyDown(event, index)}
               >
                 <span className="html-edit-workbench-element-icon">
                   {node.tag === "image"
@@ -290,10 +409,12 @@ export function HtmlEditWorkbench() {
                     {node.label} hidden
                   </div>
                 ) : node.tag === "image" ? (
-                  <div
+                  <button
+                    type="button"
                     className={`html-edit-workbench-image${node.id === selectedNode.id ? " is-selected" : ""}`}
                     key={node.id}
                     onClick={() => setSelectedId(node.id)}
+                    aria-label={`Select ${node.label}`}
                   >
                     {node.imageUrl ? (
                       <img src={node.imageUrl} alt={node.label} />
@@ -301,7 +422,7 @@ export function HtmlEditWorkbench() {
                       <span>Replace image</span>
                     )}
                     <small>{node.imageName ?? "Product screenshot"}</small>
-                  </div>
+                  </button>
                 ) : (
                   <button
                     type="button"

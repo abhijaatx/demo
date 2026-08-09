@@ -3,9 +3,12 @@
 import {
   isShareLinkExpired,
   isValidShareToken,
+  findCrossedPauseHotspots,
+  isDemoHotspotVisibleAtTime,
   extractPersonalizedVariablesFromUrl,
   parseDemoDocument,
   parseShareLinkExpiry,
+  pauseHotspotIdsBeforeTime,
   resolveLocalizedText,
   resolveTemplateTokens,
   translationContentKey,
@@ -19,6 +22,12 @@ import {
   validateSafeUrl
 } from "@supademo/domain";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { croppedMediaStyle } from "../src/lib/crop-media-style";
+import {
+  createDocumentFromLocalCapture,
+  rehydrateLocalCaptureDocument
+} from "../src/lib/local-capture-document";
+import { readLocalCaptureBundle } from "../src/lib/local-capture-storage";
 
 type EmbeddedEventType =
   | "Supademo:load"
@@ -187,12 +196,14 @@ export function DemoViewer({
   demoId,
   initialDocument,
   embedded = false,
-  offlineOnly = false
+  offlineOnly = false,
+  localCaptureId
 }: {
   demoId: string;
   initialDocument: DemoDocument;
   embedded?: boolean;
   offlineOnly?: boolean;
+  localCaptureId?: string;
 }) {
   const [demoDocument, setDemoDocument] = useState<DemoDocument>(initialDocument);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -206,7 +217,18 @@ export function DemoViewer({
   const [selectedLocale, setSelectedLocale] = useState("en-US");
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [shareAccessError, setShareAccessError] = useState<string | null>(null);
+  const [localCaptureError, setLocalCaptureError] = useState<string | null>(null);
   const startedRef = useRef(false);
+  const objectUrlsRef = useRef<Set<string>>(new Set());
+  const viewerVideoRef = useRef<HTMLVideoElement | null>(null);
+  const previousVideoTimeRef = useRef(0);
+  const videoSeekingRef = useRef(false);
+  const pauseJumpVideoRef = useRef(false);
+  const triggeredVideoPauseIdsRef = useRef<Set<string>>(new Set());
+  const [videoCurrentTime, setVideoCurrentTime] = useState(0);
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [videoPlaying, setVideoPlaying] = useState(false);
+  const [activeVideoPauseIds, setActiveVideoPauseIds] = useState<readonly string[]>([]);
 
   const emitStarted = (): void => {
     if (startedRef.current) return;
@@ -215,38 +237,67 @@ export function DemoViewer({
   };
 
   useEffect(() => {
-    const stored = readStoredDocument(demoId, offlineOnly);
-    const nextDocument = stored ?? initialDocument;
-    const nextIndex = requestedStepIndex(
-      globalThis.location?.search ?? "",
-      nextDocument.steps.length
-    );
-    setCurrentIndex(nextIndex);
-    setActiveChapterId(chapterAtPosition(nextDocument, nextIndex)?.id ?? null);
-    setShareAccessError(readExpiringShareLinkError(demoId));
-    if (stored) {
-      setDemoDocument(stored);
+    return () => {
+      objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      objectUrlsRef.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const loadDocument = async (): Promise<void> => {
+      const stored = readStoredDocument(demoId, offlineOnly);
+      let nextDocument = stored ?? initialDocument;
+      setLocalCaptureError(null);
+
+      if (localCaptureId && !offlineOnly) {
+        const bundle = await readLocalCaptureBundle(localCaptureId);
+        if (!active) return;
+        if (!bundle) {
+          nextDocument = initialDocument;
+          setLocalCaptureError(
+            "This browser-local preview is no longer available. Return to the editor and import the media again."
+          );
+        } else {
+          objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+          objectUrlsRef.current.clear();
+          const captured = createDocumentFromLocalCapture(initialDocument, bundle, (blob) => {
+            const objectUrl = URL.createObjectURL(blob);
+            objectUrlsRef.current.add(objectUrl);
+            return objectUrl;
+          });
+          nextDocument = stored
+            ? rehydrateLocalCaptureDocument(captured, stored, bundle.id)
+            : captured;
+        }
+      }
+
+      const nextIndex = requestedStepIndex(
+        globalThis.location?.search ?? "",
+        nextDocument.steps.length
+      );
+      setDemoDocument(nextDocument);
+      setCurrentIndex(nextIndex);
+      setActiveChapterId(chapterAtPosition(nextDocument, nextIndex)?.id ?? null);
+      setShareAccessError(readExpiringShareLinkError(demoId));
       setSelectedLocale(
         requestedTranslationLocale(
           new URLSearchParams(globalThis.location?.search ?? "").get("lang"),
-          stored.translations
+          nextDocument.translations
         )
       );
-    } else {
-      setSelectedLocale(
-        requestedTranslationLocale(
-          new URLSearchParams(globalThis.location?.search ?? "").get("lang"),
-          initialDocument.translations
-        )
-      );
-    }
-    setLoadedFromStorage(true);
-    postEmbeddedEvent(embedded, "Supademo:load", {
-      demoId,
-      title: demoId,
-      totalSlides: nextDocument.steps.length
-    });
-  }, [demoId, embedded, initialDocument, offlineOnly]);
+      setLoadedFromStorage(true);
+      postEmbeddedEvent(embedded, "Supademo:load", {
+        demoId,
+        title: demoId,
+        totalSlides: nextDocument.steps.length
+      });
+    };
+    void loadDocument();
+    return () => {
+      active = false;
+    };
+  }, [demoId, embedded, initialDocument, localCaptureId, offlineOnly]);
 
   useEffect(() => {
     if (!embedded) return;
@@ -313,6 +364,8 @@ export function DemoViewer({
     : presetBackgrounds[viewerTheme.backgroundPreset];
   const chapterMediaUrl = currentChapter?.mediaUrl ? safeMediaUrl(currentChapter.mediaUrl) : null;
   const mediaUrl = step?.media ? safeMediaUrl(step.media.storagePath) : null;
+  const mediaCrop = step?.media?.crop;
+  const mediaFit = step?.media?.fit;
   const narrationUrl = step?.audioNarration?.audioUrl
     ? safeMediaUrl(step.audioNarration.audioUrl)
     : null;
@@ -322,6 +375,88 @@ export function DemoViewer({
     setFormErrors({});
     setFormSubmitted(false);
   }, [activeChapterId]);
+
+  useEffect(() => {
+    previousVideoTimeRef.current = 0;
+    videoSeekingRef.current = false;
+    pauseJumpVideoRef.current = false;
+    triggeredVideoPauseIdsRef.current.clear();
+    setVideoCurrentTime(0);
+    setVideoDuration(step?.media?.durationSeconds ?? 0);
+    setVideoPlaying(false);
+    setActiveVideoPauseIds([]);
+  }, [step?.id, step?.media?.durationSeconds]);
+
+  const stepHotspots = step?.hotspots ?? [];
+  const visibleHotspots = stepHotspots.filter((hotspot) =>
+    isDemoHotspotVisibleAtTime(hotspot, videoCurrentTime, new Set(activeVideoPauseIds))
+  );
+
+  const handleViewerVideoTimeUpdate = (video: HTMLVideoElement): void => {
+    const nextTime = video.currentTime;
+    if (videoSeekingRef.current) {
+      previousVideoTimeRef.current = nextTime;
+      setVideoCurrentTime(nextTime);
+      return;
+    }
+    const crossed = findCrossedPauseHotspots(
+      stepHotspots,
+      previousVideoTimeRef.current,
+      nextTime,
+      triggeredVideoPauseIdsRef.current
+    );
+    if (crossed.length > 0) {
+      const pauseAt = crossed[0]?.timing?.startSeconds ?? nextTime;
+      for (const hotspot of crossed) triggeredVideoPauseIdsRef.current.add(hotspot.id);
+      // The programmatic jump must not re-arm the cue via onSeeked. The crossed
+      // cue is already in the triggered set, so re-entrant time updates are safe
+      // without marking the video as seeking (which could get stuck on a no-op
+      // seek and suppress every later cue).
+      pauseJumpVideoRef.current = true;
+      video.currentTime = pauseAt;
+      video.pause();
+      previousVideoTimeRef.current = pauseAt;
+      setVideoCurrentTime(pauseAt);
+      setActiveVideoPauseIds(crossed.map((hotspot) => hotspot.id));
+      return;
+    }
+    previousVideoTimeRef.current = nextTime;
+    setVideoCurrentTime(nextTime);
+  };
+
+  const seekViewerVideo = (nextTime: number): void => {
+    const video = viewerVideoRef.current;
+    if (!video) return;
+    const bounded = Math.max(0, Math.min(videoDuration || video.duration || 0, nextTime));
+    const changed = Math.abs(video.currentTime - bounded) > 0.001;
+    videoSeekingRef.current = changed;
+    pauseJumpVideoRef.current = false;
+    if (changed) video.currentTime = bounded;
+    previousVideoTimeRef.current = bounded;
+    triggeredVideoPauseIdsRef.current = new Set(pauseHotspotIdsBeforeTime(stepHotspots, bounded));
+    setActiveVideoPauseIds([]);
+    setVideoCurrentTime(bounded);
+  };
+
+  const resumeViewerVideo = (): void => {
+    const video = viewerVideoRef.current;
+    if (!video) return;
+    setActiveVideoPauseIds([]);
+    previousVideoTimeRef.current = video.currentTime;
+    void video.play().catch(() => {
+      // Native browser media policy may require the viewer to press Play again.
+    });
+  };
+
+  const toggleViewerVideo = (): void => {
+    const video = viewerVideoRef.current;
+    if (!video) return;
+    if (!video.paused) {
+      video.pause();
+      return;
+    }
+    resumeViewerVideo();
+  };
   const progress = useMemo(
     () =>
       demoDocument.steps.length === 0
@@ -433,6 +568,10 @@ export function DemoViewer({
 
   const goHotspot = (hotspot: DemoHotspot): void => {
     emitStarted();
+    if (hotspot.actionType === "none") {
+      if (hotspot.timing?.kind === "pause") resumeViewerVideo();
+      return;
+    }
     if (hotspot.actionType === "open_url") {
       const safeUrl = validateSafeUrl(hotspot.url);
       if (safeUrl) {
@@ -452,7 +591,7 @@ export function DemoViewer({
 
   return (
     <main
-      className={`demo-viewer-shell${embedded ? " is-embedded" : ""}`}
+      className={`demo-viewer-shell${embedded ? " is-embedded" : ""}${step?.disableViewerScroll ? " is-scroll-locked" : ""}`}
       style={{
         backgroundColor: viewerTheme.backgroundColor,
         backgroundImage: viewerBackgroundImage === "none" ? undefined : viewerBackgroundImage,
@@ -505,7 +644,12 @@ export function DemoViewer({
               ) : null}
             </div>
           ) : null}
-          <a className="demo-viewer-exit" href={`/demos/${encodeURIComponent(demoId)}/edit`}>
+          <a
+            className="demo-viewer-exit"
+            href={`/demos/${encodeURIComponent(demoId)}/edit${
+              localCaptureId ? `?localCapture=${encodeURIComponent(localCaptureId)}` : ""
+            }`}
+          >
             Back to editor
           </a>
         </header>
@@ -514,6 +658,10 @@ export function DemoViewer({
       {!loadedFromStorage ? (
         <div className="demo-viewer-empty" role="status">
           Loading demo…
+        </div>
+      ) : localCaptureError ? (
+        <div className="demo-viewer-empty" role="alert">
+          {localCaptureError}
         </div>
       ) : shareAccessError ? (
         <div className="demo-viewer-empty" role="alert">
@@ -895,9 +1043,45 @@ export function DemoViewer({
                 <div className="demo-viewer-frame">
                   {mediaUrl && step.media?.assetType === "video" ? (
                     <video
+                      ref={viewerVideoRef}
                       src={mediaUrl}
-                      controls
                       playsInline
+                      onLoadedMetadata={(event) => {
+                        const duration = event.currentTarget.duration;
+                        if (Number.isFinite(duration)) setVideoDuration(duration);
+                      }}
+                      onTimeUpdate={(event) => handleViewerVideoTimeUpdate(event.currentTarget)}
+                      onSeeking={() => {
+                        videoSeekingRef.current = true;
+                      }}
+                      onSeeked={(event) => {
+                        const nextTime = event.currentTarget.currentTime;
+                        videoSeekingRef.current = false;
+                        previousVideoTimeRef.current = nextTime;
+                        if (pauseJumpVideoRef.current) {
+                          // Programmatic jump to a pause cue must not re-arm the cue;
+                          // only a real viewer seek re-arms cues at/after the seek point.
+                          pauseJumpVideoRef.current = false;
+                        } else {
+                          triggeredVideoPauseIdsRef.current = new Set(
+                            pauseHotspotIdsBeforeTime(stepHotspots, nextTime)
+                          );
+                        }
+                        setActiveVideoPauseIds([]);
+                        setVideoCurrentTime(nextTime);
+                      }}
+                      onPlay={() => {
+                        setVideoPlaying(true);
+                        setActiveVideoPauseIds([]);
+                      }}
+                      onPause={() => setVideoPlaying(false)}
+                      onEnded={() => {
+                        setVideoPlaying(false);
+                        setActiveVideoPauseIds([]);
+                        pauseJumpVideoRef.current = false;
+                        triggeredVideoPauseIdsRef.current.clear();
+                      }}
+                      style={croppedMediaStyle(mediaCrop, mediaFit ?? "cover")}
                       aria-label={renderText(
                         step.title,
                         translationContentKey("step", step.id, "title")
@@ -907,6 +1091,7 @@ export function DemoViewer({
                     <img
                       src={mediaUrl}
                       alt={renderText(step.title, translationContentKey("step", step.id, "title"))}
+                      style={croppedMediaStyle(mediaCrop, mediaFit ?? "cover")}
                     />
                   ) : (
                     <div className="demo-viewer-placeholder">
@@ -914,34 +1099,80 @@ export function DemoViewer({
                       <strong>
                         {renderText(step.title, translationContentKey("step", step.id, "title"))}
                       </strong>
-                      <small>Media is available after the capture is uploaded.</small>
+                      {step.description ? (
+                        <p>{renderText(step.description)}</p>
+                      ) : (
+                        <small>Media is available after the capture is uploaded.</small>
+                      )}
                     </div>
                   )}
-                  {step.hotspots.map((hotspot) => (
-                    <button
-                      key={hotspot.id}
-                      type="button"
-                      className="demo-viewer-hotspot"
-                      style={{
-                        left: `${hotspot.x}%`,
-                        top: `${hotspot.y}%`,
-                        width: `${hotspot.width}%`,
-                        height: `${hotspot.height}%`,
-                        backgroundColor: hotspot.style.color,
-                        opacity: Math.max(0.2, Math.min(1, hotspot.style.opacity))
-                      }}
-                      onClick={() => goHotspot(hotspot)}
-                      aria-label={renderText(
-                        hotspot.tooltipText ?? "Continue",
-                        translationContentKey("step", step.id, "hotspot", hotspot.id)
-                      )}
-                    >
-                      {renderText(
-                        hotspot.tooltipText ?? "Continue",
-                        translationContentKey("step", step.id, "hotspot", hotspot.id)
-                      )}
-                    </button>
-                  ))}
+                  {step.media?.assetType === "video" && demoDocument.settings.showControls ? (
+                    <div className="demo-viewer-video-controls" aria-label="Video controls">
+                      <button type="button" onClick={toggleViewerVideo}>
+                        {activeVideoPauseIds.length
+                          ? "Resume video"
+                          : videoPlaying
+                            ? "Pause"
+                            : "Play"}
+                      </button>
+                      <input
+                        type="range"
+                        min="0"
+                        max={videoDuration || 1}
+                        step="0.01"
+                        value={Math.min(videoCurrentTime, videoDuration || 1)}
+                        onChange={(event) => seekViewerVideo(Number(event.currentTarget.value))}
+                        aria-label="Video timeline"
+                      />
+                      <span>
+                        {videoCurrentTime.toFixed(1)} / {videoDuration.toFixed(1)}s
+                      </span>
+                    </div>
+                  ) : null}
+                  {activeVideoPauseIds.length ? (
+                    <p className="demo-viewer-video-status" role="status" aria-live="assertive">
+                      Video paused for an interactive hotspot.
+                    </p>
+                  ) : null}
+                  {visibleHotspots.map((hotspot) => {
+                    const label = renderText(
+                      hotspot.tooltipText ?? "Continue",
+                      translationContentKey("step", step.id, "hotspot", hotspot.id)
+                    );
+                    const style = {
+                      left: `${hotspot.x}%`,
+                      top: `${hotspot.y}%`,
+                      width: `${hotspot.width}%`,
+                      height: `${hotspot.height}%`,
+                      backgroundColor: hotspot.style.color,
+                      opacity: Math.max(0.2, Math.min(1, hotspot.style.opacity))
+                    };
+                    if (hotspot.actionType === "none" && hotspot.timing?.kind !== "pause") {
+                      return (
+                        <div
+                          key={hotspot.id}
+                          className="demo-viewer-hotspot"
+                          style={style}
+                          role="note"
+                          aria-label={label}
+                        >
+                          {label}
+                        </div>
+                      );
+                    }
+                    return (
+                      <button
+                        key={hotspot.id}
+                        type="button"
+                        className="demo-viewer-hotspot"
+                        style={style}
+                        onClick={() => goHotspot(hotspot)}
+                        aria-label={label}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
               </>
             ) : null}

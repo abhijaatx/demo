@@ -16,7 +16,10 @@ import {
   generateSopTextExport,
   generatePersonalizedEmbedUrl,
   getAvailableTtsVoices,
+  findCrossedPauseHotspots,
+  isDemoHotspotVisibleAtTime,
   nudgeHotspot,
+  pauseHotspotIdsBeforeTime,
   parseDemoAudioNarration,
   parseDemoFormSchema,
   parseDemoPersonalization,
@@ -39,7 +42,6 @@ import {
   type RewriteTone,
   type TextRewriteProposal,
   type DemoStep,
-  type DemoStepMedia,
   type DemoHotspot,
   type PublishedDemoManifest,
   type ShareLinkExpiryPreset
@@ -47,6 +49,7 @@ import {
 import { Modal } from "@supademo/ui";
 import type { ChangeEvent, KeyboardEvent, RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
+import { croppedMediaStyle } from "../src/lib/crop-media-style";
 import {
   createDemoPng,
   createDemoVideo,
@@ -54,7 +57,11 @@ import {
   type ExportResolution,
   type VideoExportFormat
 } from "../src/lib/export-client";
-import { readLocalCaptureBundle, type LocalCaptureBundle } from "../src/lib/local-capture-storage";
+import {
+  createDocumentFromLocalCapture,
+  rehydrateLocalCaptureDocument
+} from "../src/lib/local-capture-document";
+import { readLocalCaptureBundle } from "../src/lib/local-capture-storage";
 import {
   createOfflineZip,
   readOfflineDownloads,
@@ -1002,121 +1009,8 @@ function persistLocalDocument(demoId: string, demoDocument: DemoDocument): void 
   }
 }
 
-function createDocumentFromLocalCapture(
-  baseDocument: DemoDocument,
-  bundle: LocalCaptureBundle,
-  createObjectUrl: (blob: Blob) => string
-): DemoDocument {
-  const createStep = (
-    id: string,
-    title: string,
-    description: string | null,
-    assetType: DemoStepMedia["assetType"],
-    blob: Blob,
-    width: number | null = null,
-    height: number | null = null
-  ): DemoStep => ({
-    id,
-    orderIndex: 0,
-    title: title.slice(0, 160) || "Imported local step",
-    description,
-    media: {
-      assetId: `local-asset-${id}`,
-      assetType,
-      storagePath: createObjectUrl(blob),
-      width,
-      height,
-      durationSeconds: null,
-      posterPath: null
-    },
-    hotspots: [],
-    callouts: [],
-    audioNarration: null
-  });
-
-  let steps: DemoStep[];
-  if ((bundle.kind === "video" || bundle.kind === "video-split") && bundle.blob) {
-    const videoBlob = bundle.blob;
-    const segments = bundle.kind === "video-split" ? bundle.segments || [] : [];
-    const screenshots = [...(bundle.screenshots || [])].sort(
-      (left, right) => (left.atSeconds || 0) - (right.atSeconds || 0)
-    );
-    if (!segments.length) {
-      steps = [
-        createStep(
-          `local-step-${bundle.id}`,
-          bundle.title || "Desktop recording",
-          "Imported local recording.",
-          "video",
-          videoBlob
-        )
-      ];
-    } else {
-      const videoSteps = segments.map((segment, index) =>
-        createStep(
-          `local-video-step-${bundle.id}-${index + 1}`,
-          `${bundle.title || "Video"} · ${segment.startSeconds.toFixed(2)}–${segment.endSeconds.toFixed(2)}s`,
-          `Video segment from ${segment.startSeconds.toFixed(2)}s to ${segment.endSeconds.toFixed(2)}s at ${segment.speed}×${segment.muted ? ", muted" : ""}.`,
-          "video",
-          videoBlob
-        )
-      );
-      const combined: Array<{ at: number; order: number; step: DemoStep }> = [];
-      videoSteps.forEach((step, index) => {
-        combined.push({ at: segments[index]?.startSeconds || 0, order: index * 2, step });
-      });
-      screenshots.forEach((screenshot, index) => {
-        combined.push({
-          at: screenshot.atSeconds || 0,
-          order: index * 2 + 1,
-          step: createStep(
-            `local-image-step-${bundle.id}-${index + 1}`,
-            screenshot.title || `Image step ${index + 1}`,
-            screenshot.description ||
-              `Frame captured at ${(screenshot.atSeconds || 0).toFixed(2)}s.`,
-            "screenshot",
-            screenshot.blob,
-            screenshot.width,
-            screenshot.height
-          )
-        });
-      });
-      combined.sort((left, right) => left.at - right.at || left.order - right.order);
-      steps = combined.map(({ step }) => step);
-    }
-  } else if (bundle.kind === "upload") {
-    steps = (bundle.assets || []).map((asset) =>
-      createStep(
-        `local-upload-step-${bundle.id}-${asset.id}`,
-        asset.title,
-        asset.description || "Imported local upload.",
-        asset.assetType === "image" ? "image" : asset.assetType,
-        asset.blob,
-        asset.width,
-        asset.height
-      )
-    );
-  } else {
-    steps = (bundle.screenshots || []).map((screenshot, index) =>
-      createStep(
-        `local-step-${bundle.id}-${index + 1}`,
-        screenshot.title || `Desktop capture ${index + 1}`,
-        screenshot.description || "Imported local desktop screenshot.",
-        "screenshot",
-        screenshot.blob,
-        screenshot.width,
-        screenshot.height
-      )
-    );
-  }
-
-  steps = steps.map((step, index) => ({ ...step, orderIndex: index }));
-
-  return {
-    ...baseDocument,
-    steps,
-    updatedAtIso: new Date().toISOString()
-  };
+function localCaptureMarkerKey(demoId: string): string {
+  return `supademo_local_capture_${demoId}`;
 }
 
 type ShareTab = "Link" | "Embed" | "Download" | "Export" | "Present";
@@ -1156,6 +1050,7 @@ function SharePanel({
   demoId,
   demoDocument,
   readOnly,
+  localCaptureId,
   onClose
 }: {
   open: boolean;
@@ -1163,6 +1058,7 @@ function SharePanel({
   demoId: string;
   demoDocument: DemoDocument;
   readOnly: boolean;
+  localCaptureId?: string;
   onClose: () => void;
 }) {
   const [tab, setTab] = useState<ShareTab>(initialTab);
@@ -1243,7 +1139,9 @@ function SharePanel({
   }, [demoId, initialTab, open]);
 
   const baseUrl = typeof globalThis.location?.origin === "string" ? globalThis.location.origin : "";
-  const viewerPath = `/demos/${encodeURIComponent(demoId)}/view`;
+  const viewerPath = `/demos/${encodeURIComponent(demoId)}/view${
+    localCaptureId ? `?localCapture=${encodeURIComponent(localCaptureId)}` : ""
+  }`;
   const viewerUrl = `${baseUrl}${viewerPath}`;
   const shareUrl = buildShareLinkUrl(viewerUrl, {
     trackingLabel: sanitizeTrackingKey(trackingKey)
@@ -1382,6 +1280,12 @@ function SharePanel({
 
   const handlePublish = (): void => {
     if (readOnly) return;
+    if (localCaptureId) {
+      setPublishError(
+        "Upload browser-local media before publishing. The current preview is available only in this browser."
+      );
+      return;
+    }
     if (demoDocument.steps.length === 0) {
       setPublishError("Add at least one screen before publishing this demo.");
       return;
@@ -1532,6 +1436,12 @@ function SharePanel({
             Viewer events from the link can be attributed by its <code>ref</code> label. The
             <code>step</code> parameter opens a specific slide.
           </p>
+          {localCaptureId ? (
+            <p className="editor-share-note" role="note">
+              This preview reads media from this browser's protected local storage. Upload the
+              assets before sharing the link with another person.
+            </p>
+          ) : null}
           <section className="editor-share-expiry" aria-labelledby="share-expiry-title">
             <div className="editor-share-section-heading">
               <span className="editor-kicker">Access control</span>
@@ -2121,12 +2031,21 @@ export function EditorShell({
   const [captureError, setCaptureError] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const objectUrlsRef = useRef<Set<string>>(new Set());
+  const editorVideoRef = useRef<HTMLVideoElement | null>(null);
+  const previousVideoTimeRef = useRef(0);
+  const videoSeekingRef = useRef(false);
+  const pauseJumpVideoRef = useRef(false);
+  const triggeredVideoPauseIdsRef = useRef<Set<string>>(new Set());
   const undoStackRef = useRef<DemoDocument[]>([]);
   const redoStackRef = useRef<DemoDocument[]>([]);
   const [historyVersion, setHistoryVersion] = useState(0);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareInitialTab, setShareInitialTab] = useState<ShareTab>("Link");
   const [hotspotUrlDraft, setHotspotUrlDraft] = useState("");
+  const [videoCurrentTime, setVideoCurrentTime] = useState(0);
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [videoPlaying, setVideoPlaying] = useState(false);
+  const [activeVideoPauseIds, setActiveVideoPauseIds] = useState<readonly string[]>([]);
 
   useEffect(() => {
     return () => {
@@ -2136,7 +2055,12 @@ export function EditorShell({
   }, []);
 
   useEffect(() => {
-    if (readOnly || initialDocument.steps.length > 0 || typeof localStorage === "undefined") {
+    if (
+      readOnly ||
+      localCaptureId ||
+      initialDocument.steps.length > 0 ||
+      typeof localStorage === "undefined"
+    ) {
       return;
     }
     try {
@@ -2151,7 +2075,7 @@ export function EditorShell({
     } catch {
       // A malformed or stale local draft fails closed to the server-provided empty document.
     }
-  }, [demoId, initialDocument.steps.length, readOnly]);
+  }, [demoId, initialDocument.steps.length, localCaptureId, readOnly]);
 
   useEffect(() => {
     if (readOnly || !localCaptureId) return;
@@ -2162,11 +2086,30 @@ export function EditorShell({
         setCaptureError("The local capture is no longer available. Download it again and retry.");
         return;
       }
-      const restored = createDocumentFromLocalCapture(initialDocument, bundle, (blob) => {
+      objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      objectUrlsRef.current.clear();
+      const capturedDocument = createDocumentFromLocalCapture(initialDocument, bundle, (blob) => {
         const objectUrl = URL.createObjectURL(blob);
         objectUrlsRef.current.add(objectUrl);
         return objectUrl;
       });
+      let restored = capturedDocument;
+      if (typeof localStorage !== "undefined") {
+        try {
+          const marker = localStorage.getItem(localCaptureMarkerKey(demoId));
+          const raw = localStorage.getItem(`supademo_draft_${demoId}`);
+          if (marker === localCaptureId && raw) {
+            restored = rehydrateLocalCaptureDocument(
+              capturedDocument,
+              parseDemoDocument(JSON.parse(raw)),
+              bundle.id
+            );
+          }
+          localStorage.setItem(localCaptureMarkerKey(demoId), localCaptureId);
+        } catch {
+          restored = capturedDocument;
+        }
+      }
       setDocument(restored);
       setSelectedStepId(restored.steps[0]?.id ?? null);
       setSelectedChapterId(null);
@@ -2179,8 +2122,11 @@ export function EditorShell({
             ? `${restored.steps.length} video and image steps are ready in timeline order.`
             : bundle.kind === "upload"
               ? `${restored.steps.length} uploaded assets are ready as ordered steps.`
-              : `${restored.steps.length} desktop screenshots are ready as ordered steps.`
+              : bundle.kind === "html"
+                ? `${restored.steps.length} sanitized HTML plan elements are ready as ordered steps.`
+                : `${restored.steps.length} desktop screenshots are ready as ordered steps.`
       );
+      persistLocalDocument(demoId, restored);
     });
     return () => {
       active = false;
@@ -2196,6 +2142,82 @@ export function EditorShell({
   useEffect(() => {
     setHotspotUrlDraft(selectedHotspot?.url ?? "");
   }, [selectedHotspot?.id, selectedHotspot?.url]);
+
+  useEffect(() => {
+    previousVideoTimeRef.current = 0;
+    videoSeekingRef.current = false;
+    pauseJumpVideoRef.current = false;
+    triggeredVideoPauseIdsRef.current.clear();
+    setVideoCurrentTime(0);
+    setVideoDuration(selectedStep?.media?.durationSeconds ?? 0);
+    setVideoPlaying(false);
+    setActiveVideoPauseIds([]);
+  }, [selectedStep?.id, selectedStep?.media?.durationSeconds]);
+
+  const selectedStepHotspots = selectedStep?.hotspots ?? [];
+  const visibleStepHotspots = selectedStepHotspots.filter((hotspot) =>
+    isDemoHotspotVisibleAtTime(hotspot, videoCurrentTime, new Set(activeVideoPauseIds))
+  );
+
+  const handleEditorVideoTimeUpdate = (video: HTMLVideoElement): void => {
+    const nextTime = video.currentTime;
+    if (videoSeekingRef.current) {
+      previousVideoTimeRef.current = nextTime;
+      setVideoCurrentTime(nextTime);
+      return;
+    }
+    const crossed = findCrossedPauseHotspots(
+      selectedStepHotspots,
+      previousVideoTimeRef.current,
+      nextTime,
+      triggeredVideoPauseIdsRef.current
+    );
+    if (crossed.length > 0) {
+      const pauseAt = crossed[0]?.timing?.startSeconds ?? nextTime;
+      for (const hotspot of crossed) triggeredVideoPauseIdsRef.current.add(hotspot.id);
+      // The programmatic jump must not re-arm the cue via onSeeked. The crossed
+      // cue is already in the triggered set, so re-entrant time updates are safe
+      // without marking the video as seeking (which could get stuck on a no-op
+      // seek and suppress every later cue).
+      pauseJumpVideoRef.current = true;
+      video.currentTime = pauseAt;
+      video.pause();
+      previousVideoTimeRef.current = pauseAt;
+      setVideoCurrentTime(pauseAt);
+      setActiveVideoPauseIds(crossed.map((hotspot) => hotspot.id));
+      return;
+    }
+    previousVideoTimeRef.current = nextTime;
+    setVideoCurrentTime(nextTime);
+  };
+
+  const seekEditorVideo = (nextTime: number): void => {
+    const video = editorVideoRef.current;
+    if (!video) return;
+    const bounded = Math.max(0, Math.min(videoDuration || video.duration || 0, nextTime));
+    const changed = Math.abs(video.currentTime - bounded) > 0.001;
+    videoSeekingRef.current = changed;
+    pauseJumpVideoRef.current = false;
+    if (changed) video.currentTime = bounded;
+    previousVideoTimeRef.current = bounded;
+    triggeredVideoPauseIdsRef.current = new Set(
+      pauseHotspotIdsBeforeTime(selectedStepHotspots, bounded)
+    );
+    setActiveVideoPauseIds([]);
+    setVideoCurrentTime(bounded);
+  };
+
+  const toggleEditorVideo = (): void => {
+    const video = editorVideoRef.current;
+    if (!video) return;
+    if (!video.paused) {
+      video.pause();
+      return;
+    }
+    setActiveVideoPauseIds([]);
+    previousVideoTimeRef.current = video.currentTime;
+    void video.play().catch(() => setCaptureError("Press play again to resume the preview."));
+  };
 
   const makeLocalId = (prefix: string): string => {
     if (typeof globalThis.crypto?.randomUUID === "function") {
@@ -2825,13 +2847,59 @@ export function EditorShell({
               {selectedStep.media ? (
                 selectedStep.media.assetType === "video" ? (
                   <video
+                    ref={editorVideoRef}
                     src={selectedStep.media.storagePath}
-                    controls
                     playsInline
+                    onLoadedMetadata={(event) => {
+                      const duration = event.currentTarget.duration;
+                      if (Number.isFinite(duration)) setVideoDuration(duration);
+                    }}
+                    onTimeUpdate={(event) => handleEditorVideoTimeUpdate(event.currentTarget)}
+                    onSeeking={() => {
+                      videoSeekingRef.current = true;
+                    }}
+                    onSeeked={(event) => {
+                      videoSeekingRef.current = false;
+                      const nextTime = event.currentTarget.currentTime;
+                      previousVideoTimeRef.current = nextTime;
+                      if (pauseJumpVideoRef.current) {
+                        // Programmatic jump to a pause cue must not re-arm the cue;
+                        // only a real seek re-arms cues at/after the seek point.
+                        pauseJumpVideoRef.current = false;
+                      } else {
+                        triggeredVideoPauseIdsRef.current = new Set(
+                          pauseHotspotIdsBeforeTime(selectedStepHotspots, nextTime)
+                        );
+                      }
+                      setActiveVideoPauseIds([]);
+                      setVideoCurrentTime(nextTime);
+                    }}
+                    onPlay={() => {
+                      setVideoPlaying(true);
+                      setActiveVideoPauseIds([]);
+                    }}
+                    onPause={() => setVideoPlaying(false)}
+                    onEnded={() => {
+                      setVideoPlaying(false);
+                      setActiveVideoPauseIds([]);
+                      pauseJumpVideoRef.current = false;
+                      triggeredVideoPauseIdsRef.current.clear();
+                    }}
+                    style={croppedMediaStyle(
+                      selectedStep.media.crop,
+                      selectedStep.media.fit ?? "cover"
+                    )}
                     aria-label={selectedStep.title}
                   />
                 ) : (
-                  <img src={selectedStep.media.storagePath} alt={selectedStep.title} />
+                  <img
+                    src={selectedStep.media.storagePath}
+                    alt={selectedStep.title}
+                    style={croppedMediaStyle(
+                      selectedStep.media.crop,
+                      selectedStep.media.fit ?? "cover"
+                    )}
+                  />
                 )
               ) : (
                 <div className="editor-preview-placeholder">
@@ -2839,10 +2907,42 @@ export function EditorShell({
                     ▦
                   </span>
                   <strong>{selectedStep.title}</strong>
-                  <small>Add a screen or video to this step</small>
+                  {selectedStep.description ? (
+                    <p>{selectedStep.description}</p>
+                  ) : (
+                    <small>Add a screen or video to this step</small>
+                  )}
                 </div>
               )}
-              {selectedStep.hotspots.map((hotspot) => {
+              {selectedStep.media?.assetType === "video" ? (
+                <div className="editor-video-controls" aria-label="Video preview controls">
+                  <button type="button" onClick={toggleEditorVideo}>
+                    {activeVideoPauseIds.length
+                      ? "Resume preview"
+                      : videoPlaying
+                        ? "Pause"
+                        : "Play"}
+                  </button>
+                  <input
+                    type="range"
+                    min="0"
+                    max={videoDuration || 1}
+                    step="0.01"
+                    value={Math.min(videoCurrentTime, videoDuration || 1)}
+                    onChange={(event) => seekEditorVideo(Number(event.currentTarget.value))}
+                    aria-label="Video preview timeline"
+                  />
+                  <span>
+                    {videoCurrentTime.toFixed(1)} / {videoDuration.toFixed(1)}s
+                  </span>
+                </div>
+              ) : null}
+              {activeVideoPauseIds.length ? (
+                <p className="editor-video-pause-status" role="status" aria-live="assertive">
+                  Video paused for an interactive hotspot.
+                </p>
+              ) : null}
+              {visibleStepHotspots.map((hotspot) => {
                 const isSelected = hotspot.id === selectedHotspotId;
                 return (
                   <button
@@ -3291,6 +3391,7 @@ export function EditorShell({
         demoId={demoId}
         demoDocument={document}
         readOnly={readOnly}
+        localCaptureId={localCaptureId}
         onClose={() => setShareOpen(false)}
       />
     </div>

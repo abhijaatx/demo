@@ -20,6 +20,11 @@ test("crop media workbench keeps framing metadata bounded and local", async () =
   assert.match(surface, /Cover/u);
   assert.match(surface, /Contain/u);
   assert.match(surface, /Download crop plan/u);
+  assert.match(surface, /saveLocalCaptureBundle/u);
+  assert.match(surface, /kind: "upload"/u);
+  assert.match(surface, /crop: step\.crop/u);
+  assert.match(surface, /Save and open editor/u);
+  assert.match(surface, /localCapture=/u);
   assert.match(surface, /URL\.createObjectURL/u);
   assert.match(surface, /URL\.revokeObjectURL/u);
   assert.doesNotMatch(
@@ -28,4 +33,20 @@ test("crop media workbench keeps framing metadata bounded and local", async () =
   );
   assert.match(css, /\.crop-media-workspace/u);
   assert.match(css, /\.crop-media-preview-frame/u);
+});
+
+test("crop metadata is preserved on local editor media without overwriting source files", async () => {
+  const [storage, documentModel, captureDocument, cropStyle] = await Promise.all([
+    readWebFile("src/lib/local-capture-storage.ts"),
+    readFile(new URL("../packages/domain/src/demo-document.ts", import.meta.url), "utf8"),
+    readWebFile("src/lib/local-capture-document.ts"),
+    readWebFile("src/lib/crop-media-style.ts")
+  ]);
+
+  assert.match(storage, /crop\?: CropMetadata/u);
+  assert.match(storage, /crop\.x \+ crop\.width <= 100/u);
+  assert.match(documentModel, /Non-destructive framing metadata/u);
+  assert.match(documentModel, /validateCropMetadata/u);
+  assert.match(captureDocument, /crop: asset\.crop/u);
+  assert.match(cropStyle, /objectPosition/u);
 });
