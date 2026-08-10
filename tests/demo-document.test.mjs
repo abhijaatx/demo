@@ -204,3 +204,42 @@ test("parseDemoDocument rejects malformed shapes with InvalidDemoDocumentError",
     (err) => err instanceof InvalidDemoDocumentError && err.field === "demoId"
   );
 });
+
+test("demo-level background audio defaults to null for legacy documents", () => {
+  const legacy = parseDemoDocument({ version: "1.0.0", demoId: "demo-legacy", steps: [] });
+  assert.equal(legacy.settings.backgroundAudio, null);
+
+  const fresh = createDefaultDemoDocument("demo-fresh");
+  assert.equal(fresh.settings.backgroundAudio, null);
+});
+
+test("parseDemoDocument parses demo-level background audio settings safely", () => {
+  const parsed = parseDemoDocument({
+    version: "1.0.0",
+    demoId: "demo-bg",
+    steps: [],
+    settings: {
+      backgroundAudio: {
+        audioAssetId: "bg-1",
+        storagePath: "/music/bg.mp3",
+        audioUrl: "javascript:alert(1)",
+        title: "Corporate tech",
+        presetId: "corporate-tech",
+        volume: 0.5,
+        duckingRatio: 0.8,
+        loop: false,
+        muted: true
+      }
+    }
+  });
+
+  const backgroundAudio = parsed.settings.backgroundAudio;
+  assert.ok(backgroundAudio);
+  assert.equal(backgroundAudio.audioUrl, null); // unsafe scheme stripped
+  assert.equal(backgroundAudio.presetId, "corporate-tech");
+  assert.equal(backgroundAudio.title, "Corporate tech");
+  assert.equal(backgroundAudio.volume, 0.5);
+  assert.equal(backgroundAudio.duckingRatio, 0.8);
+  assert.equal(backgroundAudio.loop, false);
+  assert.equal(backgroundAudio.muted, true);
+});

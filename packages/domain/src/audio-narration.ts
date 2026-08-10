@@ -75,9 +75,114 @@ export interface StepAudioNarration {
 export interface DemoBackgroundAudio {
   readonly audioAssetId: string;
   readonly storagePath: string;
+  /** Safe public playback URL (https or blob) resolved for the browser player. */
+  readonly audioUrl: string | null;
+  /** Human-friendly label (preset title or uploaded file name). */
+  readonly title: string | null;
+  /** Built-in preset id when the track came from a preset (allowlisted). */
+  readonly presetId: string | null;
   readonly volume: number;
   readonly duckingRatio: number;
   readonly loop: boolean;
+  /** Starts paused/muted in the viewer; viewers can enable it from the player. */
+  readonly muted: boolean;
+}
+
+/**
+ * Built-in background music presets served from the approved media CDN.
+ * Presets are immutable metadata: every audio URL is a bounded https URL and
+ * each id is a lowercase slug validated against this allowlist by the parser.
+ */
+export interface BackgroundMusicPreset {
+  readonly presetId: string;
+  readonly title: string;
+  readonly audioUrl: string;
+  readonly durationSeconds: number;
+}
+
+export const BACKGROUND_MUSIC_PRESETS: readonly BackgroundMusicPreset[] = Object.freeze([
+  Object.freeze({
+    presetId: "calm-ambient",
+    title: "Calm Ambient",
+    audioUrl: "https://cdn.supademo.com/audio/presets/calm-ambient.mp3",
+    durationSeconds: 120
+  }),
+  Object.freeze({
+    presetId: "focused-minimal",
+    title: "Focused Minimal",
+    audioUrl: "https://cdn.supademo.com/audio/presets/focused-minimal.mp3",
+    durationSeconds: 120
+  }),
+  Object.freeze({
+    presetId: "uplifting-pop",
+    title: "Uplifting Pop",
+    audioUrl: "https://cdn.supademo.com/audio/presets/uplifting-pop.mp3",
+    durationSeconds: 120
+  }),
+  Object.freeze({
+    presetId: "corporate-tech",
+    title: "Corporate Tech",
+    audioUrl: "https://cdn.supademo.com/audio/presets/corporate-tech.mp3",
+    durationSeconds: 120
+  })
+]);
+
+/**
+ * Safe, bounded parser for demo-level background audio settings.
+ *
+ * Guarantees:
+ * - Requires at least one audio source (`audioUrl` or `storagePath`); an object
+ *   with neither resolves to `null` so legacy documents stay clean.
+ * - `audioUrl` accepts only validated https URLs or non-null-origin blob URLs;
+ *   every other scheme (javascript:, data:, http:) is dropped.
+ * - All string fields are length-bounded and `presetId` is allowlisted against
+ *   `BACKGROUND_MUSIC_PRESETS`.
+ * - `volume`, `duckingRatio` are clamped to [0, 1] to prevent clipping.
+ * - Returns a frozen object and never throws on malformed input.
+ */
+export function parseDemoBackgroundAudio(input: unknown): DemoBackgroundAudio | null {
+  if (typeof input !== "object" || input === null) return null;
+  const raw = input as Record<string, unknown>;
+  const rawAudioUrl = typeof raw["audioUrl"] === "string" ? raw["audioUrl"].slice(0, 2_048) : null;
+  // Blob URLs are only accepted when they carry a real (non-null) origin, so
+  // sandboxed `blob:null/...` and malformed URLs are rejected at parse time.
+  let audioUrl: string | null = null;
+  if (rawAudioUrl?.startsWith("blob:")) {
+    try {
+      audioUrl = new URL(rawAudioUrl).origin !== "null" ? rawAudioUrl : null;
+    } catch {
+      audioUrl = null;
+    }
+  } else if (validateSafeUrl(rawAudioUrl)?.startsWith("https:")) {
+    audioUrl = rawAudioUrl;
+  }
+  const storagePath =
+    typeof raw["storagePath"] === "string" ? raw["storagePath"].slice(0, 512) : "";
+  if (!audioUrl && !storagePath) return null;
+
+  const rawPresetId = typeof raw["presetId"] === "string" ? raw["presetId"].slice(0, 64) : null;
+  const presetId =
+    rawPresetId && BACKGROUND_MUSIC_PRESETS.some((preset) => preset.presetId === rawPresetId)
+      ? rawPresetId
+      : null;
+
+  return Object.freeze({
+    audioAssetId: String(raw["audioAssetId"] ?? "background-audio").slice(0, 128),
+    storagePath,
+    audioUrl,
+    title: typeof raw["title"] === "string" ? raw["title"].slice(0, 80) : null,
+    presetId,
+    volume: Math.max(
+      0,
+      Math.min(1, Number.isFinite(Number(raw["volume"])) ? Number(raw["volume"]) : 0.7)
+    ),
+    duckingRatio: Math.max(
+      0,
+      Math.min(1, Number.isFinite(Number(raw["duckingRatio"])) ? Number(raw["duckingRatio"]) : 0.6)
+    ),
+    loop: Boolean(raw["loop"] ?? true),
+    muted: Boolean(raw["muted"] ?? false)
+  });
 }
 
 export function calculateEffectiveAudioVolume(

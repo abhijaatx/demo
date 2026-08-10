@@ -378,8 +378,11 @@ export {
 } from "./motion-effects.js";
 
 export {
+  BACKGROUND_MUSIC_PRESETS,
   calculateEffectiveAudioVolume,
   parseDemoAudioNarration,
+  parseDemoBackgroundAudio,
+  type BackgroundMusicPreset,
   type DemoAudioNarration,
   type DemoBackgroundAudio,
   type StepAudioNarration

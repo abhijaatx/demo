@@ -3,7 +3,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { parseDemoAudioNarration } from "./audio-narration.js";
+import { parseDemoAudioNarration, parseDemoBackgroundAudio } from "./audio-narration.js";
 import { generateBranchingDiagnosticSummary } from "./branching-authoring.js";
 import { parseChapterPasswordProtection, sanitizeEmbedUrl } from "./chapter-model.js";
 import { parseDemoTheme, type DemoDocument } from "./demo-document.js";
@@ -35,7 +35,8 @@ export function publishDemoDocument(
     ...document,
     settings: {
       ...document.settings,
-      theme: parseDemoTheme(document.settings.theme)
+      theme: parseDemoTheme(document.settings.theme),
+      backgroundAudio: parseDemoBackgroundAudio(document.settings.backgroundAudio)
     },
     steps: document.steps.map((step) => ({
       ...step,

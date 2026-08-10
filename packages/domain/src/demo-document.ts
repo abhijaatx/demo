@@ -11,7 +11,12 @@
  * - Backward compatibility with document versioning
  */
 
-import { parseDemoAudioNarration, type DemoAudioNarration } from "./audio-narration.js";
+import {
+  parseDemoAudioNarration,
+  parseDemoBackgroundAudio,
+  type DemoAudioNarration,
+  type DemoBackgroundAudio
+} from "./audio-narration.js";
 import { parseDemoChapter, type DemoChapter } from "./chapter-model.js";
 import { validateSafeUrl } from "./hotspot-schema.js";
 import {
@@ -26,7 +31,12 @@ import {
 } from "./personalized-links.js";
 import { parseDemoHotspotTiming, type DemoHotspotTiming } from "./video-hotspot-timing.js";
 
-export { parseDemoAudioNarration, type DemoAudioNarration } from "./audio-narration.js";
+export {
+  parseDemoAudioNarration,
+  parseDemoBackgroundAudio,
+  type DemoAudioNarration,
+  type DemoBackgroundAudio
+} from "./audio-narration.js";
 
 export const DEMO_DOCUMENT_VERSION = "1.0.0" as const;
 
@@ -54,6 +64,8 @@ export type DemoSettings = Readonly<{
   logoUrl: string | null;
   customDomain: string | null;
   personalization: DemoPersonalization;
+  /** Demo-level background music; absent for legacy demos. */
+  backgroundAudio: DemoBackgroundAudio | null;
 }>;
 
 export type DemoHotspotStyle = Readonly<{
@@ -152,7 +164,8 @@ export const DEFAULT_DEMO_SETTINGS: DemoSettings = Object.freeze({
   theme: DEFAULT_DEMO_THEME,
   logoUrl: null,
   customDomain: null,
-  personalization: DEFAULT_DEMO_PERSONALIZATION
+  personalization: DEFAULT_DEMO_PERSONALIZATION,
+  backgroundAudio: null
 });
 
 const SAFE_THEME_COLOR_PATTERN = /^#[0-9a-fA-F]{3,8}$/u;
@@ -289,7 +302,8 @@ function parseDemoSettings(raw: Record<string, unknown>): DemoSettings {
     theme: parseDemoTheme(themeRaw),
     logoUrl: typeof raw["logoUrl"] === "string" ? raw["logoUrl"] : null,
     customDomain: typeof raw["customDomain"] === "string" ? raw["customDomain"] : null,
-    personalization: parseDemoPersonalization(raw["personalization"])
+    personalization: parseDemoPersonalization(raw["personalization"]),
+    backgroundAudio: parseDemoBackgroundAudio(raw["backgroundAudio"])
   });
 }
 

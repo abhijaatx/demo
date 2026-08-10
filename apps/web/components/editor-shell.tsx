@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BACKGROUND_MUSIC_PRESETS,
   deleteSteps,
   duplicateStep,
   executeAiTranslationJob,
@@ -22,6 +23,7 @@ import {
   pauseHotspotIdsBeforeTime,
   parseChapterPasswordProtection,
   parseDemoAudioNarration,
+  parseDemoBackgroundAudio,
   parseDemoFormSchema,
   parseDemoPersonalization,
   publishDemoDocument,
@@ -38,8 +40,10 @@ import {
   validateSafeUrl,
   type DemoDocument,
   type DemoAudioNarration,
+  type DemoBackgroundAudio,
   type DemoPersonalization,
   type DemoTheme,
+  type BackgroundMusicPreset,
   type DemoTranslationDictionary,
   type RewriteTone,
   type TextRewriteProposal,
@@ -485,6 +489,189 @@ function BackgroundSettings({
       {theme.backgroundImageUrl ? (
         <p className="editor-inspector-note" role="status">
           Custom image applied. Publish to update links and embeds.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function BackgroundMusicSettings({
+  backgroundAudio,
+  readOnly,
+  onChange
+}: {
+  backgroundAudio: DemoBackgroundAudio | null;
+  readOnly: boolean;
+  onChange: (next: DemoBackgroundAudio | null) => void;
+}) {
+  const [status, setStatus] = useState("");
+
+  useEffect(() => {
+    setStatus("");
+  }, [backgroundAudio?.audioAssetId]);
+
+  const update = (
+    patch: Partial<Omit<DemoBackgroundAudio, "audioAssetId" | "storagePath">>
+  ): void => {
+    if (!backgroundAudio) return;
+    const next = parseDemoBackgroundAudio({ ...backgroundAudio, ...patch });
+    if (next) onChange(next);
+  };
+
+  const applyPreset = (preset: BackgroundMusicPreset): void => {
+    onChange(
+      parseDemoBackgroundAudio({
+        audioAssetId: `preset-${preset.presetId}`,
+        storagePath: "",
+        audioUrl: preset.audioUrl,
+        title: preset.title,
+        presetId: preset.presetId,
+        volume: backgroundAudio?.volume ?? 0.7,
+        duckingRatio: backgroundAudio?.duckingRatio ?? 0.6,
+        loop: backgroundAudio?.loop ?? true,
+        muted: backgroundAudio?.muted ?? false
+      })
+    );
+    setStatus(`Added “${preset.title}”. Publish to update links and embeds.`);
+  };
+
+  const handleUpload = (event: ChangeEvent<HTMLInputElement>): void => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("audio/") || file.size > 25 * 1024 * 1024) {
+      setStatus("Choose an audio file up to 25 MB.");
+      return;
+    }
+    onChange(
+      parseDemoBackgroundAudio({
+        audioAssetId: `upload-${Date.now()}`,
+        storagePath: "",
+        audioUrl: URL.createObjectURL(file),
+        title: file.name.slice(0, 80),
+        presetId: null,
+        volume: backgroundAudio?.volume ?? 0.7,
+        duckingRatio: backgroundAudio?.duckingRatio ?? 0.6,
+        loop: backgroundAudio?.loop ?? true,
+        muted: backgroundAudio?.muted ?? false
+      })
+    );
+    setStatus("Music uploaded locally. Publish after reviewing the preview.");
+  };
+
+  const previewUrl =
+    backgroundAudio?.audioUrl && isSafeMediaUrl(backgroundAudio.audioUrl)
+      ? backgroundAudio.audioUrl
+      : null;
+
+  return (
+    <section
+      className="editor-background-music-panel"
+      aria-labelledby="editor-background-music-title"
+    >
+      <div className="editor-branch-heading">
+        <div>
+          <span className="editor-kicker">Music</span>
+          <strong id="editor-background-music-title">Background music</strong>
+        </div>
+        {backgroundAudio ? (
+          <button
+            type="button"
+            className="editor-text-button editor-button-danger-text"
+            disabled={readOnly}
+            onClick={() => onChange(null)}
+          >
+            Remove
+          </button>
+        ) : null}
+      </div>
+      <p className="editor-inspector-note">
+        Add a subtle soundtrack that plays behind the whole demo. Viewers always start paused: music
+        begins after their first click and ducks while narration plays.
+      </p>
+      <div className="editor-music-presets" aria-label="Music presets">
+        {BACKGROUND_MUSIC_PRESETS.map((preset) => (
+          <button
+            key={preset.presetId}
+            type="button"
+            className={`editor-music-preset${backgroundAudio?.presetId === preset.presetId ? " is-active" : ""}`}
+            aria-pressed={backgroundAudio?.presetId === preset.presetId}
+            disabled={readOnly}
+            onClick={() => applyPreset(preset)}
+          >
+            <span aria-hidden="true">♪</span>
+            <strong>{preset.title}</strong>
+            <small>{preset.durationSeconds}s loop</small>
+          </button>
+        ))}
+      </div>
+      <div className="editor-voiceover-actions">
+        <label className="editor-small-button editor-file-button">
+          Upload music
+          <input
+            type="file"
+            accept="audio/*"
+            disabled={readOnly}
+            onChange={handleUpload}
+            aria-label="Upload background music audio"
+          />
+        </label>
+      </div>
+      {backgroundAudio ? (
+        <>
+          <label className="editor-field">
+            <span>Music volume</span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={backgroundAudio.volume}
+              disabled={readOnly}
+              onChange={(event) => update({ volume: Number(event.currentTarget.value) })}
+            />
+          </label>
+          <label className="editor-field">
+            <span>Lower during voiceover</span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={backgroundAudio.duckingRatio}
+              disabled={readOnly}
+              onChange={(event) => update({ duckingRatio: Number(event.currentTarget.value) })}
+            />
+            <small className="editor-url-help">
+              {Math.round(backgroundAudio.duckingRatio * 100)}% quieter while narration plays.
+            </small>
+          </label>
+          <label className="editor-checkbox-field">
+            <input
+              type="checkbox"
+              checked={backgroundAudio.loop}
+              disabled={readOnly}
+              onChange={(event) => update({ loop: event.currentTarget.checked })}
+            />
+            <span>Loop music</span>
+          </label>
+          <label className="editor-checkbox-field">
+            <input
+              type="checkbox"
+              checked={backgroundAudio.muted}
+              disabled={readOnly}
+              onChange={(event) => update({ muted: event.currentTarget.checked })}
+            />
+            <span>Start muted</span>
+          </label>
+          {previewUrl ? (
+            <audio className="editor-voiceover-preview" controls src={previewUrl} />
+          ) : null}
+        </>
+      ) : null}
+      {status ? (
+        <p className="editor-inspector-note" role="status">
+          {status}
         </p>
       ) : null}
     </section>
@@ -3400,6 +3587,16 @@ export function EditorShell({
                   commitDocument({
                     ...document,
                     settings: { ...document.settings, theme }
+                  })
+                }
+              />
+              <BackgroundMusicSettings
+                backgroundAudio={document.settings.backgroundAudio}
+                readOnly={readOnly}
+                onChange={(backgroundAudio) =>
+                  commitDocument({
+                    ...document,
+                    settings: { ...document.settings, backgroundAudio }
                   })
                 }
               />

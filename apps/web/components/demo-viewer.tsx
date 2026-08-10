@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  calculateEffectiveAudioVolume,
   isShareLinkExpired,
   isValidShareToken,
   findCrossedPauseHotspots,
@@ -238,6 +239,21 @@ export function DemoViewer({
   const [videoPlaying, setVideoPlaying] = useState(false);
   const [activeVideoPauseIds, setActiveVideoPauseIds] = useState<readonly string[]>([]);
 
+  // Demo-level background music. The audio element mounts inert: playback never
+  // starts on page load and only begins after the viewer's first interaction
+  // (gesture). While narration plays, the music volume is ducked so voiceovers
+  // stay intelligible. The creator may also mark the track as starting muted.
+  const backgroundMusicRef = useRef<HTMLAudioElement | null>(null);
+  const [voiceoverPlaying, setVoiceoverPlaying] = useState(false);
+  // Paused by default; after the first viewer gesture the track auto-starts
+  // unless the creator configured it to start muted or the viewer paused it.
+  const [bgMusicPaused, setBgMusicPaused] = useState(false);
+  const [bgMusicMuted, setBgMusicMuted] = useState(false);
+  // Tracks explicit viewer intent on the music controls. The creator's
+  // start-muted flag only governs the initial auto-start: once the viewer
+  // chooses Play or Mute themselves, Play can always start the track again.
+  const [bgUserEngaged, setBgUserEngaged] = useState(false);
+
   const emitStarted = (): void => {
     if (startedRef.current) return;
     startedRef.current = true;
@@ -407,6 +423,88 @@ export function DemoViewer({
     currentChapter?.voiceover?.autoPlay,
     chapterNarrationUrl
   ]);
+
+  const backgroundAudio = demoDocument.settings.backgroundAudio;
+  const backgroundMusicUrl = backgroundAudio?.audioUrl
+    ? safeMediaUrl(backgroundAudio.audioUrl)
+    : null;
+
+  // Ducking: whenever narration audio is actually playing (step or chapter
+  // voiceover, whether auto-played or started manually with the native
+  // controls), lower the music volume by the configured ducking ratio.
+  useEffect(() => {
+    const audio = backgroundMusicRef.current;
+    if (!audio || !backgroundAudio) return;
+    const effective = calculateEffectiveAudioVolume(voiceoverPlaying, backgroundAudio);
+    audio.volume = Math.max(0, Math.min(1, effective.backgroundAudioVolume));
+  }, [voiceoverPlaying, backgroundAudio]); // Gesture-gated start: the audio element mounts inert and playback begins
+  // automatically after the first viewer interaction (hasStarted) unless a
+  // password gate is locked, the creator configured the track to start muted
+  // (initial state only), or the viewer paused or muted it. Once the viewer
+  // explicitly engages the controls (bgUserEngaged), Play overrides the
+  // creator's start-muted initial state.
+  useEffect(() => {
+    const audio = backgroundMusicRef.current;
+    if (!audio) return;
+    const shouldPlay =
+      hasStarted &&
+      backgroundMusicUrl &&
+      !bgMusicPaused &&
+      !bgMusicMuted &&
+      !gateLocked &&
+      (bgUserEngaged || !backgroundAudio?.muted);
+    if (shouldPlay) {
+      void audio.play().catch(() => {
+        // Native media policy may require the viewer to press Play again.
+        setBgMusicPaused(true);
+      });
+    } else {
+      audio.pause();
+    }
+  }, [
+    hasStarted,
+    backgroundMusicUrl,
+    bgMusicPaused,
+    bgMusicMuted,
+    gateLocked,
+    bgUserEngaged,
+    backgroundAudio?.muted
+  ]);
+
+  // A narration element unmounts when the viewer navigates; reset the ducking
+  // signal so stale playing state never keeps the music quiet on the next step.
+  useEffect(() => {
+    setVoiceoverPlaying(false);
+  }, [currentIndex, activeChapterId]);
+
+  const backgroundMusicPlaying = Boolean(
+    hasStarted &&
+    backgroundMusicUrl &&
+    !bgMusicPaused &&
+    !bgMusicMuted &&
+    !gateLocked &&
+    (bgUserEngaged || !backgroundAudio?.muted)
+  );
+
+  const toggleBackgroundMusic = (): void => {
+    // Clicking the control is itself a user gesture that may unlock playback,
+    // and explicit Play overrides the creator's start-muted initial state.
+    emitStarted();
+    setBgUserEngaged(true);
+    setBgMusicMuted(false);
+    // `bgMusicPaused` is also used as the opt-in auto-start flag, so a fresh
+    // viewer has it set to false even though audio cannot play until a gesture.
+    // Derive the toggle from actual playback state instead of blindly flipping
+    // the flag; otherwise the first click on a fresh or start-muted track would
+    // incorrectly leave it paused.
+    setBgMusicPaused(backgroundMusicPlaying);
+  };
+
+  const toggleBackgroundMusicMute = (): void => {
+    emitStarted();
+    setBgUserEngaged(true);
+    setBgMusicMuted((muted) => !muted);
+  };
   // Chapter visual customization. Form chapters keep using their own form
   // appearance fields (the existing viewer form rendering); all other chapter
   // types use the chapter-level layout/theme/color/opacity/blur fields.
@@ -686,6 +784,7 @@ export function DemoViewer({
   return (
     <main
       className={`demo-viewer-shell${embedded ? " is-embedded" : ""}${step?.disableViewerScroll ? " is-scroll-locked" : ""}`}
+      onClick={emitStarted}
       style={{
         backgroundColor: viewerTheme.backgroundColor,
         backgroundImage: viewerBackgroundImage === "none" ? undefined : viewerBackgroundImage,
@@ -1207,6 +1306,8 @@ export function DemoViewer({
                             controls
                             autoPlay={hasStarted && Boolean(currentChapter.voiceover.autoPlay)}
                             preload="metadata"
+                            onPlay={() => setVoiceoverPlaying(true)}
+                            onPause={() => setVoiceoverPlaying(false)}
                             aria-label={`Voiceover for ${renderText(
                               currentChapter.title,
                               translationContentKey("chapter", currentChapter.id, "title")
@@ -1247,6 +1348,8 @@ export function DemoViewer({
                         controls
                         autoPlay={Boolean(step.audioNarration.autoPlay)}
                         preload="metadata"
+                        onPlay={() => setVoiceoverPlaying(true)}
+                        onPause={() => setVoiceoverPlaying(false)}
                         aria-label={`Voiceover for ${renderText(step.title, translationContentKey("step", step.id, "title"))}`}
                       />
                     ) : null}
@@ -1427,6 +1530,44 @@ export function DemoViewer({
               </button>
             </div>
           </section>
+          {backgroundAudio && backgroundMusicUrl ? (
+            <section
+              className={`demo-viewer-background-music${gateLocked ? " is-gate-locked" : ""}`}
+              aria-label="Background music"
+            >
+              <audio
+                ref={backgroundMusicRef}
+                src={backgroundMusicUrl}
+                loop={backgroundAudio.loop}
+                preload="none"
+                onEnded={() => setBgMusicPaused(true)}
+                onError={() => setBgMusicPaused(true)}
+              />
+              <span className="demo-viewer-music-note" aria-hidden="true">
+                ♪
+              </span>
+              <div>
+                <span className="editor-kicker">Background music</span>
+                <strong>{backgroundAudio.title ?? "Demo music"}</strong>
+              </div>
+              <button
+                type="button"
+                onClick={toggleBackgroundMusic}
+                disabled={gateLocked}
+                aria-pressed={backgroundMusicPlaying}
+              >
+                {gateLocked ? "Unavailable" : backgroundMusicPlaying ? "Pause music" : "Play music"}
+              </button>
+              <button
+                type="button"
+                onClick={toggleBackgroundMusicMute}
+                disabled={gateLocked}
+                aria-pressed={bgMusicMuted}
+              >
+                {bgMusicMuted ? "Unmute music" : "Mute music"}
+              </button>
+            </section>
+          ) : null}
         </div>
       )}
     </main>

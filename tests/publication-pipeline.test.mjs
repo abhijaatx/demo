@@ -184,3 +184,46 @@ test("publishDemoDocument re-normalizes embed chapter URLs on publish", () => {
   const unsafeManifest = publishDemoDocument(unsafeDoc, 0);
   assert.equal(unsafeManifest.document.chapters[0].embedUrl, null);
 });
+
+test("publishDemoDocument re-validates demo-level background audio", () => {
+  const base = createDefaultDemoDocument("demo-pub-bg");
+  const withBackgroundAudio = {
+    ...base,
+    steps: [
+      {
+        id: "s1",
+        orderIndex: 0,
+        title: "S1",
+        media: null,
+        hotspots: [],
+        callouts: [],
+        audioNarration: null
+      }
+    ],
+    settings: {
+      ...base.settings,
+      backgroundAudio: {
+        audioAssetId: "bg-1",
+        storagePath: "/music/bg.mp3",
+        audioUrl: "javascript:alert(1)",
+        title: "Calm ambient",
+        presetId: "calm-ambient",
+        volume: 0.8,
+        duckingRatio: 0.6,
+        loop: true,
+        muted: false
+      }
+    }
+  };
+
+  const manifest = publishDemoDocument(withBackgroundAudio, 0);
+  const publishedBg = manifest.document.settings.backgroundAudio;
+  assert.ok(publishedBg);
+  assert.equal(publishedBg.audioUrl, null); // unsafe scheme stripped on publish
+  assert.equal(publishedBg.presetId, "calm-ambient");
+  assert.equal(publishedBg.volume, 0.8);
+  assert.equal(publishedBg.loop, true);
+
+  const withoutBg = publishDemoDocument(base, 0);
+  assert.equal(withoutBg.document.settings.backgroundAudio, null);
+});
