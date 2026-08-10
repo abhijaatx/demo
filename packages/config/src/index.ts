@@ -221,14 +221,14 @@ export async function loadConfig(options: LoadConfigOptions = {}): Promise<AppCo
     environment["APP_ENV"],
     "APP_ENV",
     ["local", "test", "staging", "production"],
-    "local",
+    undefined,
     bootstrapIssues
   ) as RuntimeEnvironment | undefined;
   const source = parseEnum(
     environment["CONFIG_SOURCE"],
     "CONFIG_SOURCE",
     ["env", "aws"],
-    "env",
+    undefined,
     bootstrapIssues
   ) as ConfigSource | undefined;
 
@@ -334,7 +334,9 @@ function parseEnvironmentConfig(
   const allowedOrigins = parseAllowedOrigins(
     read(
       "CORS_ALLOWED_ORIGINS",
-      useLocalDefaults ? "http://localhost:3000,http://127.0.0.1:3000" : undefined
+      useLocalDefaults
+        ? "http://localhost:3000,http://127.0.0.1:3000,http://10.2.13.175:3000"
+        : undefined
     ),
     "CORS_ALLOWED_ORIGINS",
     issues
@@ -345,13 +347,23 @@ function parseEnvironmentConfig(
     issues
   );
   const databaseUrl = parseUrl(
-    read("DATABASE_URL", undefined, false),
+    read(
+      "DATABASE_URL",
+      useLocalDefaults
+        ? "postgresql://supademo:supademo_local_postgres_change_me@127.0.0.1:5432/supademo_dev"
+        : undefined,
+      false
+    ),
     "DATABASE_URL",
     ["postgres:", "postgresql:"],
     issues
   );
   const redisUrl = parseUrl(
-    read("REDIS_URL", undefined, false),
+    read(
+      "REDIS_URL",
+      useLocalDefaults ? "redis://:supademo_local_redis_change_me@127.0.0.1:6379" : undefined,
+      false
+    ),
     "REDIS_URL",
     ["redis:", "rediss:"],
     issues
@@ -438,9 +450,14 @@ function parseEnvironmentConfig(
       issues
     )
   };
-  const accessKeyId = source === "env" ? read("AWS_ACCESS_KEY_ID") : optional("AWS_ACCESS_KEY_ID");
+  const accessKeyId =
+    source === "env"
+      ? read("AWS_ACCESS_KEY_ID", useLocalDefaults ? "supademo-local" : undefined)
+      : optional("AWS_ACCESS_KEY_ID");
   const secretAccessKey =
-    source === "env" ? read("AWS_SECRET_ACCESS_KEY") : optional("AWS_SECRET_ACCESS_KEY");
+    source === "env"
+      ? read("AWS_SECRET_ACCESS_KEY", useLocalDefaults ? "supademo-local-secret" : undefined)
+      : optional("AWS_SECRET_ACCESS_KEY");
 
   if (issues.length > 0) {
     throw new ConfigurationError(issues);

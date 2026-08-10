@@ -5,11 +5,13 @@ import test from "node:test";
 const readWebFile = (path) => readFile(new URL(`../apps/web/${path}`, import.meta.url), "utf8");
 
 test("demo dashboard keeps the Demos journey simple, responsive, and URL-backed", async () => {
-  const [screen, page, shell, css] = await Promise.all([
+  const [screen, page, shell, css, nextConfig, editPage] = await Promise.all([
     readWebFile("components/demo-dashboard-screen.tsx"),
     readWebFile("app/demos/page.tsx"),
     readWebFile("components/app-shell.tsx"),
-    readWebFile("app/globals.css")
+    readWebFile("app/globals.css"),
+    readWebFile("next.config.mjs"),
+    readWebFile("app/demos/[demoId]/edit/page.tsx")
   ]);
 
   assert.match(page, /AppShell pageTitle="Demos"/u);
@@ -32,6 +34,18 @@ test("demo dashboard keeps the Demos journey simple, responsive, and URL-backed"
   assert.match(screen, /status === "denied"/u);
   assert.match(screen, /status === "error"/u);
   assert.match(screen, /setDemos\(\[\]\)/u);
+  assert.match(screen, /demoOnly\?: boolean/u);
+  assert.match(screen, /NEXT_PUBLIC_DEMO_ONLY/u);
+  assert.match(screen, /isLocalPreviewHost/u);
+  assert.match(screen, /10\.2\.13\.175/u);
+  assert.match(screen, /demoOnlyWorkspace/u);
+  assert.match(screen, /Demo-only workspace/u);
+  assert.match(screen, /Open demo/u);
+  assert.match(screen, /encodeURIComponent\(demo\.id\)/u);
+  assert.match(editPage, /params: Promise<\{ demoId: string \}>/u);
+  assert.match(editPage, /const \{ demoId \} = await params/u);
+  assert.match(editPage, /readOnly=\{isLocalSample\}/u);
+  assert.match(nextConfig, /allowedDevOrigins: \["10\.2\.13\.175", "127\.0\.0\.1", "localhost"\]/u);
   assert.match(screen, /supademo:workspace-changed/u);
   assert.match(screen, /EmptyState/u);
   assert.match(screen, /aria-label="Choose demo view"/u);

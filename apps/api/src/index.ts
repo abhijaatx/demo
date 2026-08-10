@@ -1,3 +1,8 @@
+import {
+  AuthWorkflowService,
+  InMemoryAuthRateLimiter,
+  InMemoryAuthSessionStore
+} from "@supademo/auth";
 import { ConfigurationError, loadConfig } from "@supademo/config";
 import {
   checkDatabaseHealth,
@@ -12,6 +17,7 @@ import {
 } from "@supademo/database";
 import { createHookedTracer, createJsonLogger, InMemoryMetrics } from "@supademo/observability";
 import { createApiServer } from "./app.js";
+import { LocalAuthProvider } from "./local-auth-provider.js";
 
 await main().catch((error: unknown) => {
   console.error(configurationErrorMessage(error));
@@ -27,6 +33,17 @@ async function main(): Promise<void> {
       console.error(JSON.stringify({ level: "error", message: "database_idle_client_error" }));
     }
   });
+  const localAuthProvider = config.auth.provider === "local" ? new LocalAuthProvider() : undefined;
+  const authRuntime = localAuthProvider
+    ? (() => {
+        const authSessionStore = new InMemoryAuthSessionStore();
+        const authWorkflow = new AuthWorkflowService({
+          provider: localAuthProvider,
+          rateLimiter: new InMemoryAuthRateLimiter()
+        });
+        return { authProvider: localAuthProvider, authWorkflow, authSessionStore };
+      })()
+    : {};
   const server = createApiServer({
     checkDatabaseHealth: () => checkDatabaseHealth(pool),
     userProfileRepository: new DatabaseUserProfileRepository(pool),
@@ -35,6 +52,7 @@ async function main(): Promise<void> {
     demoRepository: new DatabaseDemoRepository(pool),
     folderRepository: new DatabaseFolderRepository(pool),
     tagRepository: new DatabaseTagRepository(pool),
+    ...authRuntime,
     authEnvironment: config.app.environment,
     allowedOrigins: config.app.allowedOrigins,
     logger: createJsonLogger({ service: "api" }),

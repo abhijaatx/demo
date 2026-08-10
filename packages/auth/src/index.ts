@@ -388,8 +388,16 @@ export class AuthWorkflowError extends Error {
   }
 }
 
+export type AuthProviderSignUpResult = Readonly<{
+  /** Local development providers may auto-verify accounts when email delivery is unavailable. */
+  readonly verificationRequired?: boolean;
+}>;
+
 export interface AuthWorkflowProvider {
-  signUp(input: { readonly email: string; readonly password: string }): Promise<void>;
+  signUp(input: {
+    readonly email: string;
+    readonly password: string;
+  }): Promise<AuthProviderSignUpResult | void>;
   confirmEmail(input: { readonly email: string; readonly code: string }): Promise<void>;
   signIn(input: { readonly email: string; readonly password: string }): Promise<{
     readonly identity: IdentityClaims;
@@ -514,14 +522,21 @@ export class AuthWorkflowService {
     await this.enforceRateLimit("signUp", rateKey);
     const email = normalizeAuthEmail(input.email);
     const password = validateAuthPassword(input.password);
+    let providerResult: AuthProviderSignUpResult | void = undefined;
     try {
-      await this.provider.signUp({ email, password });
+      providerResult = await this.provider.signUp({ email, password });
     } catch (error) {
       if (!(error instanceof AuthProviderOperationError) || error.code !== "already_exists") {
         throw mapProviderError(error);
       }
     }
-    return { message: "Check your email to continue.", verificationRequired: true };
+    return {
+      message:
+        providerResult?.verificationRequired === false
+          ? "Account created. You can continue to your workspace."
+          : "Check your email to continue.",
+      verificationRequired: providerResult?.verificationRequired ?? true
+    };
   }
 
   async confirmEmail(

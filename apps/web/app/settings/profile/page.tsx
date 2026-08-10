@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function ProfileSettingsPage() {
   return (
-    <AppShell>
+    <AppShell pageTitle="Profile settings">
       <ProfileSettingsScreen />
     </AppShell>
   );

@@ -196,3 +196,56 @@ export function ImageIcon(props: IconProps) {
     </SvgIcon>
   );
 }
+export function FilterIcon(props: IconProps) {
+  return (
+    <SvgIcon {...props}>
+      <path d="M4 6h16M7 12h10M10 18h4" />
+    </SvgIcon>
+  );
+}
+export function SortIcon(props: IconProps) {
+  return (
+    <SvgIcon {...props}>
+      <path d="M8 5v14M5 8l3-3 3 3M16 19V5M13 16l3 3 3-3" />
+    </SvgIcon>
+  );
+}
+export function FolderPlusIcon(props: IconProps) {
+  return (
+    <SvgIcon {...props}>
+      <path d="M3.5 7.5h6l2-2h9v11a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" />
+      <path d="M15 10v6M12 13h6" />
+    </SvgIcon>
+  );
+}
+export function LayoutIcon(props: IconProps) {
+  return (
+    <SvgIcon {...props}>
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <path d="M4 10h16M10 10v10" />
+    </SvgIcon>
+  );
+}
+export function HelpCircleIcon(props: IconProps) {
+  return (
+    <SvgIcon {...props}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M9.7 9.4a2.4 2.4 0 1 1 4.1 1.7c-.8.7-1.8 1.1-1.8 2.5M12 16.7h.01" />
+    </SvgIcon>
+  );
+}
+export function GiftIcon(props: IconProps) {
+  return (
+    <SvgIcon {...props}>
+      <path d="M4 10h16v10H4zM3 7h18v3H3zM12 7v13M12 7H8.8A2.3 2.3 0 1 1 11 4.2zM12 7h3.2A2.3 2.3 0 1 0 13 4.2z" />
+    </SvgIcon>
+  );
+}
+export function VideoIcon(props: IconProps) {
+  return (
+    <SvgIcon {...props}>
+      <rect x="3.5" y="6" width="12.5" height="12" rx="2" />
+      <path d="m16 10 4.5-2v8L16 14z" />
+    </SvgIcon>
+  );
+}

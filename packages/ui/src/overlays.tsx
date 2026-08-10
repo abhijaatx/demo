@@ -64,6 +64,7 @@ type OverlayLifecycleOptions = {
   open: boolean;
   ready: boolean;
   rootRef: RefObject<HTMLElement | null>;
+  ignoreRef?: RefObject<HTMLElement | null> | undefined;
   onClose: () => void;
   closeOnEscape: boolean;
   closeOnOutsideClick: boolean;
@@ -77,6 +78,7 @@ function useOverlayLifecycle({
   open,
   ready,
   rootRef,
+  ignoreRef,
   onClose,
   closeOnEscape,
   closeOnOutsideClick,
@@ -135,6 +137,7 @@ function useOverlayLifecycle({
       if (!closeOnOutsideClick || !(event.target instanceof Node)) return;
       const target = event.target;
       if (root.contains(target)) return;
+      if (ignoreRef?.current && ignoreRef.current.contains(target)) return;
       if (target instanceof Element && target.closest("[data-ui-overlay-surface]")) return;
       onCloseRef.current();
     };
@@ -324,6 +327,7 @@ export function Popover({
     open,
     ready: Boolean(host),
     rootRef: surfaceRef,
+    ignoreRef: anchorRef,
     onClose,
     closeOnEscape: true,
     closeOnOutsideClick: true,

@@ -26,7 +26,11 @@ test("local configuration applies non-secret defaults and returns a frozen typed
   assert.equal(config.app.source, "env");
   assert.equal(config.app.host, "127.0.0.1");
   assert.equal(config.app.port, 3001);
-  assert.deepEqual(config.app.allowedOrigins, ["http://localhost:3000", "http://127.0.0.1:3000"]);
+  assert.deepEqual(config.app.allowedOrigins, [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://10.2.13.175:3000"
+  ]);
   assert.equal(config.auth.provider, "local");
   assert.equal(config.auth.audience, "local-dev");
   assert.equal(config.objectStorage.endpoint, "http://127.0.0.1:9000");
@@ -190,4 +194,23 @@ test("redaction returns a copy without connection credentials", async () => {
   assert.equal(redacted.redis.url, "[REDACTED]");
   assert.doesNotMatch(serialized, /test-password|test-access-key|test-secret-key/u);
   assert.notEqual(redacted, config);
+});
+
+test("local configuration applies safe defaults when database and redis URLs are omitted", async () => {
+  const config = await loadConfig({ env: { APP_ENV: "local", CONFIG_SOURCE: "env" } });
+
+  assert.equal(config.app.environment, "local");
+  assert.match(config.database.url, /^postgresql:\/\/supademo:/u);
+  assert.match(config.redis.url, /^redis:\/\/:/u);
+  assert.equal(config.aws.accessKeyId, "supademo-local");
+  assert.equal(config.aws.secretAccessKey, "supademo-local-secret");
+});
+
+test("configuration fails closed when runtime environment or configuration source is omitted", async () => {
+  await assert.rejects(loadConfig({ env: {} }), (error) => {
+    assert.equal(error instanceof ConfigurationError, true);
+    assert.match(error.message, /APP_ENV/u);
+    assert.match(error.message, /CONFIG_SOURCE/u);
+    return true;
+  });
 });

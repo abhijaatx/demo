@@ -51,3 +51,15 @@ test("responsive and accessibility audit rules are declared for the UI laborator
   assert.match(source, /<main className="ui-lab"/u);
   assert.match(source, /data-lab-stage=\{stage\.toLowerCase\(\)\}/u);
 });
+
+test("UI laboratory stage selection updates displayed panel and active button aria-current", async () => {
+  const source = await readWebFile("components/ui-lab.tsx");
+
+  assert.match(source, /onClick=\{\(\) => setStage\(item\)\}/u);
+  assert.match(source, /stage === "Record" \?/u);
+  assert.match(source, /stage === "Edit" \?/u);
+  assert.match(source, /stage === "Share" \?/u);
+  assert.match(source, /id="ui-lab-record-heading"/u);
+  assert.match(source, /id="ui-lab-edit-heading"/u);
+  assert.match(source, /id="ui-lab-share-heading"/u);
+});

@@ -19,6 +19,9 @@ export type WorkspaceCapability =
   | "demo:publish"
   | "demo:share"
   | "demo:export"
+  | "asset:read"
+  | "asset:create"
+  | "asset:delete"
   | "analytics:read";
 
 export class AuthorizationDeniedError extends Error {
@@ -48,6 +51,9 @@ const roleCapabilities: Readonly<Record<AuthorizationRole, readonly WorkspaceCap
     "demo:publish",
     "demo:share",
     "demo:export",
+    "asset:read",
+    "asset:create",
+    "asset:delete",
     "analytics:read"
   ],
   admin: [
@@ -65,6 +71,9 @@ const roleCapabilities: Readonly<Record<AuthorizationRole, readonly WorkspaceCap
     "demo:publish",
     "demo:share",
     "demo:export",
+    "asset:read",
+    "asset:create",
+    "asset:delete",
     "analytics:read"
   ],
   editor: [
@@ -77,9 +86,18 @@ const roleCapabilities: Readonly<Record<AuthorizationRole, readonly WorkspaceCap
     "demo:publish",
     "demo:share",
     "demo:export",
+    "asset:read",
+    "asset:create",
     "analytics:read"
   ],
-  viewer: ["workspace:read", "member:read", "member:leave", "demo:read", "analytics:read"],
+  viewer: [
+    "workspace:read",
+    "member:read",
+    "member:leave",
+    "demo:read",
+    "asset:read",
+    "analytics:read"
+  ],
   guest: ["demo:read"]
 };
 

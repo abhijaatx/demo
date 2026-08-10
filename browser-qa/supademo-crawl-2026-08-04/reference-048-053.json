@@ -1,0 +1,180 @@
+[
+  {
+    "index": 48,
+    "name": "048-use-cases",
+    "url": "https://supademo.com/use-cases",
+    "file": "reference/048-048-use-cases.png",
+    "bodyH": 5232,
+    "buttonCount": 15,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources",
+      "Sales & Enablement",
+      "Marketing & Growth",
+      "Customer Success",
+      "Onboarding",
+      "Support",
+      "Product",
+      "Training",
+      "Previous",
+      "Next",
+      "Featured",
+      "Featured"
+    ],
+    "headings": [
+      "Tailored use cases for your entire team",
+      "Features to help you build better demos",
+      "Trusted by 200,000+ top operators and 3,000+ paying organizations",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "Interactive Product Demos for All Use Cases"
+  },
+  {
+    "index": 49,
+    "name": "049-industries-software",
+    "url": "https://supademo.com/industries/software",
+    "file": "reference/049-049-industries-software.png",
+    "bodyH": 7747,
+    "buttonCount": 13,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources",
+      "Featured",
+      "Featured",
+      "Dropbox",
+      "Intercom",
+      "Wise",
+      "Supademo",
+      "Turo",
+      "Previous",
+      "Next"
+    ],
+    "headings": [
+      "Accelerate Adoption and Growth Across Your Software Stack",
+      "Trusted by 200,000+ top operators and 3,000+ paying organizations",
+      "How software teams use Supademo",
+      "Drive productivity across the entire team",
+      "Built for Modern, Fast-Growing Software Teams",
+      "FAQs",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "Interactive Demos for Software Teams | Supademo"
+  },
+  {
+    "index": 50,
+    "name": "050-industries-healthcare",
+    "url": "https://supademo.com/industries/healthcare",
+    "file": "reference/050-050-industries-healthcare.png",
+    "bodyH": 8144,
+    "buttonCount": 11,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources",
+      "Featured",
+      "Featured",
+      "MockCare",
+      "똑닥",
+      "TriageFlow",
+      "Previous",
+      "Next"
+    ],
+    "headings": [
+      "Interactive Healthcare Demos That Cut Training Time and Boost Adoption",
+      "Trusted by 200,000+ top operators and 3,000+ paying organizations",
+      "How healthcare teams use Supademo",
+      "Drive productivity across the entire team",
+      "Streamlined features for the healthcare industry",
+      "FAQs",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "Interactive Demos for Healthcare Teams | Supademo"
+  },
+  {
+    "index": 51,
+    "name": "051-industries-finance-banking",
+    "url": "https://supademo.com/industries/finance-banking",
+    "file": "reference/051-051-industries-finance-banking.png",
+    "bodyH": 8145,
+    "buttonCount": 13,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources",
+      "Featured",
+      "Featured",
+      "Robinhood",
+      "Mercury",
+      "Wise",
+      "Rabobank",
+      "Wells Fargo",
+      "Previous",
+      "Next"
+    ],
+    "headings": [
+      "Drive Financial Compliance and Customer Clarity with Interactive Demos",
+      "Trusted by 200,000+ top operators and 3,000+ paying organizations",
+      "How finance teams use Supademo",
+      "Drive productivity across the entire team",
+      "Features built for fintech, finance, sand banking",
+      "FAQs",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "Interactive Demos for Banking and Finance | Supademo"
+  },
+  {
+    "index": 52,
+    "name": "052-industries-government",
+    "url": "https://supademo.com/industries/government",
+    "file": "reference/052-052-industries-government.png",
+    "bodyH": 7824,
+    "buttonCount": 11,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources",
+      "Featured",
+      "Featured",
+      "Canada Revenue",
+      "USCIS",
+      "Mijn Rijswijk",
+      "Previous",
+      "Next"
+    ],
+    "headings": [
+      "Modernize Training and Public Service With Guided Demos and Tutorials",
+      "Trusted by 200,000+ top operators and 3,000+ paying organizations",
+      "How government teams use Supademo",
+      "Drive productivity across the entire team",
+      "Designed for the Public Sector",
+      "FAQs",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "Interactive Demos for Government Agencies | Supademo"
+  },
+  {
+    "index": 53,
+    "name": "053-academy",
+    "url": "https://supademo.com/academy",
+    "file": "reference/053-053-academy.png",
+    "bodyH": 3224,
+    "buttonCount": 8,
+    "buttons": [
+      "Previous",
+      "Next",
+      "Welcome to the Academy\n\nLearn how our Academy is organized: tactical Playbooks for specific use cases, and structured Courses with step-by-step lessons to master every Supademo feature.",
+      "3 Minute Overview\n\nWatch this quick intro video to learn how Supademo helps you create stunning interactive demos in minutes.",
+      "Recommended Use Cases\n\nExplore recommended use cases on how and where you should use interactive demos.",
+      "Start the Course"
+    ],
+    "headings": [
+      "Supademo Academy",
+      "Explore lessons by outcome",
+      "Ready to get started?",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "Supademo Academy | Learn to Create Interactive Demos"
+  }
+]

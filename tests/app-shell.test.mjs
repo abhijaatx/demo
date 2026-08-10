@@ -21,22 +21,22 @@ test("authenticated shell declares navigation, workspace/account affordances, an
   assert.match(shell, /<CommandPalette open=\{commandOpen\}/u);
 });
 
-test("shell uses route-safe deep links and retains route-level boundaries", async () => {
-  const [shell, page, loading, error, notFound] = await Promise.all([
+test("shell uses route-safe workspace deep links and retains route-level boundaries", async () => {
+  const [shell, workspacePage, loading, error, notFound] = await Promise.all([
     readWebFile("components/app-shell.tsx"),
-    readWebFile("app/page.tsx"),
+    readWebFile("app/app/page.tsx"),
     readWebFile("app/loading.tsx"),
     readWebFile("app/error.tsx"),
     readWebFile("app/not-found.tsx")
   ]);
 
-  assert.match(page, /AppShell/u);
+  assert.match(workspacePage, /AppShell/u);
   assert.match(shell, /href: "\/demos"/u);
-  assert.match(shell, /\/?section=analytics/u);
+  assert.match(shell, /\/app\?section=analytics/u);
   assert.match(shell, /metaKey \|\| event\.ctrlKey/u);
   assert.match(shell, /setCommandOpen\(true\)/u);
   assert.match(loading, /aria-busy="true"/u);
   assert.match(error, /onClick=\{reset\}/u);
   assert.match(notFound, /Return home/u);
-  assert.doesNotMatch(`${shell}\n${page}`, /dangerouslySetInnerHTML|innerHTML|eval\(/u);
+  assert.doesNotMatch(`${shell}\n${workspacePage}`, /dangerouslySetInnerHTML|innerHTML|eval\(/u);
 });

@@ -1,0 +1,150 @@
+[
+  {
+    "index": 72,
+    "name": "072-enterprise",
+    "url": "https://supademo.com/enterprise",
+    "file": "reference/072-072-enterprise.png",
+    "bodyH": 7967,
+    "buttonCount": 11,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources",
+      "Multiple workspaces\n\nSeparate teams, brands, or business units into workspaces with their own settings.",
+      "Enterprise admin\n\nManage permissions, audit logs, and governance from a single admin panel.",
+      "AI Demo Agents\n\nDeploy AI agents with workspace governance and audit logs built in.",
+      "Enterprise",
+      "Enterprise"
+    ],
+    "headings": [
+      "Demos at enterprise scale,\nsecured by default",
+      "Trusted by 3,000+ teams, from leading companies to the Fortune 500",
+      "Scale, governance, security, and partnership",
+      "Enterprise-ready by default",
+      "Ready to scale demos across your enterprise?",
+      "FAQs about Supademo Enterprise",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "Supademo for Enterprise: Demos every team can build, security every team can trust"
+  },
+  {
+    "index": 73,
+    "name": "073-blog",
+    "url": "https://supademo.com/blog",
+    "file": "reference/073-073-blog.png",
+    "bodyH": 6853,
+    "buttonCount": 6,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources"
+    ],
+    "headings": [
+      "The Supademo Blog",
+      "Agentic vs Interactive Demos: Which Converts Better?",
+      "Top 7 Consensus Alternatives for Demo Automation in 2026",
+      "5 Agentic Demo Examples and Implementation Tips",
+      "Best Agentic Demo Software in 2026: 5 Tools Compared",
+      "Top 5 Navattic Alternatives & Competitors (2026 Guide)",
+      "Storylane vs Arcade vs Supademo: Which is best in 2026?",
+      "How to Create Personalized Outbound Demos at Scale With AI",
+      "What are agentic demos? How they work and where they fit",
+      "Results from our 1st Hackathon: Everything We Built in 48 Hours",
+      "New in June 2026: Voiceovers 2.0, Advanced Search, UI Redesign & Seismic Integration",
+      "Supademo vs. Claude Code: Should You Vibe-Code Product Demos or Build Them on a Demo Platform?"
+    ],
+    "title": "Supademo Blog | Interactive Demo Insights & Product Updates"
+  },
+  {
+    "index": 74,
+    "name": "074-customers-orbitax",
+    "url": "https://supademo.com/customers/orbitax",
+    "file": "reference/074-074-customers-orbitax.png",
+    "bodyH": 8151,
+    "buttonCount": 4,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources"
+    ],
+    "headings": [
+      "Orbitax closes global deals with Supademo",
+      "About Orbitax",
+      "The Challenges",
+      "The Solution",
+      "The Outcomes",
+      "FAQs",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "How Orbitax Scales Global Sales with Supademo"
+  },
+  {
+    "index": 75,
+    "name": "075-customers-spare",
+    "url": "https://supademo.com/customers/spare",
+    "file": "reference/075-075-customers-spare.png",
+    "bodyH": 9719,
+    "buttonCount": 4,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources"
+    ],
+    "headings": [
+      "Delivering massive impact across Spare's platform",
+      "About Spare Labs",
+      "Challenges and problems faced by Spare",
+      "The solution: leveraging Supademo for demo automation",
+      "Results and outcomes from Supademo",
+      "FAQs",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "Delivering massive impact for Spare's mobility platform"
+  },
+  {
+    "index": 76,
+    "name": "076-customers-easy-software",
+    "url": "https://supademo.com/customers/easy-software",
+    "file": "reference/076-076-customers-easy-software.png",
+    "bodyH": 7662,
+    "buttonCount": 4,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources"
+    ],
+    "headings": [
+      "How Easy uses interactive demos to enhance pre-sales workflow",
+      "About Easy Software",
+      "The Challenges",
+      "The Solution",
+      "Results",
+      "FAQs",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "How Easy Uses Interactive Demos To Enhance Their Pre-Sales Workflow"
+  },
+  {
+    "index": 77,
+    "name": "077-customers-beehiiv",
+    "url": "https://supademo.com/customers/beehiiv",
+    "file": "reference/077-077-customers-beehiiv.png",
+    "bodyH": 7843,
+    "buttonCount": 4,
+    "buttons": [
+      "Platform",
+      "Solutions",
+      "Resources"
+    ],
+    "headings": [
+      "beehiiv converts 50% better with Supademo",
+      "About beehiiv",
+      "The Challenges",
+      "The Solution",
+      "Results",
+      "FAQs",
+      "The fastest way to create interactive product demos"
+    ],
+    "title": "beehiiv increases paid conversions by 50% with Supademo"
+  }
+]

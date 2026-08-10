@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function MemberSettingsPage() {
   return (
-    <AppShell>
+    <AppShell pageTitle="Workspace members">
       <MemberAdministrationScreen />
     </AppShell>
   );
