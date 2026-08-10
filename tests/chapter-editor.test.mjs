@@ -39,6 +39,44 @@ test("ChapterEditor contract exposes the Supademo Forms authoring controls", asy
   assert.doesNotMatch(source, /dangerouslySetInnerHTML|innerHTML|eval\(/u);
 });
 
+test("ChapterEditor exposes bounded allowed/blocked email domain controls", async () => {
+  const source = await readFile(
+    new URL("../apps/web/components/editor/chapter-editor.tsx", import.meta.url),
+    "utf8"
+  );
+  assert.match(source, /Allowed email domains/u);
+  assert.match(source, /Blocked email domains/u);
+  assert.match(source, /normalizeEmailDomainList/u);
+  assert.match(source, /maxLength=\{2_000\}/u);
+  assert.match(source, /disabled=\{readOnly\}/u);
+  assert.match(source, /aria-describedby="chapter-form-allowed-domains-help"/u);
+  assert.match(source, /aria-describedby="chapter-form-blocked-domains-help"/u);
+  assert.match(source, /Blocked domains take precedence/u);
+  assert.doesNotMatch(source, /dangerouslySetInnerHTML|innerHTML|eval\(/u);
+});
+
+test("ChapterEditor exposes bounded password-protect settings for gate chapters", async () => {
+  const source = await readFile(
+    new URL("../apps/web/components/editor/chapter-editor.tsx", import.meta.url),
+    "utf8"
+  );
+  assert.match(source, /Password protected/u);
+  assert.match(source, /ChapterGateSettings/u);
+  assert.match(source, /Password settings/u);
+  assert.match(source, /type="password"/u);
+  assert.match(source, /autoComplete="new-password"/u);
+  assert.match(source, /maxLength=\{128\}/u);
+  assert.match(source, /hashChapterPassword/u);
+  assert.match(source, /parseChapterPasswordProtection/u);
+  assert.match(source, /Button text/u);
+  assert.match(source, /Background color/u);
+  assert.match(source, /Text color/u);
+  assert.match(source, /Remove protection/u);
+  assert.match(source, /passwordProtection: type === "gate"/u);
+  assert.match(source, /disabled=\{readOnly\}/u);
+  assert.doesNotMatch(source, /dangerouslySetInnerHTML|innerHTML|eval\(/u);
+});
+
 test("ChapterEditor exposes chapter appearance controls for every chapter type", async () => {
   const source = await readFile(
     new URL("../apps/web/components/editor/chapter-editor.tsx", import.meta.url),
@@ -90,4 +128,30 @@ test("ChapterEditor keeps the legacy form appearance controls working", async ()
   assert.match(source, /form\.backgroundColor/u);
   assert.match(source, /form\.opacity/u);
   assert.match(source, /form\.blurPx/u);
+});
+
+test("ChapterEditor exposes Embed chapter settings with Go/Save semantics and bounded input", async () => {
+  const source = await readFile(
+    new URL("../apps/web/components/editor/chapter-editor.tsx", import.meta.url),
+    "utf8"
+  );
+  assert.match(source, /value: "embed"/u);
+  assert.match(source, /ChapterEmbedSettings/u);
+  assert.match(source, /Embed URL/u);
+  assert.match(source, /sanitizeEmbedUrl/u);
+  assert.match(source, /maxLength=\{2_048\}/u);
+  assert.match(source, /disabled=\{readOnly\}/u);
+  // Go only stages a preview; Save persists only the normalized validated URL.
+  assert.match(source, /onClick=\{handleGo\}/u);
+  assert.match(source, /onClick=\{handleSave\}/u);
+  assert.match(source, /setPreviewUrl\(safeUrl\)/u);
+  assert.match(source, /onChangeChapter\(\{ \.\.\.chapter, embedUrl: safeUrl \}\)/u);
+  assert.match(source, /Enter a valid public HTTPS embed URL/u);
+  // Preview iframe is restrictive and never same-origin.
+  assert.match(source, /sandbox="allow-scripts allow-forms"/u);
+  assert.match(source, /referrerPolicy="no-referrer"/u);
+  assert.match(source, /Remove embed/u);
+  // Switching away from the embed type clears any saved URL.
+  assert.match(source, /embedUrl: type === "embed" \? chapter\.embedUrl : null/u);
+  assert.doesNotMatch(source, /dangerouslySetInnerHTML|innerHTML|eval\(/u);
 });

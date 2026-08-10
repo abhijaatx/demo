@@ -18447,6 +18447,86 @@ h2 {
   background: rgb(13 19 34 / 78%);
   border-color: #3d4e78;
 }
+/* Password-protected (gate) chapters: the viewer replaces the chapter content
+   with this access form until the correct password unlocks the chapter. */
+.demo-viewer-password-gate {
+  display: grid;
+  width: min(100%, 420px);
+  gap: 14px;
+  margin: 0 auto;
+  padding: 26px 24px;
+  background: rgb(255 255 255 / 78%);
+  border: 1px solid rgb(215 221 248 / 90%);
+  border-radius: 14px;
+  box-shadow: 0 14px 34px rgb(16 24 40 / 12%);
+  color: #273653;
+}
+.demo-viewer-password-gate .demo-viewer-chapter-badge {
+  justify-self: start;
+}
+.demo-viewer-password-gate h2 {
+  margin: 0;
+  color: inherit;
+  font-size: 20px;
+  letter-spacing: -0.03em;
+}
+.demo-viewer-password-gate .demo-viewer-form-field {
+  color: inherit;
+}
+.demo-viewer-password-gate .demo-viewer-form-field input {
+  min-height: 44px;
+  color: #1a2742;
+}
+.demo-viewer-password-gate .demo-viewer-chapter-actions {
+  margin-top: 2px;
+}
+.demo-viewer-password-gate .demo-viewer-form-error {
+  margin-top: -4px;
+}
+@media (max-width: 520px) {
+  .demo-viewer-password-gate {
+    width: 100%;
+    padding: 20px 16px;
+  }
+}
+/* Embedded forms, surveys, and calendars (embed chapters): the viewer renders
+   only the validated public HTTPS URL inside a restrictive sandbox iframe. */
+.demo-viewer-chapter-embed-wrap {
+  width: 100%;
+  margin-top: 18px;
+}
+.demo-viewer-chapter-embed {
+  display: block;
+  width: 100%;
+  height: 560px;
+  max-height: 65vh;
+  background: #fff;
+  border: 1px solid rgb(215 221 248 / 90%);
+  border-radius: 14px;
+}
+.demo-viewer-embed-unavailable {
+  width: min(100%, 420px);
+  margin: 18px auto 0;
+  padding: 18px;
+  color: #5b6b85;
+  text-align: center;
+  background: rgb(255 255 255 / 72%);
+  border: 1px solid rgb(215 221 248 / 90%);
+  border-radius: 14px;
+}
+.chapter-embed-preview {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+.chapter-embed-preview iframe {
+  display: block;
+  width: 100%;
+  height: 420px;
+  background: #fff;
+  border: 1px solid #d6dce8;
+  border-radius: 12px;
+}
 .demo-viewer-form-field {
   display: grid;
   gap: 6px;

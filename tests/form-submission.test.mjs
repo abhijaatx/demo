@@ -49,3 +49,86 @@ test("validateFormSubmission enforces form identity, choices, business email pol
   );
   assert.equal(accepted.isValid, true);
 });
+
+test("validateFormSubmission rejects emails from blocked domains (case-insensitive exact match)", () => {
+  const schema = createDemoFormSchema(
+    "form-blocked",
+    "Lead",
+    [createFormField("email", "Email", "email", true)],
+    { blockedEmailDomains: ["spam.com"] }
+  );
+
+  const blocked = validateFormSubmission(schema, {
+    formId: "form-blocked",
+    answers: { email: "user@Spam.COM" }
+  });
+  assert.equal(blocked.isValid, false);
+  assert.equal(blocked.errors[0].message, "This email domain is not accepted.");
+
+  const accepted = validateFormSubmission(schema, {
+    formId: "form-blocked",
+    answers: { email: "user@acme.com" }
+  });
+  assert.equal(accepted.isValid, true);
+});
+
+test("validateFormSubmission enforces an allowlist when present and supersedes the business rule", () => {
+  const schema = createDemoFormSchema(
+    "form-allow",
+    "Lead",
+    [createFormField("email", "Email", "email", true)],
+    { allowedEmailDomains: ["acme.com"] }
+  );
+
+  // A free-email address outside the allowlist fails with the allowlist message.
+  const outside = validateFormSubmission(schema, {
+    formId: "form-allow",
+    answers: { email: "person@gmail.com" }
+  });
+  assert.equal(outside.isValid, false);
+  assert.equal(outside.errors[0].message, "Use an email address from an approved domain.");
+
+  const inside = validateFormSubmission(schema, {
+    formId: "form-allow",
+    answers: { email: "person@ACME.com" }
+  });
+  assert.equal(inside.isValid, true);
+});
+
+test("validateFormSubmission applies blocked precedence over allowlist and leaves non-email fields alone", () => {
+  const schema = createDemoFormSchema(
+    "form-precedence",
+    "Lead",
+    [
+      createFormField("email", "Email", "email", true),
+      createFormField("name", "Name", "text", true)
+    ],
+    {
+      allowedEmailDomains: ["acme.com", "spam.com"],
+      blockedEmailDomains: ["spam.com"]
+    }
+  );
+
+  // A domain on both lists is rejected (blocked wins).
+  const blocked = validateFormSubmission(schema, {
+    formId: "form-precedence",
+    answers: { email: "user@spam.com", name: "Ada" }
+  });
+  assert.equal(blocked.isValid, false);
+  assert.equal(blocked.errors[0].message, "This email domain is not accepted.");
+
+  // Non-email fields and valid allowlisted emails are unaffected.
+  const accepted = validateFormSubmission(schema, {
+    formId: "form-precedence",
+    answers: { email: "user@acme.com", name: "Ada" }
+  });
+  assert.equal(accepted.isValid, true);
+
+  // An invalid email format still fails before domain policy.
+  const malformed = validateFormSubmission(schema, {
+    formId: "form-precedence",
+    answers: { email: "not-an-email", name: "Ada" }
+  });
+  assert.equal(malformed.isValid, false);
+  assert.equal(malformed.errors[0].message, "Invalid email address format.");
+});

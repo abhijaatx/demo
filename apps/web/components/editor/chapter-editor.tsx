@@ -6,10 +6,15 @@ import {
   FORM_FIELD_LIMIT,
   generateAiVoiceover,
   getAvailableTtsVoices,
+  hashChapterPassword,
+  normalizeEmailDomainList,
+  parseChapterPasswordProtection,
   parseDemoAudioNarration,
+  sanitizeEmbedUrl,
   validateSafeUrl,
   type ChapterButton,
   type ChapterLayout,
+  type ChapterPasswordProtection,
   type ChapterTheme,
   type ChapterType,
   type DemoAudioNarration,
@@ -35,10 +40,11 @@ const chapterTypes: readonly { value: ChapterType; label: string }[] = [
   { value: "context", label: "Context" },
   { value: "instruction", label: "Instruction" },
   { value: "cta", label: "Call to action" },
-  { value: "gate", label: "Gate" },
+  { value: "gate", label: "Password protected" },
   { value: "survey", label: "Survey" },
   { value: "quiz", label: "Quiz" },
   { value: "form", label: "Forms" },
+  { value: "embed", label: "Embed" },
   { value: "outro", label: "Outro" }
 ];
 
@@ -371,9 +377,17 @@ function FormChapterSettings({
   onChange: (form: DemoFormSchema) => void;
 }) {
   const [backgroundImageDraft, setBackgroundImageDraft] = useState(form.backgroundImageUrl ?? "");
+  const [allowedDomainsDraft, setAllowedDomainsDraft] = useState(
+    form.allowedEmailDomains.join(", ")
+  );
+  const [blockedDomainsDraft, setBlockedDomainsDraft] = useState(
+    form.blockedEmailDomains.join(", ")
+  );
 
   useEffect(() => {
     setBackgroundImageDraft(form.backgroundImageUrl ?? "");
+    setAllowedDomainsDraft(form.allowedEmailDomains.join(", "));
+    setBlockedDomainsDraft(form.blockedEmailDomains.join(", "));
   }, [form.formId]);
 
   const addField = (): void => {
@@ -540,6 +554,57 @@ function FormChapterSettings({
         </label>
       </div>
 
+      <label className="editor-field">
+        <span>
+          Allowed email domains <small>(optional, comma-separated)</small>
+        </span>
+        <input
+          type="text"
+          autoComplete="off"
+          spellCheck={false}
+          value={allowedDomainsDraft}
+          maxLength={2_000}
+          disabled={readOnly}
+          aria-describedby="chapter-form-allowed-domains-help"
+          placeholder="acme.com, acmecorp.io"
+          onBlur={() => setAllowedDomainsDraft(form.allowedEmailDomains.join(", "))}
+          onChange={(event) => {
+            const value = event.currentTarget.value.slice(0, 2_000);
+            setAllowedDomainsDraft(value);
+            onChange({ ...form, allowedEmailDomains: normalizeEmailDomainList(value) });
+          }}
+        />
+        <small id="chapter-form-allowed-domains-help" className="editor-url-help">
+          When set, viewers must submit an email from one of these domains. Unsafe or malformed
+          entries are removed automatically.
+        </small>
+      </label>
+      <label className="editor-field">
+        <span>
+          Blocked email domains <small>(optional, comma-separated)</small>
+        </span>
+        <input
+          type="text"
+          autoComplete="off"
+          spellCheck={false}
+          value={blockedDomainsDraft}
+          maxLength={2_000}
+          disabled={readOnly}
+          aria-describedby="chapter-form-blocked-domains-help"
+          placeholder="competitor.com, disposable-mail.com"
+          onBlur={() => setBlockedDomainsDraft(form.blockedEmailDomains.join(", "))}
+          onChange={(event) => {
+            const value = event.currentTarget.value.slice(0, 2_000);
+            setBlockedDomainsDraft(value);
+            onChange({ ...form, blockedEmailDomains: normalizeEmailDomainList(value) });
+          }}
+        />
+        <small id="chapter-form-blocked-domains-help" className="editor-url-help">
+          Submissions from these domains are rejected. Blocked domains take precedence over the
+          allowed list.
+        </small>
+      </label>
+
       <details className="chapter-form-appearance">
         <summary>Appearance</summary>
         <label className="editor-field">
@@ -630,6 +695,297 @@ function FormChapterSettings({
   );
 }
 
+/**
+ * Password-protect settings for gate chapters. The plaintext password exists
+ * only in local component state and is converted to a one-way hash before it
+ * is ever written to the chapter — it is never persisted, logged, rendered,
+ * or placed in a URL.
+ */
+function ChapterGateSettings({
+  chapter,
+  readOnly,
+  onChangeChapter
+}: {
+  chapter: DemoChapter;
+  readOnly: boolean;
+  onChangeChapter: (updated: DemoChapter) => void;
+}) {
+  const protection = chapter.passwordProtection;
+  const [passwordDraft, setPasswordDraft] = useState("");
+  const [buttonTextDraft, setButtonTextDraft] = useState(protection?.buttonText ?? "Unlock");
+  const [status, setStatus] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setButtonTextDraft(protection?.buttonText ?? "Unlock");
+    setPasswordDraft("");
+    setStatus("");
+  }, [chapter.id]);
+
+  const patchProtection = (patch: Partial<ChapterPasswordProtection>): void => {
+    const base: ChapterPasswordProtection = protection ?? {
+      passwordHash: null,
+      buttonText: "Unlock",
+      backgroundColor: null,
+      textColor: null
+    };
+    onChangeChapter({
+      ...chapter,
+      passwordProtection: parseChapterPasswordProtection({ ...base, ...patch })
+    });
+  };
+
+  const savePassword = async (): Promise<void> => {
+    if (readOnly || saving) return;
+    const boundedPassword = passwordDraft.trim().slice(0, 128);
+    if (!boundedPassword) {
+      setStatus("Enter a password before saving.");
+      return;
+    }
+    setSaving(true);
+    setStatus("Hashing password…");
+    try {
+      const passwordHash = await hashChapterPassword(boundedPassword);
+      patchProtection({
+        passwordHash,
+        buttonText: buttonTextDraft.trim().slice(0, 96) || "Unlock"
+      });
+      setPasswordDraft("");
+      setStatus("Password protection saved.");
+    } catch {
+      setStatus("Could not save password protection. Try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="chapter-form-editor" aria-labelledby="chapter-gate-settings-title">
+      <div className="chapter-editor-section-heading">
+        <div>
+          <span className="editor-kicker">Password protected</span>
+          <strong id="chapter-gate-settings-title">Password settings</strong>
+        </div>
+        {protection && !readOnly ? (
+          <button
+            type="button"
+            className="editor-text-button editor-button-danger-text"
+            onClick={() => {
+              setPasswordDraft("");
+              onChangeChapter({ ...chapter, passwordProtection: null });
+            }}
+          >
+            Remove protection
+          </button>
+        ) : null}
+      </div>
+      <label className="editor-field">
+        <span>Password</span>
+        <input
+          type="password"
+          autoComplete="new-password"
+          value={passwordDraft}
+          maxLength={128}
+          disabled={readOnly}
+          placeholder={protection ? "Change password (leave blank to keep)" : "Set a password"}
+          onChange={(event) => setPasswordDraft(event.currentTarget.value.slice(0, 128))}
+        />
+        <small className="editor-url-help">
+          Stored as a one-way hash only — the password is never saved, shown, or sent in plaintext.
+        </small>
+      </label>{" "}
+      {protection ? (
+        <>
+          <label className="editor-field">
+            <span>Button text</span>
+            <input
+              type="text"
+              value={buttonTextDraft}
+              maxLength={96}
+              disabled={readOnly}
+              onChange={(event) => {
+                const value = event.currentTarget.value.slice(0, 96);
+                setButtonTextDraft(value);
+                patchProtection({ buttonText: value || "Unlock" });
+              }}
+            />
+          </label>
+          <div className="chapter-form-options">
+            <label className="editor-field">
+              <span>Background color</span>
+              <input
+                type="color"
+                value={protection?.backgroundColor ?? "#4d56e8"}
+                disabled={readOnly}
+                onChange={(event) =>
+                  patchProtection({ backgroundColor: event.currentTarget.value })
+                }
+              />
+            </label>
+            <label className="editor-field">
+              <span>Text color</span>
+              <input
+                type="color"
+                value={protection?.textColor ?? "#ffffff"}
+                disabled={readOnly}
+                onChange={(event) => patchProtection({ textColor: event.currentTarget.value })}
+              />
+            </label>
+          </div>
+        </>
+      ) : null}
+      <div className="editor-voiceover-actions">
+        <button
+          type="button"
+          className="editor-button editor-button-primary"
+          disabled={readOnly || saving || !passwordDraft.trim()}
+          onClick={() => void savePassword()}
+        >
+          {saving ? "Saving…" : "Save password"}
+        </button>
+      </div>
+      {status ? (
+        <p className="editor-inspector-note" role="status">
+          {status}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+/**
+ * Embed settings for embed chapters (forms, surveys, and calendars). The
+ * editor accepts a URL (never arbitrary HTML): Go loads a preview of the
+ * normalized validated URL only, and Save persists only that validated URL.
+ * Invalid or unsafe input is never persisted or loaded, and the plaintext
+ * draft exists only in local component state.
+ */
+function ChapterEmbedSettings({
+  chapter,
+  readOnly,
+  onChangeChapter
+}: {
+  chapter: DemoChapter;
+  readOnly: boolean;
+  onChangeChapter: (updated: DemoChapter) => void;
+}) {
+  const [embedUrlDraft, setEmbedUrlDraft] = useState(chapter.embedUrl ?? "");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(chapter.embedUrl);
+  const [status, setStatus] = useState("");
+
+  useEffect(() => {
+    setEmbedUrlDraft(chapter.embedUrl ?? "");
+    setPreviewUrl(chapter.embedUrl);
+    setStatus("");
+  }, [chapter.id]);
+
+  const handleGo = (): void => {
+    if (readOnly) return;
+    const safeUrl = sanitizeEmbedUrl(embedUrlDraft);
+    if (!safeUrl) {
+      setPreviewUrl(null);
+      setStatus("Enter a valid public HTTPS embed URL to preview.");
+      return;
+    }
+    setPreviewUrl(safeUrl);
+    setStatus("Preview loaded. Click Save to apply this embed to the chapter.");
+  };
+
+  const handleSave = (): void => {
+    if (readOnly) return;
+    const safeUrl = sanitizeEmbedUrl(embedUrlDraft);
+    if (!safeUrl) {
+      setStatus("Enter a valid public HTTPS embed URL before saving.");
+      return;
+    }
+    setPreviewUrl(safeUrl);
+    onChangeChapter({ ...chapter, embedUrl: safeUrl });
+    setStatus("Embed saved.");
+  };
+
+  return (
+    <section className="chapter-form-editor" aria-labelledby="chapter-embed-settings-title">
+      <div className="chapter-editor-section-heading">
+        <div>
+          <span className="editor-kicker">Embed forms, surveys, and calendars</span>
+          <strong id="chapter-embed-settings-title">Embed URL</strong>
+        </div>
+        {chapter.embedUrl && !readOnly ? (
+          <button
+            type="button"
+            className="editor-text-button editor-button-danger-text"
+            onClick={() => {
+              setEmbedUrlDraft("");
+              setPreviewUrl(null);
+              onChangeChapter({ ...chapter, embedUrl: null });
+            }}
+          >
+            Remove embed
+          </button>
+        ) : null}
+      </div>
+      <label className="editor-field">
+        <span>Embed URL</span>
+        <input
+          type="url"
+          inputMode="url"
+          value={embedUrlDraft}
+          maxLength={2_048}
+          disabled={readOnly}
+          autoComplete="off"
+          spellCheck={false}
+          aria-invalid={Boolean(embedUrlDraft && !sanitizeEmbedUrl(embedUrlDraft))}
+          placeholder="https://tally.so/r/example, https://calendly.com/team/meeting"
+          onChange={(event) => {
+            setEmbedUrlDraft(event.currentTarget.value.slice(0, 2_048));
+            if (status) setStatus("");
+          }}
+        />
+        <small className="editor-url-help">
+          Paste the public embed or share link from Tally, Typeform, Google Forms, HubSpot, Jotform,
+          Calendly, Cal.com, SurveyMonkey, Qualtrics, or similar. Only public HTTPS URLs are
+          accepted.
+        </small>
+      </label>
+      <div className="editor-voiceover-actions">
+        <button
+          type="button"
+          className="editor-button editor-button-secondary"
+          disabled={readOnly || !embedUrlDraft.trim()}
+          onClick={handleGo}
+        >
+          Go
+        </button>
+        <button
+          type="button"
+          className="editor-button editor-button-primary"
+          disabled={readOnly}
+          onClick={handleSave}
+        >
+          Save
+        </button>
+      </div>
+      {status ? (
+        <p className="editor-inspector-note" role="status">
+          {status}
+        </p>
+      ) : null}
+      {previewUrl ? (
+        <div className="chapter-embed-preview">
+          <span className="editor-kicker">Preview</span>
+          <iframe
+            title="Embed preview"
+            src={previewUrl}
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            sandbox="allow-scripts allow-forms"
+          />
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function updateButton(
   chapter: DemoChapter,
   buttonId: string,
@@ -673,7 +1029,13 @@ export function ChapterEditor({
     onChangeChapter({
       ...chapter,
       type,
-      form: type === "form" ? (chapter.form ?? createDefaultForm(chapter.id)) : chapter.form
+      form: type === "form" ? (chapter.form ?? createDefaultForm(chapter.id)) : chapter.form,
+      // A gate only applies to the Password protected chapter type; switching
+      // away clears it so a dormant hash cannot gate a different chapter.
+      passwordProtection: type === "gate" ? chapter.passwordProtection : null,
+      // An embed URL only applies to embed chapters; switching away clears it
+      // so a saved embed can never leak onto another chapter type.
+      embedUrl: type === "embed" ? chapter.embedUrl : null
     });
   };
 
@@ -743,6 +1105,22 @@ export function ChapterEditor({
           form={form}
           readOnly={readOnly}
           onChange={(nextForm) => onChangeChapter({ ...chapter, form: nextForm })}
+        />
+      ) : null}
+
+      {chapter.type === "gate" ? (
+        <ChapterGateSettings
+          chapter={chapter}
+          readOnly={readOnly}
+          onChangeChapter={onChangeChapter}
+        />
+      ) : null}
+
+      {chapter.type === "embed" ? (
+        <ChapterEmbedSettings
+          chapter={chapter}
+          readOnly={readOnly}
+          onChangeChapter={onChangeChapter}
         />
       ) : null}
 

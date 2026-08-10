@@ -5,6 +5,7 @@
 import { createHash } from "node:crypto";
 import { parseDemoAudioNarration } from "./audio-narration.js";
 import { generateBranchingDiagnosticSummary } from "./branching-authoring.js";
+import { parseChapterPasswordProtection, sanitizeEmbedUrl } from "./chapter-model.js";
 import { parseDemoTheme, type DemoDocument } from "./demo-document.js";
 import { parseDemoFormSchema } from "./form-schemas.js";
 import { validateSafeUrl } from "./hotspot-schema.js";
@@ -51,6 +52,10 @@ export function publishDemoDocument(
           ? chapter.mediaUrl
           : null,
       form: chapter.form ? parseDemoFormSchema(chapter.form) : null,
+      passwordProtection: chapter.passwordProtection
+        ? parseChapterPasswordProtection(chapter.passwordProtection)
+        : null,
+      embedUrl: chapter.embedUrl ? sanitizeEmbedUrl(chapter.embedUrl) : null,
       buttons: chapter.buttons.map((button) => {
         const safeUrl = validateSafeUrl(button.url);
         const actionType =

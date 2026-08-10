@@ -44,8 +44,21 @@ export function validateFormSubmission(
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(val)) {
         errors.push({ fieldId: field.id, message: `Invalid email address format.` });
-      } else if (!schema.allowNonBusinessEmails && isFreeEmailDomain(val)) {
-        errors.push({ fieldId: field.id, message: "Please use a work email address." });
+      } else {
+        const domain = extractEmailDomain(val);
+        if (schema.blockedEmailDomains.includes(domain)) {
+          errors.push({ fieldId: field.id, message: "This email domain is not accepted." });
+        } else if (
+          schema.allowedEmailDomains.length > 0 &&
+          !schema.allowedEmailDomains.includes(domain)
+        ) {
+          errors.push({
+            fieldId: field.id,
+            message: "Use an email address from an approved domain."
+          });
+        } else if (!schema.allowNonBusinessEmails && isFreeEmailDomain(val)) {
+          errors.push({ fieldId: field.id, message: "Please use a work email address." });
+        }
       }
     } else if (val && ["select", "radio"].includes(field.fieldType)) {
       if (!field.options.includes(val)) {
@@ -62,8 +75,13 @@ export function validateFormSubmission(
   });
 }
 
+/** Deterministic, case-insensitive exact domain matching against normalized lists. */
+function extractEmailDomain(value: string): string {
+  return (value.split("@")[1] ?? "").toLowerCase().trim();
+}
+
 function isFreeEmailDomain(value: string): boolean {
-  const domain = value.split("@")[1]?.toLowerCase() ?? "";
+  const domain = extractEmailDomain(value);
   return new Set([
     "gmail.com",
     "googlemail.com",

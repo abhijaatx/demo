@@ -11,9 +11,11 @@ import {
   pauseHotspotIdsBeforeTime,
   resolveLocalizedText,
   resolveTemplateTokens,
+  sanitizeEmbedUrl,
   translationContentKey,
   translationLabelForLocale,
   validateFormSubmission,
+  verifyChapterPassword,
   type DemoDocument,
   type DemoChapter,
   type DemoFormSchema,
@@ -214,6 +216,10 @@ export function DemoViewer({
   const [formAnswers, setFormAnswers] = useState<Record<string, string>>({});
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [formSubmitted, setFormSubmitted] = useState(false);
+  const [unlockedChapterIds, setUnlockedChapterIds] = useState<ReadonlySet<string>>(new Set());
+  const [gatePasswordDraft, setGatePasswordDraft] = useState("");
+  const [gateError, setGateError] = useState<string | null>(null);
+  const [gateBusy, setGateBusy] = useState(false);
   const [selectedLocale, setSelectedLocale] = useState("en-US");
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [shareAccessError, setShareAccessError] = useState<string | null>(null);
@@ -315,6 +321,10 @@ export function DemoViewer({
   const currentChapter =
     demoDocument.chapters.find((chapter) => chapter.id === activeChapterId) ?? null;
   const currentForm = currentChapter?.type === "form" ? currentChapter.form : null;
+  // Password protection only gates `gate` chapters (the parser also strips it
+  // from other types; this is defense-in-depth for hand-edited documents).
+  const gate = currentChapter?.type === "gate" ? (currentChapter.passwordProtection ?? null) : null;
+  const gateLocked = Boolean(gate && !unlockedChapterIds.has(currentChapter?.id ?? ""));
   const viewerVariables = useMemo(() => {
     const personalization = demoDocument.settings.personalization;
     if (!personalization.enabled) return Object.freeze({});
@@ -369,6 +379,12 @@ export function DemoViewer({
   const chapterNarrationUrl = currentChapter?.voiceover?.audioUrl
     ? safeMediaUrl(currentChapter.voiceover.audioUrl)
     : null;
+  // Embedded forms, surveys, and calendars (embed chapters): render only a
+  // parser-validated public HTTPS URL. Re-sanitizing here is defense-in-depth
+  // for hand-edited documents; an invalid URL renders a safe placeholder and
+  // never attempts navigation or a fetch.
+  const chapterEmbedUrl =
+    currentChapter?.type === "embed" ? sanitizeEmbedUrl(currentChapter.embedUrl) : null;
 
   // Chapter voiceovers never autoplay on page load. When autoplay is enabled
   // the audio element mounts inert and playback is only started here once the
@@ -377,14 +393,20 @@ export function DemoViewer({
   useEffect(() => {
     const audio = chapterVoiceoverRef.current;
     if (!audio) return;
-    if (hasStarted && Boolean(currentChapter?.voiceover?.autoPlay)) {
+    if (hasStarted && !gateLocked && Boolean(currentChapter?.voiceover?.autoPlay)) {
       void audio.play().catch(() => {
         // Native media policy may require the viewer to press Play again.
       });
     } else {
       audio.pause();
     }
-  }, [hasStarted, currentChapter?.id, currentChapter?.voiceover?.autoPlay, chapterNarrationUrl]);
+  }, [
+    hasStarted,
+    gateLocked,
+    currentChapter?.id,
+    currentChapter?.voiceover?.autoPlay,
+    chapterNarrationUrl
+  ]);
   // Chapter visual customization. Form chapters keep using their own form
   // appearance fields (the existing viewer form rendering); all other chapter
   // types use the chapter-level layout/theme/color/opacity/blur fields.
@@ -611,6 +633,33 @@ export function DemoViewer({
     setFormSubmitted(true);
   };
 
+  const handleGateSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
+    if (!gate || gateBusy) return;
+    const candidate = gatePasswordDraft.slice(0, 128);
+    if (!candidate.trim()) {
+      setGateError("Enter the password to continue.");
+      return;
+    }
+    setGateBusy(true);
+    try {
+      const matches = await verifyChapterPassword(candidate, gate.passwordHash);
+      if (matches && currentChapter) {
+        setUnlockedChapterIds((current) => new Set([...current, currentChapter.id]));
+        setGatePasswordDraft("");
+        setGateError(null);
+        emitStarted();
+      } else {
+        setGateError("Incorrect password. Please try again.");
+      }
+    } catch {
+      // Fails closed: hashing is unavailable, so the chapter stays locked.
+      setGateError("This chapter is temporarily unavailable.");
+    } finally {
+      setGateBusy(false);
+    }
+  };
+
   const goHotspot = (hotspot: DemoHotspot): void => {
     emitStarted();
     if (hotspot.actionType === "none") {
@@ -781,33 +830,332 @@ export function DemoViewer({
                       : undefined
                 }
               >
-                {chapterMediaUrl ? (
-                  <img className="demo-viewer-chapter-media" src={chapterMediaUrl} alt="" />
-                ) : null}
-                <span className="demo-viewer-chapter-badge">{currentChapter.type}</span>
-                <h1>
-                  {renderText(
-                    currentForm?.title || currentChapter.title,
-                    translationContentKey(
-                      "chapter",
-                      currentChapter.id,
-                      currentForm ? "form-title" : "title"
-                    )
-                  )}
-                </h1>
-                {currentChapter.bodyText ? (
-                  <p>
-                    {renderText(
-                      currentChapter.bodyText,
-                      translationContentKey("chapter", currentChapter.id, "body")
-                    )}
-                  </p>
-                ) : null}
-                {currentForm ? (
-                  formSubmitted ? (
-                    <div className="demo-viewer-form-success" role="status">
-                      <strong>Thanks — you're all set.</strong>
-                      <p>Your response was saved with this demo.</p>
+                {gateLocked && gate ? (
+                  <form
+                    className="demo-viewer-password-gate"
+                    aria-label="Password protected chapter"
+                    style={{
+                      backgroundColor: gate.backgroundColor ?? undefined,
+                      color: gate.textColor ?? undefined
+                    }}
+                    onSubmit={(event) => void handleGateSubmit(event)}
+                  >
+                    <span className="demo-viewer-chapter-badge">Locked</span>
+                    <h2>This chapter is password protected</h2>
+                    <label className="demo-viewer-form-field">
+                      <span>Password</span>
+                      <input
+                        type="password"
+                        autoComplete="off"
+                        maxLength={128}
+                        value={gatePasswordDraft}
+                        disabled={gateBusy}
+                        aria-invalid={Boolean(gateError)}
+                        onChange={(event) => {
+                          setGatePasswordDraft(event.currentTarget.value.slice(0, 128));
+                          if (gateError) setGateError(null);
+                        }}
+                      />
+                    </label>
+                    {gateError ? (
+                      <p className="demo-viewer-form-error" role="alert">
+                        {gateError}
+                      </p>
+                    ) : null}
+                    <div className="demo-viewer-chapter-actions">
+                      <button
+                        type="submit"
+                        className="editor-button editor-button-primary"
+                        disabled={gateBusy || !gatePasswordDraft.trim()}
+                      >
+                        {gate.buttonText}
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <>
+                    {chapterMediaUrl ? (
+                      <img className="demo-viewer-chapter-media" src={chapterMediaUrl} alt="" />
+                    ) : null}
+                    <span className="demo-viewer-chapter-badge">{currentChapter.type}</span>
+                    <h1>
+                      {renderText(
+                        currentForm?.title || currentChapter.title,
+                        translationContentKey(
+                          "chapter",
+                          currentChapter.id,
+                          currentForm ? "form-title" : "title"
+                        )
+                      )}
+                    </h1>
+                    {currentChapter.bodyText ? (
+                      <p>
+                        {renderText(
+                          currentChapter.bodyText,
+                          translationContentKey("chapter", currentChapter.id, "body")
+                        )}
+                      </p>
+                    ) : null}
+                    {chapterEmbedUrl ? (
+                      <div className="demo-viewer-chapter-embed-wrap">
+                        <iframe
+                          className="demo-viewer-chapter-embed"
+                          title={`Embed for ${renderText(
+                            currentChapter.title,
+                            translationContentKey("chapter", currentChapter.id, "title")
+                          )}`}
+                          src={chapterEmbedUrl}
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                          sandbox="allow-scripts allow-forms"
+                        />
+                      </div>
+                    ) : currentChapter.type === "embed" ? (
+                      <p className="demo-viewer-embed-unavailable" role="status">
+                        This embed is not available right now.
+                      </p>
+                    ) : null}
+                    {currentForm ? (
+                      formSubmitted ? (
+                        <div className="demo-viewer-form-success" role="status">
+                          <strong>Thanks — you're all set.</strong>
+                          <p>Your response was saved with this demo.</p>
+                          <div className="demo-viewer-chapter-actions">
+                            {currentChapter.buttons.length > 0 ? (
+                              currentChapter.buttons.map((button) => (
+                                <button
+                                  key={button.id}
+                                  type="button"
+                                  className="editor-button editor-button-primary"
+                                  onClick={() => handleChapterButton(button)}
+                                >
+                                  {renderText(
+                                    button.label,
+                                    translationContentKey(
+                                      "chapter",
+                                      currentChapter.id,
+                                      "button",
+                                      button.id
+                                    )
+                                  )}
+                                </button>
+                              ))
+                            ) : (
+                              <button
+                                type="button"
+                                className="editor-button editor-button-primary"
+                                onClick={continueFromChapter}
+                              >
+                                Continue
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <form className="demo-viewer-form" onSubmit={handleFormSubmit} noValidate>
+                          {formErrors._form ? (
+                            <p className="demo-viewer-form-error" role="alert">
+                              {formErrors._form}
+                            </p>
+                          ) : null}
+                          {currentForm.fields.map((field) => {
+                            const inputId = `viewer-form-${currentForm.formId}-${field.id}`;
+                            const errorId = `${inputId}-error`;
+                            const fieldError = formErrors[field.id];
+                            const describedBy = fieldError ? errorId : undefined;
+                            if (["select", "radio"].includes(field.fieldType)) {
+                              return field.fieldType === "select" ? (
+                                <label className="demo-viewer-form-field" key={field.id}>
+                                  <span>
+                                    {renderText(
+                                      field.label,
+                                      translationContentKey(
+                                        "chapter",
+                                        currentChapter.id,
+                                        "field",
+                                        field.id
+                                      )
+                                    )}
+                                    {field.isRequired ? " *" : ""}
+                                  </span>
+                                  <select
+                                    id={inputId}
+                                    name={field.id}
+                                    value={formAnswers[field.id] ?? ""}
+                                    required={field.isRequired}
+                                    aria-invalid={Boolean(fieldError)}
+                                    aria-describedby={describedBy}
+                                    onChange={(event) => {
+                                      const value = event.currentTarget.value;
+                                      setFormAnswers((current) => ({
+                                        ...current,
+                                        [field.id]: value
+                                      }));
+                                    }}
+                                  >
+                                    <option value="">Choose an option</option>
+                                    {field.options.map((option) => (
+                                      <option key={option} value={option}>
+                                        {renderText(
+                                          option,
+                                          translationContentKey(
+                                            "chapter",
+                                            currentChapter.id,
+                                            `option-${field.id}`,
+                                            option
+                                          )
+                                        )}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {fieldError ? (
+                                    <small id={errorId} className="demo-viewer-form-error">
+                                      {fieldError}
+                                    </small>
+                                  ) : null}
+                                </label>
+                              ) : (
+                                <fieldset className="demo-viewer-form-field" key={field.id}>
+                                  <legend>
+                                    {renderText(
+                                      field.label,
+                                      translationContentKey(
+                                        "chapter",
+                                        currentChapter.id,
+                                        "field",
+                                        field.id
+                                      )
+                                    )}
+                                    {field.isRequired ? " *" : ""}
+                                  </legend>
+                                  {field.options.map((option) => (
+                                    <label className="demo-viewer-form-option" key={option}>
+                                      <input
+                                        type="radio"
+                                        name={field.id}
+                                        value={option}
+                                        checked={formAnswers[field.id] === option}
+                                        onChange={(event) => {
+                                          const value = event.currentTarget.value;
+                                          setFormAnswers((current) => ({
+                                            ...current,
+                                            [field.id]: value
+                                          }));
+                                        }}
+                                      />
+                                      <span>
+                                        {renderText(
+                                          option,
+                                          translationContentKey(
+                                            "chapter",
+                                            currentChapter.id,
+                                            `option-${field.id}`,
+                                            option
+                                          )
+                                        )}
+                                      </span>
+                                    </label>
+                                  ))}
+                                  {fieldError ? (
+                                    <small id={errorId} className="demo-viewer-form-error">
+                                      {fieldError}
+                                    </small>
+                                  ) : null}
+                                </fieldset>
+                              );
+                            }
+                            if (field.fieldType === "checkbox") {
+                              return (
+                                <label className="demo-viewer-form-option" key={field.id}>
+                                  <input
+                                    id={inputId}
+                                    type="checkbox"
+                                    name={field.id}
+                                    checked={formAnswers[field.id] === "true"}
+                                    onChange={(event) => {
+                                      const value = event.currentTarget.checked ? "true" : "false";
+                                      setFormAnswers((current) => ({
+                                        ...current,
+                                        [field.id]: value
+                                      }));
+                                    }}
+                                  />
+                                  <span>
+                                    {renderText(
+                                      field.label,
+                                      translationContentKey(
+                                        "chapter",
+                                        currentChapter.id,
+                                        "field",
+                                        field.id
+                                      )
+                                    )}
+                                    {field.isRequired ? " *" : ""}
+                                  </span>
+                                  {fieldError ? (
+                                    <small id={errorId} className="demo-viewer-form-error">
+                                      {fieldError}
+                                    </small>
+                                  ) : null}
+                                </label>
+                              );
+                            }
+                            return (
+                              <label className="demo-viewer-form-field" key={field.id}>
+                                <span>
+                                  {renderText(
+                                    field.label,
+                                    translationContentKey(
+                                      "chapter",
+                                      currentChapter.id,
+                                      "field",
+                                      field.id
+                                    )
+                                  )}
+                                  {field.isRequired ? " *" : ""}
+                                </span>
+                                <input
+                                  id={inputId}
+                                  type={field.fieldType === "email" ? "email" : "text"}
+                                  name={field.id}
+                                  value={formAnswers[field.id] ?? ""}
+                                  maxLength={2_000}
+                                  required={field.isRequired}
+                                  aria-invalid={Boolean(fieldError)}
+                                  aria-describedby={describedBy}
+                                  onChange={(event) => {
+                                    const value = event.currentTarget.value.slice(0, 2_000);
+                                    setFormAnswers((current) => ({
+                                      ...current,
+                                      [field.id]: value
+                                    }));
+                                  }}
+                                />
+                                {fieldError ? (
+                                  <small id={errorId} className="demo-viewer-form-error">
+                                    {fieldError}
+                                  </small>
+                                ) : null}
+                              </label>
+                            );
+                          })}
+                          <div className="demo-viewer-chapter-actions">
+                            <button type="submit" className="editor-button editor-button-primary">
+                              Submit
+                            </button>
+                            {currentForm.allowSkip ? (
+                              <button
+                                type="button"
+                                className="editor-button editor-button-secondary"
+                                onClick={continueFromChapter}
+                              >
+                                Skip for now
+                              </button>
+                            ) : null}
+                          </div>
+                        </form>
+                      )
+                    ) : (
                       <div className="demo-viewer-chapter-actions">
                         {currentChapter.buttons.length > 0 ? (
                           currentChapter.buttons.map((button) => (
@@ -838,262 +1186,45 @@ export function DemoViewer({
                           </button>
                         )}
                       </div>
-                    </div>
-                  ) : (
-                    <form className="demo-viewer-form" onSubmit={handleFormSubmit} noValidate>
-                      {formErrors._form ? (
-                        <p className="demo-viewer-form-error" role="alert">
-                          {formErrors._form}
-                        </p>
-                      ) : null}
-                      {currentForm.fields.map((field) => {
-                        const inputId = `viewer-form-${currentForm.formId}-${field.id}`;
-                        const errorId = `${inputId}-error`;
-                        const fieldError = formErrors[field.id];
-                        const describedBy = fieldError ? errorId : undefined;
-                        if (["select", "radio"].includes(field.fieldType)) {
-                          return field.fieldType === "select" ? (
-                            <label className="demo-viewer-form-field" key={field.id}>
-                              <span>
-                                {renderText(
-                                  field.label,
-                                  translationContentKey(
-                                    "chapter",
-                                    currentChapter.id,
-                                    "field",
-                                    field.id
-                                  )
-                                )}
-                                {field.isRequired ? " *" : ""}
-                              </span>
-                              <select
-                                id={inputId}
-                                name={field.id}
-                                value={formAnswers[field.id] ?? ""}
-                                required={field.isRequired}
-                                aria-invalid={Boolean(fieldError)}
-                                aria-describedby={describedBy}
-                                onChange={(event) => {
-                                  const value = event.currentTarget.value;
-                                  setFormAnswers((current) => ({ ...current, [field.id]: value }));
-                                }}
-                              >
-                                <option value="">Choose an option</option>
-                                {field.options.map((option) => (
-                                  <option key={option} value={option}>
-                                    {renderText(
-                                      option,
-                                      translationContentKey(
-                                        "chapter",
-                                        currentChapter.id,
-                                        `option-${field.id}`,
-                                        option
-                                      )
-                                    )}
-                                  </option>
-                                ))}
-                              </select>
-                              {fieldError ? (
-                                <small id={errorId} className="demo-viewer-form-error">
-                                  {fieldError}
-                                </small>
-                              ) : null}
-                            </label>
-                          ) : (
-                            <fieldset className="demo-viewer-form-field" key={field.id}>
-                              <legend>
-                                {renderText(
-                                  field.label,
-                                  translationContentKey(
-                                    "chapter",
-                                    currentChapter.id,
-                                    "field",
-                                    field.id
-                                  )
-                                )}
-                                {field.isRequired ? " *" : ""}
-                              </legend>
-                              {field.options.map((option) => (
-                                <label className="demo-viewer-form-option" key={option}>
-                                  <input
-                                    type="radio"
-                                    name={field.id}
-                                    value={option}
-                                    checked={formAnswers[field.id] === option}
-                                    onChange={(event) => {
-                                      const value = event.currentTarget.value;
-                                      setFormAnswers((current) => ({
-                                        ...current,
-                                        [field.id]: value
-                                      }));
-                                    }}
-                                  />
-                                  <span>
-                                    {renderText(
-                                      option,
-                                      translationContentKey(
-                                        "chapter",
-                                        currentChapter.id,
-                                        `option-${field.id}`,
-                                        option
-                                      )
-                                    )}
-                                  </span>
-                                </label>
-                              ))}
-                              {fieldError ? (
-                                <small id={errorId} className="demo-viewer-form-error">
-                                  {fieldError}
-                                </small>
-                              ) : null}
-                            </fieldset>
-                          );
-                        }
-                        if (field.fieldType === "checkbox") {
-                          return (
-                            <label className="demo-viewer-form-option" key={field.id}>
-                              <input
-                                id={inputId}
-                                type="checkbox"
-                                name={field.id}
-                                checked={formAnswers[field.id] === "true"}
-                                onChange={(event) => {
-                                  const value = event.currentTarget.checked ? "true" : "false";
-                                  setFormAnswers((current) => ({ ...current, [field.id]: value }));
-                                }}
-                              />
-                              <span>
-                                {renderText(
-                                  field.label,
-                                  translationContentKey(
-                                    "chapter",
-                                    currentChapter.id,
-                                    "field",
-                                    field.id
-                                  )
-                                )}
-                                {field.isRequired ? " *" : ""}
-                              </span>
-                              {fieldError ? (
-                                <small id={errorId} className="demo-viewer-form-error">
-                                  {fieldError}
-                                </small>
-                              ) : null}
-                            </label>
-                          );
-                        }
-                        return (
-                          <label className="demo-viewer-form-field" key={field.id}>
-                            <span>
-                              {renderText(
-                                field.label,
-                                translationContentKey(
-                                  "chapter",
-                                  currentChapter.id,
-                                  "field",
-                                  field.id
-                                )
-                              )}
-                              {field.isRequired ? " *" : ""}
-                            </span>
-                            <input
-                              id={inputId}
-                              type={field.fieldType === "email" ? "email" : "text"}
-                              name={field.id}
-                              value={formAnswers[field.id] ?? ""}
-                              maxLength={2_000}
-                              required={field.isRequired}
-                              aria-invalid={Boolean(fieldError)}
-                              aria-describedby={describedBy}
-                              onChange={(event) => {
-                                const value = event.currentTarget.value.slice(0, 2_000);
-                                setFormAnswers((current) => ({ ...current, [field.id]: value }));
-                              }}
-                            />
-                            {fieldError ? (
-                              <small id={errorId} className="demo-viewer-form-error">
-                                {fieldError}
-                              </small>
-                            ) : null}
-                          </label>
-                        );
-                      })}
-                      <div className="demo-viewer-chapter-actions">
-                        <button type="submit" className="editor-button editor-button-primary">
-                          Submit
-                        </button>
-                        {currentForm.allowSkip ? (
-                          <button
-                            type="button"
-                            className="editor-button editor-button-secondary"
-                            onClick={continueFromChapter}
-                          >
-                            Skip for now
-                          </button>
-                        ) : null}
-                      </div>
-                    </form>
-                  )
-                ) : (
-                  <div className="demo-viewer-chapter-actions">
-                    {currentChapter.buttons.length > 0 ? (
-                      currentChapter.buttons.map((button) => (
-                        <button
-                          key={button.id}
-                          type="button"
-                          className="editor-button editor-button-primary"
-                          onClick={() => handleChapterButton(button)}
-                        >
-                          {renderText(
-                            button.label,
-                            translationContentKey("chapter", currentChapter.id, "button", button.id)
-                          )}
-                        </button>
-                      ))
-                    ) : (
-                      <button
-                        type="button"
-                        className="editor-button editor-button-primary"
-                        onClick={continueFromChapter}
-                      >
-                        Continue
-                      </button>
                     )}
-                  </div>
+                    {currentChapter.voiceover ? (
+                      <section
+                        className="demo-viewer-chapter-voiceover"
+                        aria-label="Chapter voiceover"
+                      >
+                        <div>
+                          <span className="editor-kicker">Voiceover</span>
+                          <strong>
+                            {currentChapter.voiceover.source === "ai"
+                              ? "AI narration"
+                              : "Chapter narration"}
+                          </strong>
+                        </div>
+                        {chapterNarrationUrl ? (
+                          <audio
+                            ref={chapterVoiceoverRef}
+                            src={chapterNarrationUrl}
+                            controls
+                            autoPlay={hasStarted && Boolean(currentChapter.voiceover.autoPlay)}
+                            preload="metadata"
+                            aria-label={`Voiceover for ${renderText(
+                              currentChapter.title,
+                              translationContentKey("chapter", currentChapter.id, "title")
+                            )}`}
+                          />
+                        ) : null}
+                        {currentChapter.voiceover.transcriptText ? (
+                          <p>
+                            {renderText(
+                              currentChapter.voiceover.transcriptText,
+                              translationContentKey("chapter", currentChapter.id, "voice")
+                            )}
+                          </p>
+                        ) : null}
+                      </section>
+                    ) : null}
+                  </>
                 )}
-                {currentChapter.voiceover ? (
-                  <section className="demo-viewer-chapter-voiceover" aria-label="Chapter voiceover">
-                    <div>
-                      <span className="editor-kicker">Voiceover</span>
-                      <strong>
-                        {currentChapter.voiceover.source === "ai"
-                          ? "AI narration"
-                          : "Chapter narration"}
-                      </strong>
-                    </div>
-                    {chapterNarrationUrl ? (
-                      <audio
-                        ref={chapterVoiceoverRef}
-                        src={chapterNarrationUrl}
-                        controls
-                        autoPlay={hasStarted && Boolean(currentChapter.voiceover.autoPlay)}
-                        preload="metadata"
-                        aria-label={`Voiceover for ${renderText(
-                          currentChapter.title,
-                          translationContentKey("chapter", currentChapter.id, "title")
-                        )}`}
-                      />
-                    ) : null}
-                    {currentChapter.voiceover.transcriptText ? (
-                      <p>
-                        {renderText(
-                          currentChapter.voiceover.transcriptText,
-                          translationContentKey("chapter", currentChapter.id, "voice")
-                        )}
-                      </p>
-                    ) : null}
-                  </section>
-                ) : null}
                 <small>
                   {currentIndex >= demoDocument.steps.length
                     ? "End of demo"

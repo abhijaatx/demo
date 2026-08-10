@@ -395,9 +395,14 @@ export {
 } from "./layer-management.js";
 
 export {
+  hashChapterPassword,
+  parseChapterPasswordProtection,
   parseDemoChapter,
+  sanitizeEmbedUrl,
+  verifyChapterPassword,
   type ChapterButton,
   type ChapterLayout,
+  type ChapterPasswordProtection,
   type ChapterTheme,
   type ChapterType,
   type DemoChapter
@@ -693,6 +698,7 @@ export {
 export {
   createDemoFormSchema,
   createFormField,
+  normalizeEmailDomainList,
   parseDemoFormSchema,
   type DemoFormSchema,
   type DemoFormSchemaOptions,

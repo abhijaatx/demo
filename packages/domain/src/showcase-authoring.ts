@@ -2,6 +2,8 @@
  * Showcase 2.0 authoring model for multi-content destinations.
  */
 
+import { sanitizePublicHttpsUrl } from "./public-url.js";
+
 export type ShowcaseLayout = "section" | "checklist" | "gallery";
 export type ShowcaseContentType = "demo" | "video" | "pdf" | "embed";
 
@@ -45,48 +47,7 @@ function safeId(value: string, fallback: string): string {
 
 /** Only public HTTPS resources can be placed in a showcase. */
 export function sanitizeShowcaseUrl(value: string | null | undefined): string | null {
-  if (!value?.trim()) return null;
-  try {
-    const parsed = new URL(value.trim());
-    if (parsed.protocol !== "https:" || parsed.username || parsed.password) return null;
-    const host = parsed.hostname.toLowerCase().replaceAll("[", "").replaceAll("]", "");
-    if (isPrivateHost(host)) return null;
-    parsed.hash = "";
-    return parsed.toString();
-  } catch {
-    return null;
-  }
-}
-
-function isPrivateHost(host: string): boolean {
-  if (
-    host === "localhost" ||
-    host.endsWith(".localhost") ||
-    host.endsWith(".local") ||
-    host === "0.0.0.0" ||
-    host === "::1" ||
-    host.startsWith("fc") ||
-    host.startsWith("fd") ||
-    host.startsWith("fe80:")
-  ) {
-    return true;
-  }
-  const octets = host.split(".").map((part) => Number(part));
-  if (
-    octets.length !== 4 ||
-    !octets.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)
-  ) {
-    return false;
-  }
-  const first = octets[0] ?? -1;
-  const second = octets[1] ?? -1;
-  return (
-    first === 10 ||
-    first === 127 ||
-    (first === 169 && second === 254) ||
-    (first === 172 && second >= 16 && second <= 31) ||
-    (first === 192 && second === 168)
-  );
+  return sanitizePublicHttpsUrl(value);
 }
 
 export function createShowcaseDocument(id: string, title = "Untitled Showcase"): ShowcaseDocument {

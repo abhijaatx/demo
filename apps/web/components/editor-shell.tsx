@@ -20,6 +20,7 @@ import {
   isDemoHotspotVisibleAtTime,
   nudgeHotspot,
   pauseHotspotIdsBeforeTime,
+  parseChapterPasswordProtection,
   parseDemoAudioNarration,
   parseDemoFormSchema,
   parseDemoPersonalization,
@@ -28,6 +29,7 @@ import {
   proposeTextRewrite,
   reorderSteps,
   resizeHotspot,
+  sanitizeEmbedUrl,
   SHARE_LINK_EXPIRY_OPTIONS,
   sanitizeShareLabel,
   SUPPORTED_TRANSLATION_LOCALES,
@@ -134,6 +136,7 @@ function safeExportDocument(document: DemoDocument): DemoDocument {
       presenterNotes: null,
       mediaUrl: chapter.mediaUrl && isSafeMediaUrl(chapter.mediaUrl) ? chapter.mediaUrl : null,
       form: chapter.form ? parseDemoFormSchema(chapter.form) : null,
+      embedUrl: chapter.embedUrl ? sanitizeEmbedUrl(chapter.embedUrl) : null,
       buttons: chapter.buttons.map((button) => {
         const safeUrl = validateSafeUrl(button.url);
         return {
@@ -2334,6 +2337,8 @@ export function EditorShell({
       blurPx: 0,
       voiceover: null,
       form: null,
+      passwordProtection: null,
+      embedUrl: null,
       buttons: [
         {
           id: makeLocalId("chapter-button"),
@@ -2385,7 +2390,11 @@ export function EditorShell({
       voiceover: updatedChapter.voiceover
         ? parseDemoAudioNarration(updatedChapter.voiceover)
         : null,
-      form: updatedChapter.form ? parseDemoFormSchema(updatedChapter.form) : null
+      form: updatedChapter.form ? parseDemoFormSchema(updatedChapter.form) : null,
+      passwordProtection: updatedChapter.passwordProtection
+        ? parseChapterPasswordProtection(updatedChapter.passwordProtection)
+        : null,
+      embedUrl: updatedChapter.embedUrl ? sanitizeEmbedUrl(updatedChapter.embedUrl) : null
     };
     commitDocument({
       ...document,
