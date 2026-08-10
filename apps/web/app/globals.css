@@ -18375,6 +18375,64 @@ h2 {
 .demo-viewer-form-chapter[data-form-theme="dark"] legend {
   color: #f5f7ff;
 }
+/* Chapter visual customization: layout, theme, custom color, bounded opacity
+   and blur (Supademo docs "Customize a Chapter"). The background is painted on
+   a ::before layer so blur/opacity never soften the chapter text or buttons. */
+.demo-viewer-chapter {
+  position: relative;
+  isolation: isolate;
+  --chapter-bg:
+    radial-gradient(circle at 16% 12%, rgb(122 111 255 / 20%), transparent 36%),
+    linear-gradient(145deg, #ffffff, #eef1ff);
+  background: var(--chapter-bg);
+}
+.demo-viewer-chapter[data-chapter-theme="dark"] {
+  --chapter-bg: linear-gradient(145deg, rgb(18 26 42 / 94%), rgb(28 39 68 / 90%));
+  color: #f5f7ff;
+  border-color: #3d4e78;
+}
+.demo-viewer-chapter[data-chapter-theme="dark"] h1,
+.demo-viewer-chapter[data-chapter-theme="dark"] p {
+  color: #f5f7ff;
+}
+.demo-viewer-chapter[data-chapter-theme="custom"] {
+  --chapter-bg: var(--chapter-color, #ffffff);
+}
+.demo-viewer-chapter[data-chapter-layout="left"] {
+  justify-items: start;
+  text-align: left;
+}
+.demo-viewer-chapter[data-chapter-layout="right"] {
+  justify-items: end;
+  text-align: right;
+}
+.demo-viewer-chapter.demo-viewer-chapter-backdrop {
+  background: transparent;
+}
+.demo-viewer-chapter.demo-viewer-chapter-backdrop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--chapter-bg);
+  filter: blur(var(--chapter-blur, 0px));
+  opacity: var(--chapter-opacity, 1);
+}
+.demo-viewer-form-chapter.demo-viewer-form-chapter-blur::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: inherit;
+  filter: blur(var(--form-blur, 0px));
+}
+@media (max-width: 640px) {
+  .demo-viewer-chapter {
+    padding: 40px 24px;
+  }
+}
 .demo-viewer-form {
   width: min(100%, 500px);
   display: grid;
@@ -18462,6 +18520,36 @@ h2 {
 .demo-viewer-chapter > small {
   color: #7986a0;
   font-size: 11px;
+}
+.demo-viewer-chapter-voiceover {
+  width: min(100%, 620px);
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  color: #dfe5f8;
+  background: rgb(17 25 42 / 82%);
+  border: 1px solid rgb(62 78 110 / 90%);
+  border-radius: 10px;
+  text-align: left;
+}
+.demo-viewer-chapter-voiceover > div {
+  display: grid;
+  gap: 2px;
+}
+.demo-viewer-chapter-voiceover strong {
+  color: #f4f6ff;
+  font-size: 13px;
+}
+.demo-viewer-chapter-voiceover audio {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+}
+.demo-viewer-chapter-voiceover p {
+  margin: 0;
+  color: #c3cde4;
+  font-size: 12px;
+  line-height: 1.5;
 }
 .demo-viewer-frame > img,
 .demo-viewer-frame > video {

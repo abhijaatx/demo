@@ -4,9 +4,15 @@ import {
   createDemoFormSchema,
   createFormField,
   FORM_FIELD_LIMIT,
+  generateAiVoiceover,
+  getAvailableTtsVoices,
+  parseDemoAudioNarration,
   validateSafeUrl,
   type ChapterButton,
+  type ChapterLayout,
+  type ChapterTheme,
   type ChapterType,
+  type DemoAudioNarration,
   type DemoChapter,
   type DemoFormSchema,
   type DemoStep,
@@ -15,7 +21,7 @@ import {
   type FormLayout,
   type FormTheme
 } from "@supademo/domain";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ChangeEvent } from "react";
 
 export interface ChapterEditorProps {
   chapter: DemoChapter;
@@ -49,6 +55,94 @@ function createDefaultForm(chapterId: string): DemoFormSchema {
   );
 }
 
+/**
+ * Chapter visual settings (layout, theme, custom color, opacity, blur). For
+ * form chapters the controls bind to the chapter's form appearance so the
+ * existing viewer form rendering and legacy form appearance controls stay in
+ * sync; for every other chapter type they bind to the chapter itself.
+ */
+function ChapterAppearanceSettings({
+  layout,
+  theme,
+  backgroundColor,
+  opacity,
+  blurPx,
+  readOnly,
+  onChange
+}: {
+  layout: ChapterLayout;
+  theme: ChapterTheme;
+  backgroundColor: string | null;
+  opacity: number;
+  blurPx: number;
+  readOnly: boolean;
+  onChange: (patch: Partial<DemoChapter>) => void;
+}) {
+  return (
+    <details className="chapter-form-appearance" aria-label="Chapter appearance settings">
+      <summary>Chapter appearance</summary>
+      <label className="editor-field">
+        <span>Layout</span>
+        <select
+          value={layout}
+          disabled={readOnly}
+          onChange={(event) => onChange({ layout: event.currentTarget.value as ChapterLayout })}
+        >
+          <option value="left">Left aligned</option>
+          <option value="center">Center aligned</option>
+          <option value="right">Right aligned</option>
+        </select>
+      </label>
+      <label className="editor-field">
+        <span>Theme</span>
+        <select
+          value={theme}
+          disabled={readOnly}
+          onChange={(event) => onChange({ theme: event.currentTarget.value as ChapterTheme })}
+        >
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+          <option value="custom">Custom</option>
+        </select>
+      </label>
+      <label className="editor-field">
+        <span>Background color</span>
+        <input
+          type="color"
+          value={backgroundColor ?? "#ffffff"}
+          disabled={readOnly}
+          onChange={(event) => onChange({ backgroundColor: event.currentTarget.value })}
+        />
+        <small className="editor-url-help">Used with the Custom theme.</small>
+      </label>
+      <label className="editor-field">
+        <span>Background opacity: {Math.round(opacity * 100)}%</span>
+        <input
+          type="range"
+          min={0.2}
+          max={1}
+          step={0.05}
+          value={opacity}
+          disabled={readOnly}
+          onChange={(event) => onChange({ opacity: Number(event.currentTarget.value) })}
+        />
+      </label>
+      <label className="editor-field">
+        <span>Background blur: {blurPx}px</span>
+        <input
+          type="range"
+          min={0}
+          max={24}
+          step={1}
+          value={blurPx}
+          disabled={readOnly}
+          onChange={(event) => onChange({ blurPx: Number(event.currentTarget.value) })}
+        />
+      </label>
+    </details>
+  );
+}
+
 function updateFormField(
   form: DemoFormSchema,
   fieldId: string,
@@ -58,6 +152,213 @@ function updateFormField(
     ...form,
     fields: form.fields.map((field) => (field.id === fieldId ? { ...field, ...patch } : field))
   };
+}
+
+/**
+ * Chapter voiceover editor. Mirrors the step voiceover flow (AI generation,
+ * voice picker, local upload with the 25 MB limit) but persists to the
+ * chapter's voiceover field with explicit Save/Remove semantics. Chapter
+ * voiceovers never autoplay on page load; the viewer only allows autoplay
+ * after the viewer's first interaction.
+ */
+function ChapterVoiceoverSettings({
+  chapter,
+  readOnly,
+  onChangeChapter
+}: {
+  chapter: DemoChapter;
+  readOnly: boolean;
+  onChangeChapter: (updated: DemoChapter) => void;
+}) {
+  const voiceover = chapter.voiceover;
+  const [script, setScript] = useState(voiceover?.transcriptText ?? "");
+  const [voiceId, setVoiceId] = useState(voiceover?.voiceId ?? "en-US-1");
+  const [status, setStatus] = useState("");
+
+  useEffect(() => {
+    setScript(chapter.voiceover?.transcriptText ?? "");
+    setVoiceId(chapter.voiceover?.voiceId ?? "en-US-1");
+    setStatus("");
+  }, [chapter.id]);
+
+  const baseVoiceover = (): DemoAudioNarration =>
+    voiceover ?? {
+      assetId: `${chapter.id}-voiceover`,
+      durationSeconds: 0,
+      autoPlay: false,
+      source: "manual",
+      voiceId,
+      audioUrl: null,
+      transcriptText: script,
+      expressive: false,
+      speed: 1,
+      stability: 0.5
+    };
+
+  const updateVoiceover = (patch: Partial<DemoAudioNarration>): void => {
+    onChangeChapter({
+      ...chapter,
+      voiceover: parseDemoAudioNarration({ ...baseVoiceover(), ...patch })
+    });
+  };
+
+  const saveScript = (): void => {
+    const boundedScript = script.trim().slice(0, 4_000);
+    if (!boundedScript) {
+      setStatus("Add narration text before saving.");
+      return;
+    }
+    updateVoiceover({ transcriptText: boundedScript });
+    setStatus("Chapter voiceover saved.");
+  };
+
+  const handleGenerate = async (): Promise<void> => {
+    if (readOnly) return;
+    const boundedScript = script.trim().slice(0, 4_000);
+    if (!boundedScript) {
+      setStatus("Add narration text before generating audio.");
+      return;
+    }
+    setStatus("Generating AI voiceover…");
+    try {
+      const job = await generateAiVoiceover(boundedScript, voiceId);
+      updateVoiceover({
+        assetId: job.jobId,
+        audioUrl: job.audioAssetUrl,
+        transcriptText: job.text,
+        voiceId: job.voiceId,
+        source: "ai",
+        autoPlay: false
+      });
+      setStatus("AI voiceover ready. Save the demo to keep it.");
+    } catch (error: unknown) {
+      setStatus(error instanceof Error ? error.message : "Voiceover generation failed.");
+    }
+  };
+
+  const handleUpload = (event: ChangeEvent<HTMLInputElement>): void => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("audio/") || file.size > 25 * 1024 * 1024) {
+      setStatus("Choose an audio file up to 25 MB.");
+      return;
+    }
+    const audioUrl = URL.createObjectURL(file);
+    updateVoiceover({
+      assetId: `upload-${Date.now()}`,
+      audioUrl,
+      source: "upload",
+      transcriptText: script
+    });
+    setStatus("Audio uploaded locally. Publish after reviewing the preview.");
+  };
+
+  return (
+    <section className="editor-voiceover-panel" aria-labelledby="chapter-voiceover-title">
+      <div className="editor-branch-heading">
+        <div>
+          <span className="editor-kicker">Voiceover</span>
+          <strong id="chapter-voiceover-title">Narrate this chapter</strong>
+        </div>
+        {voiceover ? (
+          <button
+            type="button"
+            className="editor-text-button editor-button-danger-text"
+            disabled={readOnly}
+            onClick={() => onChangeChapter({ ...chapter, voiceover: null })}
+          >
+            Remove
+          </button>
+        ) : null}
+      </div>
+      <label className="editor-field">
+        <span>Narration script</span>
+        <textarea
+          rows={4}
+          maxLength={4_000}
+          value={script}
+          disabled={readOnly}
+          placeholder="Describe what the viewer should learn from this chapter."
+          onChange={(event) => setScript(event.currentTarget.value.slice(0, 4_000))}
+        />
+      </label>
+      <div className="editor-voiceover-actions">
+        <button
+          type="button"
+          className="editor-button editor-button-primary"
+          disabled={readOnly || !script.trim()}
+          onClick={saveScript}
+        >
+          Save
+        </button>
+        <label className="editor-small-button editor-file-button">
+          Upload voice
+          <input
+            type="file"
+            accept="audio/*"
+            disabled={readOnly}
+            onChange={handleUpload}
+            aria-label="Upload chapter voice audio"
+          />
+        </label>
+      </div>
+      <label className="editor-field">
+        <span>AI voice</span>
+        <select
+          value={voiceId}
+          disabled={readOnly}
+          onChange={(event) => {
+            const value = event.currentTarget.value;
+            setVoiceId(value);
+            updateVoiceover({ voiceId: value, source: "ai" });
+          }}
+        >
+          {getAvailableTtsVoices().map((voice) => (
+            <option key={voice.voiceId} value={voice.voiceId}>
+              {voice.name} · {voice.locale}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="editor-voiceover-actions">
+        <button
+          type="button"
+          className="editor-button editor-button-primary"
+          disabled={readOnly}
+          onClick={() => void handleGenerate()}
+        >
+          Generate AI voiceover
+        </button>
+      </div>
+      {voiceover ? (
+        <>
+          <label className="editor-checkbox-field">
+            <input
+              type="checkbox"
+              checked={Boolean(voiceover.autoPlay)}
+              disabled={readOnly}
+              onChange={(event) => updateVoiceover({ autoPlay: event.currentTarget.checked })}
+            />
+            <span>Play automatically after the viewer starts</span>
+          </label>
+          {voiceover.audioUrl &&
+          (voiceover.audioUrl.startsWith("blob:") || validateSafeUrl(voiceover.audioUrl)) ? (
+            <audio className="editor-voiceover-preview" controls src={voiceover.audioUrl} />
+          ) : null}
+        </>
+      ) : null}
+      <small className="editor-url-help">
+        Chapter voiceovers never autoplay on page load. With autoplay enabled they start after the
+        viewer&apos;s first action.
+      </small>
+      {status ? (
+        <p className="editor-inspector-note" role="status">
+          {status}
+        </p>
+      ) : null}
+    </section>
+  );
 }
 
 function FormChapterSettings({
@@ -445,6 +746,22 @@ export function ChapterEditor({
         />
       ) : null}
 
+      <ChapterAppearanceSettings
+        layout={chapter.type === "form" ? form.layout : chapter.layout}
+        theme={chapter.type === "form" ? form.theme : chapter.theme}
+        backgroundColor={chapter.type === "form" ? form.backgroundColor : chapter.backgroundColor}
+        opacity={chapter.type === "form" ? form.opacity : chapter.opacity}
+        blurPx={chapter.type === "form" ? form.blurPx : chapter.blurPx}
+        readOnly={readOnly}
+        onChange={(patch) => {
+          if (chapter.type === "form" && form) {
+            onChangeChapter({ ...chapter, form: { ...form, ...patch } });
+          } else {
+            onChangeChapter({ ...chapter, ...patch });
+          }
+        }}
+      />
+
       <label className="editor-field">
         <span>Title</span>
         <input
@@ -625,6 +942,12 @@ export function ChapterEditor({
           </div>
         )}
       </section>
+
+      <ChapterVoiceoverSettings
+        chapter={chapter}
+        readOnly={readOnly}
+        onChangeChapter={onChangeChapter}
+      />
 
       <div className="chapter-editor-advanced">
         <button

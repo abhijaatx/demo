@@ -57,11 +57,18 @@ function bounded(value: unknown, maximum: number): string {
   return typeof value === "string" ? value.trim().slice(0, maximum) : "";
 }
 
-function safeColor(value: unknown): string | null {
+/** Allowlisted 6-digit hex color used for chapter and form backgrounds. */
+export function safeColor(value: unknown): string | null {
   return typeof value === "string" && /^#[0-9a-fA-F]{6}$/u.test(value) ? value : null;
 }
 
-function boundedRange(value: unknown, minimum: number, maximum: number, fallback: number): number {
+/** Clamp a numeric value to [minimum, maximum], falling back when malformed. */
+export function boundedRange(
+  value: unknown,
+  minimum: number,
+  maximum: number,
+  fallback: number
+): number {
   if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
   return Math.min(maximum, Math.max(minimum, value));
 }

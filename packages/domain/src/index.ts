@@ -245,13 +245,11 @@ export {
   DEFAULT_DEMO_SETTINGS,
   DEFAULT_DEMO_THEME,
   InvalidDemoDocumentError,
-  parseDemoAudioNarration,
   parseDemoDocument,
   parseDemoTheme,
   serializeDemoDocument,
   type AspectRatio,
   type CalloutPosition,
-  type DemoAudioNarration,
   type DemoCallout,
   type DemoDocument,
   type DemoHotspot,
@@ -381,6 +379,8 @@ export {
 
 export {
   calculateEffectiveAudioVolume,
+  parseDemoAudioNarration,
+  type DemoAudioNarration,
   type DemoBackgroundAudio,
   type StepAudioNarration
 } from "./audio-narration.js";
@@ -397,6 +397,8 @@ export {
 export {
   parseDemoChapter,
   type ChapterButton,
+  type ChapterLayout,
+  type ChapterTheme,
   type ChapterType,
   type DemoChapter
 } from "./chapter-model.js";

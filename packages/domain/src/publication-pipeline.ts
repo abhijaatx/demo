@@ -3,8 +3,9 @@
  */
 
 import { createHash } from "node:crypto";
+import { parseDemoAudioNarration } from "./audio-narration.js";
 import { generateBranchingDiagnosticSummary } from "./branching-authoring.js";
-import { parseDemoAudioNarration, parseDemoTheme, type DemoDocument } from "./demo-document.js";
+import { parseDemoTheme, type DemoDocument } from "./demo-document.js";
 import { parseDemoFormSchema } from "./form-schemas.js";
 import { validateSafeUrl } from "./hotspot-schema.js";
 

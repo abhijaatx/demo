@@ -94,3 +94,124 @@ test("generateBranchingDiagnosticSummary accepts multiple viewer-selected paths"
   assert.equal(summary.unreachableNodeCount, 0);
   assert.equal(summary.missingTargetCount, 0);
 });
+
+test("generateBranchingDiagnosticSummary reports chapter CTA branch issues", () => {
+  const doc = createDefaultDemoDocument("demo-branch-chapter");
+  const chapter = {
+    id: "ch-0",
+    type: "cta",
+    orderIndex: 0,
+    title: "Choose",
+    bodyText: null,
+    mediaAssetId: null,
+    mediaUrl: null,
+    presenterNotes: null,
+    layout: "center",
+    theme: "light",
+    backgroundColor: null,
+    opacity: 1,
+    blurPx: 0,
+    voiceover: null,
+    form: null,
+    buttons: [
+      {
+        id: "b-1",
+        label: "Continue",
+        actionType: "next",
+        targetStepId: null,
+        url: null
+      },
+      {
+        id: "b-2",
+        label: "Deep dive",
+        actionType: "step",
+        targetStepId: "s-missing",
+        url: null
+      },
+      {
+        id: "b-3",
+        label: "External",
+        actionType: "url",
+        targetStepId: null,
+        url: "https://example.com"
+      }
+    ]
+  };
+  const docWithChapter = {
+    ...doc,
+    steps: [
+      {
+        id: "s-1",
+        orderIndex: 0,
+        title: "S1",
+        media: null,
+        hotspots: [],
+        callouts: [],
+        audioNarration: null
+      }
+    ],
+    chapters: [chapter]
+  };
+
+  const summary = generateBranchingDiagnosticSummary(docWithChapter);
+  // chapter + 1 step nodes; next + step buttons (URL is not an internal edge)
+  assert.equal(summary.totalNodes, 2);
+  assert.equal(summary.totalEdges, 2);
+  assert.equal(summary.missingTargetCount, 1);
+  assert.equal(summary.isPublishable, false);
+  assert.ok(
+    summary.diagnostics.some((d) => d.code === "MISSING_TARGET_NODE" && d.nodeId === "ch-0")
+  );
+});
+
+test("generateBranchingDiagnosticSummary flags a start chapter that only has URL buttons", () => {
+  const doc = createDefaultDemoDocument("demo-branch-chapter-ext");
+  const chapter = {
+    id: "ch-ext",
+    type: "cta",
+    orderIndex: 0,
+    title: "External only",
+    bodyText: null,
+    mediaAssetId: null,
+    mediaUrl: null,
+    presenterNotes: null,
+    layout: "center",
+    theme: "light",
+    backgroundColor: null,
+    opacity: 1,
+    blurPx: 0,
+    voiceover: null,
+    form: null,
+    buttons: [
+      {
+        id: "b-1",
+        label: "Book",
+        actionType: "url",
+        targetStepId: null,
+        url: "https://example.com/book"
+      }
+    ]
+  };
+  const docWithChapter = {
+    ...doc,
+    steps: [
+      {
+        id: "s-1",
+        orderIndex: 0,
+        title: "S1",
+        media: null,
+        hotspots: [],
+        callouts: [],
+        audioNarration: null
+      }
+    ],
+    chapters: [chapter]
+  };
+
+  const summary = generateBranchingDiagnosticSummary(docWithChapter);
+  assert.equal(summary.totalNodes, 2);
+  assert.equal(summary.totalEdges, 0); // URL buttons never become internal edges
+  assert.equal(summary.deadEndNodeCount, 1);
+  assert.equal(summary.unreachableNodeCount, 1); // the following step is stranded
+  assert.equal(summary.isPublishable, false);
+});

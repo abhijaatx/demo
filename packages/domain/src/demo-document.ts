@@ -11,6 +11,7 @@
  * - Backward compatibility with document versioning
  */
 
+import { parseDemoAudioNarration, type DemoAudioNarration } from "./audio-narration.js";
 import { parseDemoChapter, type DemoChapter } from "./chapter-model.js";
 import { validateSafeUrl } from "./hotspot-schema.js";
 import {
@@ -24,6 +25,8 @@ import {
   type DemoPersonalization
 } from "./personalized-links.js";
 import { parseDemoHotspotTiming, type DemoHotspotTiming } from "./video-hotspot-timing.js";
+
+export { parseDemoAudioNarration, type DemoAudioNarration } from "./audio-narration.js";
 
 export const DEMO_DOCUMENT_VERSION = "1.0.0" as const;
 
@@ -81,20 +84,6 @@ export type DemoCallout = Readonly<{
   body: string;
   position: CalloutPosition;
   stepId: string;
-}>;
-
-export type DemoAudioNarration = Readonly<{
-  assetId: string;
-  durationSeconds: number;
-  autoPlay: boolean;
-  /** Optional Voiceovers 2.0 metadata retained for backwards compatibility. */
-  source?: "ai" | "manual" | "upload" | "clone";
-  voiceId?: string | null;
-  audioUrl?: string | null;
-  transcriptText?: string | null;
-  expressive?: boolean;
-  speed?: number;
-  stability?: number;
 }>;
 
 export type DemoStepMedia = Readonly<{
@@ -458,46 +447,5 @@ function parseDemoCallout(input: unknown): DemoCallout {
     body: String(raw["body"] ?? ""),
     position,
     stepId: String(raw["stepId"] ?? "")
-  });
-}
-
-export function parseDemoAudioNarration(input: unknown): DemoAudioNarration {
-  const raw = input as Record<string, unknown>;
-  const rawAudioUrl = typeof raw["audioUrl"] === "string" ? raw["audioUrl"].slice(0, 2_048) : null;
-  const audioUrl = rawAudioUrl?.startsWith("blob:")
-    ? rawAudioUrl
-    : validateSafeUrl(rawAudioUrl)?.startsWith("https:")
-      ? rawAudioUrl
-      : null;
-  const rawSource = String(raw["source"] ?? "manual");
-  const source: "ai" | "manual" | "upload" | "clone" = ["ai", "manual", "upload", "clone"].includes(
-    rawSource
-  )
-    ? (rawSource as "ai" | "manual" | "upload" | "clone")
-    : "manual";
-  return Object.freeze({
-    assetId: String(raw["assetId"] ?? "audio").slice(0, 128),
-    durationSeconds: Math.max(
-      0,
-      Math.min(
-        3_600,
-        Number.isFinite(Number(raw["durationSeconds"])) ? Number(raw["durationSeconds"]) : 0
-      )
-    ),
-    autoPlay: Boolean(raw["autoPlay"] ?? true),
-    source,
-    voiceId: typeof raw["voiceId"] === "string" ? raw["voiceId"].slice(0, 64) : null,
-    audioUrl,
-    transcriptText:
-      typeof raw["transcriptText"] === "string" ? raw["transcriptText"].slice(0, 4_000) : null,
-    expressive: Boolean(raw["expressive"] ?? false),
-    speed: Math.max(
-      0.5,
-      Math.min(2, Number.isFinite(Number(raw["speed"])) ? Number(raw["speed"]) : 1)
-    ),
-    stability: Math.max(
-      0,
-      Math.min(1, Number.isFinite(Number(raw["stability"])) ? Number(raw["stability"]) : 0.5)
-    )
   });
 }

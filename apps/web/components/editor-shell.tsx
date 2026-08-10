@@ -2327,6 +2327,12 @@ export function EditorShell({
       mediaAssetId: null,
       mediaUrl: null,
       presenterNotes: null,
+      layout: "center" as const,
+      theme: "light" as const,
+      backgroundColor: null,
+      opacity: 1,
+      blurPx: 0,
+      voiceover: null,
       form: null,
       buttons: [
         {
@@ -2349,6 +2355,12 @@ export function EditorShell({
 
   const handleUpdateChapter = (updatedChapter: DemoDocument["chapters"][number]): void => {
     if (readOnly) return;
+    const boundedOpacity = Number.isFinite(updatedChapter.opacity)
+      ? Math.min(1, Math.max(0.2, updatedChapter.opacity))
+      : 1;
+    const boundedBlur = Number.isFinite(updatedChapter.blurPx)
+      ? Math.round(Math.min(24, Math.max(0, updatedChapter.blurPx)))
+      : 0;
     const boundedChapter = {
       ...updatedChapter,
       orderIndex: Math.max(
@@ -2359,6 +2371,20 @@ export function EditorShell({
       bodyText: updatedChapter.bodyText?.slice(0, 4_000) ?? null,
       mediaUrl: updatedChapter.mediaUrl?.slice(0, 2_048) ?? null,
       presenterNotes: updatedChapter.presenterNotes?.slice(0, 4_000) ?? null,
+      layout: ["left", "center", "right"].includes(updatedChapter.layout)
+        ? updatedChapter.layout
+        : "center",
+      theme: ["light", "dark", "custom"].includes(updatedChapter.theme)
+        ? updatedChapter.theme
+        : "light",
+      backgroundColor: /^#[0-9a-fA-F]{6}$/u.test(updatedChapter.backgroundColor ?? "")
+        ? updatedChapter.backgroundColor
+        : null,
+      opacity: boundedOpacity,
+      blurPx: boundedBlur,
+      voiceover: updatedChapter.voiceover
+        ? parseDemoAudioNarration(updatedChapter.voiceover)
+        : null,
       form: updatedChapter.form ? parseDemoFormSchema(updatedChapter.form) : null
     };
     commitDocument({

@@ -219,7 +219,9 @@ export function DemoViewer({
   const [shareAccessError, setShareAccessError] = useState<string | null>(null);
   const [localCaptureError, setLocalCaptureError] = useState<string | null>(null);
   const startedRef = useRef(false);
+  const [hasStarted, setHasStarted] = useState(false);
   const objectUrlsRef = useRef<Set<string>>(new Set());
+  const chapterVoiceoverRef = useRef<HTMLAudioElement | null>(null);
   const viewerVideoRef = useRef<HTMLVideoElement | null>(null);
   const previousVideoTimeRef = useRef(0);
   const videoSeekingRef = useRef(false);
@@ -233,6 +235,7 @@ export function DemoViewer({
   const emitStarted = (): void => {
     if (startedRef.current) return;
     startedRef.current = true;
+    setHasStarted(true);
     postEmbeddedEvent(embedded, "Supademo:started", { demoId });
   };
 
@@ -363,6 +366,48 @@ export function DemoViewer({
     ? `url(${customBackgroundImage})`
     : presetBackgrounds[viewerTheme.backgroundPreset];
   const chapterMediaUrl = currentChapter?.mediaUrl ? safeMediaUrl(currentChapter.mediaUrl) : null;
+  const chapterNarrationUrl = currentChapter?.voiceover?.audioUrl
+    ? safeMediaUrl(currentChapter.voiceover.audioUrl)
+    : null;
+
+  // Chapter voiceovers never autoplay on page load. When autoplay is enabled
+  // the audio element mounts inert and playback is only started here once the
+  // viewer's first interaction has fired (hasStarted) — flipping the autoPlay
+  // attribute on a mounted element is unreliable, so we call play() directly.
+  useEffect(() => {
+    const audio = chapterVoiceoverRef.current;
+    if (!audio) return;
+    if (hasStarted && Boolean(currentChapter?.voiceover?.autoPlay)) {
+      void audio.play().catch(() => {
+        // Native media policy may require the viewer to press Play again.
+      });
+    } else {
+      audio.pause();
+    }
+  }, [hasStarted, currentChapter?.id, currentChapter?.voiceover?.autoPlay, chapterNarrationUrl]);
+  // Chapter visual customization. Form chapters keep using their own form
+  // appearance fields (the existing viewer form rendering); all other chapter
+  // types use the chapter-level layout/theme/color/opacity/blur fields.
+  const chapterVisual = {
+    layout: currentForm ? currentForm.layout : (currentChapter?.layout ?? "center"),
+    theme: currentForm ? currentForm.theme : (currentChapter?.theme ?? "light"),
+    backgroundColor: currentForm
+      ? currentForm.backgroundColor
+      : (currentChapter?.backgroundColor ?? null),
+    opacity: currentForm ? currentForm.opacity : (currentChapter?.opacity ?? 1),
+    blurPx: currentForm ? currentForm.blurPx : (currentChapter?.blurPx ?? 0)
+  };
+  const chapterBackgroundImageUrl = currentForm?.backgroundImageUrl
+    ? safeMediaUrl(currentForm.backgroundImageUrl)
+    : null;
+  // The backdrop layer is only needed when the default light/full-opacity look
+  // is customized, so default chapters keep rendering exactly as before.
+  const chapterBackdropActive =
+    !currentForm &&
+    (chapterVisual.theme !== "light" ||
+      chapterVisual.backgroundColor !== null ||
+      chapterVisual.opacity < 1 ||
+      chapterVisual.blurPx > 0);
   const mediaUrl = step?.media ? safeMediaUrl(step.media.storagePath) : null;
   const mediaCrop = step?.media?.crop;
   const mediaFit = step?.media?.fit;
@@ -709,20 +754,31 @@ export function DemoViewer({
           <section className="demo-viewer-stage" aria-label="Demo viewer">
             {currentChapter ? (
               <div
-                className={`demo-viewer-chapter${currentForm ? " demo-viewer-form-chapter" : ""}`}
+                className={`demo-viewer-chapter${currentForm ? " demo-viewer-form-chapter" : ""}${chapterBackdropActive ? " demo-viewer-chapter-backdrop" : ""}${currentForm && currentForm.blurPx > 0 ? " demo-viewer-form-chapter-blur" : ""}`}
                 aria-label={`${currentChapter.type} chapter`}
                 data-form-layout={currentForm?.layout}
                 data-form-theme={currentForm?.theme}
+                data-chapter-layout={currentForm ? undefined : chapterVisual.layout}
+                data-chapter-theme={currentForm ? undefined : chapterVisual.theme}
                 style={
                   currentForm
                     ? {
                         backgroundColor: currentForm.backgroundColor ?? undefined,
                         opacity: currentForm.opacity,
-                        backgroundImage: currentForm.backgroundImageUrl
-                          ? `url(${safeMediaUrl(currentForm.backgroundImageUrl) ?? ""})`
-                          : undefined
+                        backgroundImage: chapterBackgroundImageUrl
+                          ? `url(${chapterBackgroundImageUrl})`
+                          : undefined,
+                        ...(currentForm.blurPx > 0
+                          ? { ["--form-blur" as string]: `${currentForm.blurPx}px` }
+                          : {})
                       }
-                    : undefined
+                    : chapterBackdropActive
+                      ? {
+                          ["--chapter-blur" as string]: `${chapterVisual.blurPx}px`,
+                          ["--chapter-opacity" as string]: String(chapterVisual.opacity),
+                          ["--chapter-color" as string]: chapterVisual.backgroundColor ?? "#ffffff"
+                        }
+                      : undefined
                 }
               >
                 {chapterMediaUrl ? (
@@ -1005,6 +1061,39 @@ export function DemoViewer({
                     )}
                   </div>
                 )}
+                {currentChapter.voiceover ? (
+                  <section className="demo-viewer-chapter-voiceover" aria-label="Chapter voiceover">
+                    <div>
+                      <span className="editor-kicker">Voiceover</span>
+                      <strong>
+                        {currentChapter.voiceover.source === "ai"
+                          ? "AI narration"
+                          : "Chapter narration"}
+                      </strong>
+                    </div>
+                    {chapterNarrationUrl ? (
+                      <audio
+                        ref={chapterVoiceoverRef}
+                        src={chapterNarrationUrl}
+                        controls
+                        autoPlay={hasStarted && Boolean(currentChapter.voiceover.autoPlay)}
+                        preload="metadata"
+                        aria-label={`Voiceover for ${renderText(
+                          currentChapter.title,
+                          translationContentKey("chapter", currentChapter.id, "title")
+                        )}`}
+                      />
+                    ) : null}
+                    {currentChapter.voiceover.transcriptText ? (
+                      <p>
+                        {renderText(
+                          currentChapter.voiceover.transcriptText,
+                          translationContentKey("chapter", currentChapter.id, "voice")
+                        )}
+                      </p>
+                    ) : null}
+                  </section>
+                ) : null}
                 <small>
                   {currentIndex >= demoDocument.steps.length
                     ? "End of demo"

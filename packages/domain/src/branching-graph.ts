@@ -1,8 +1,14 @@
 /**
  * Branching Graph Model & Validation — TASK-073
+ *
+ * The graph models every branch a viewer can take: chapter CTA buttons and
+ * step hotspots. Chapter nodes are inserted into the sequence before the step
+ * at their `orderIndex` (chapters render before that step). Documents without
+ * chapters keep the exact sequential step contract.
  */
 
-import type { DemoDocument } from "./demo-document.js";
+import type { DemoChapter } from "./chapter-model.js";
+import type { DemoDocument, DemoStep } from "./demo-document.js";
 
 export interface BranchNode {
   readonly id: string;
@@ -30,21 +36,124 @@ export interface GraphDiagnostic {
   readonly message: string;
 }
 
+type SequenceEntry =
+  | { readonly kind: "step"; readonly step: DemoStep; readonly position: number }
+  | { readonly kind: "chapter"; readonly chapter: DemoChapter; readonly position: number };
+
+function isInternalHotspotAction(actionType: DemoHotspotAction): boolean {
+  // "open_url" and "none" never produce an internal graph edge. Omitted values
+  // keep the legacy linear behavior (treated as an internal navigation).
+  return actionType !== "open_url" && actionType !== "none";
+}
+
+type DemoHotspotAction = DemoStep["hotspots"][number]["actionType"];
+
 export function buildBranchingGraphFromDocument(document: DemoDocument): BranchGraph {
-  const nodes: BranchNode[] = document.steps.map((step, idx) =>
-    Object.freeze({
-      id: step.id,
-      label: `Step ${idx + 1}: ${step.title}`,
-      nodeType: "step",
-      isStartNode: idx === 0,
-      isTerminalNode: idx === document.steps.length - 1
-    })
-  );
+  // Deterministic sequence: chapters render before the step at their position,
+  // so each position emits its chapters (in document order, which is stable
+  // after parseDemoDocument's orderIndex sort) followed by the step itself.
+  // A chapter whose orderIndex is out of range is clamped to the demo ends.
+  const chaptersByPosition = new Map<number, DemoChapter[]>();
+  for (const chapter of document.chapters) {
+    const position = Math.max(0, Math.min(document.steps.length, Math.floor(chapter.orderIndex)));
+    const list = chaptersByPosition.get(position) ?? [];
+    list.push(chapter);
+    chaptersByPosition.set(position, list);
+  }
+
+  const sequence: SequenceEntry[] = [];
+  for (let position = 0; position <= document.steps.length; position++) {
+    for (const chapter of chaptersByPosition.get(position) ?? []) {
+      sequence.push({ kind: "chapter", chapter, position });
+    }
+    if (position < document.steps.length) {
+      sequence.push({ kind: "step", step: document.steps[position]!, position });
+    }
+  }
+
+  const nodes: BranchNode[] = sequence.map((entry, idx) => {
+    const isStartNode = idx === 0;
+    const isTerminalNode = idx === sequence.length - 1;
+    if (entry.kind === "step") {
+      return Object.freeze({
+        id: entry.step.id,
+        label: `Step ${entry.position + 1}: ${entry.step.title}`,
+        nodeType: "step" as const,
+        isStartNode,
+        isTerminalNode
+      });
+    }
+    return Object.freeze({
+      id: entry.chapter.id,
+      label: `Chapter: ${entry.chapter.title}`,
+      nodeType: "chapter" as const,
+      isStartNode,
+      isTerminalNode
+    });
+  });
+
+  const entryId = (entry: SequenceEntry): string =>
+    entry.kind === "step" ? entry.step.id : entry.chapter.id;
+  const nextSequenceId = (index: number): string | null =>
+    sequence[index + 1] ? entryId(sequence[index + 1]!) : null;
 
   const edges: BranchEdge[] = [];
-  document.steps.forEach((step, idx) => {
+  sequence.forEach((entry, index) => {
+    if (entry.kind === "chapter") {
+      const chapter = entry.chapter;
+      if (chapter.buttons.length > 0) {
+        chapter.buttons.forEach((button, bIdx) => {
+          if (button.actionType === "next") {
+            const targetId = nextSequenceId(index);
+            if (targetId) {
+              edges.push(
+                Object.freeze({
+                  id: `edge-btn-${chapter.id}-${bIdx}`,
+                  sourceNodeId: chapter.id,
+                  targetNodeId: targetId,
+                  label: button.label
+                })
+              );
+            }
+          } else if (button.actionType === "step") {
+            const targetId = button.targetStepId?.trim() || null;
+            // An explicit step target is an internal edge; a missing target is
+            // diagnosable through validateBranchingGraph. URL buttons are never
+            // internal edges (external/relative URLs are not trusted targets).
+            if (targetId) {
+              edges.push(
+                Object.freeze({
+                  id: `edge-btn-${chapter.id}-${bIdx}`,
+                  sourceNodeId: chapter.id,
+                  targetNodeId: targetId,
+                  label: button.label
+                })
+              );
+            }
+          }
+        });
+      } else {
+        // Chapters without buttons keep a deterministic sequential edge.
+        const targetId = nextSequenceId(index);
+        if (targetId) {
+          edges.push(
+            Object.freeze({
+              id: `edge-seq-${chapter.id}`,
+              sourceNodeId: chapter.id,
+              targetNodeId: targetId,
+              label: "Sequential Next"
+            })
+          );
+        }
+      }
+      return;
+    }
+
+    const step = entry.step;
+    const nextId = nextSequenceId(index);
     step.hotspots.forEach((hotspot, hIdx) => {
-      const targetId = hotspot.targetStepId ?? document.steps[idx + 1]?.id ?? null;
+      if (!isInternalHotspotAction(hotspot.actionType)) return;
+      const targetId = hotspot.targetStepId ?? nextId ?? null;
       if (targetId) {
         edges.push(
           Object.freeze({
@@ -57,9 +166,8 @@ export function buildBranchingGraphFromDocument(document: DemoDocument): BranchG
       }
     });
 
-    // Default sequential transition if step has no explicit hotspots
-    if (step.hotspots.length === 0 && idx < document.steps.length - 1) {
-      const nextId = document.steps[idx + 1]!.id;
+    // Default sequential transition if step has no internal hotspots.
+    if (!step.hotspots.some((hotspot) => isInternalHotspotAction(hotspot.actionType)) && nextId) {
       edges.push(
         Object.freeze({
           id: `edge-seq-${step.id}`,

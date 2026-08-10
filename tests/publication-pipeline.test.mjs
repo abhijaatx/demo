@@ -58,7 +58,10 @@ test("publishDemoDocument strips private chapter notes and unsafe destinations",
       {
         id: "chapter-1",
         type: "cta",
-        orderIndex: 0,
+        // Positioned after the only step so the end CTA stays a terminal node:
+        // a start chapter whose only button is an external URL would be a dead
+        // end under the chapter-aware branching graph (and block publishing).
+        orderIndex: 1,
         title: "Take action",
         bodyText: "Next step",
         mediaAssetId: null,
